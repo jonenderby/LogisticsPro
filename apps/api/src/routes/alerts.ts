@@ -87,6 +87,7 @@ export function alertRoutes(app: FastifyInstance, ctx: AppContext) {
     const account = me(ctx, req);
     const { ids } = parse(z.object({ ids: z.array(z.string()).optional() }), req.body ?? {});
     for (const i of ctx.store.notifications.get(account.id) ?? []) if (!ids || ids.includes(i.id)) i.read = true;
+    ctx.store.notifications.touch(account.id);
     return { ok: true };
   });
 }

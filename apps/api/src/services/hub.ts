@@ -36,7 +36,6 @@ interface Origin {
  * the sending organization's partner profile.
  */
 export class IntegrationHub {
-  readonly origins = new Map<string, Origin>();
   /** Called when a partner's API or EDI message creates or changes a load (tenders, tender responses). */
   onLoadSaved?: (prior: Load | undefined, next: Load) => void;
 
@@ -120,7 +119,7 @@ export class IntegrationHub {
     const refs = { loadId: load.id };
     const build = () => tenderResponseDoc(load, this.scacOf(load), decision, this.now().toISOString(), reason);
     const out: Transmission[] = [];
-    const origin = this.origins.get(load.id);
+    const origin = this.store.origins.get(load.id);
     if (origin) out.push(await this.toPartner(origin.carrierOrgId, origin.partnerKey, "TENDER_RESPONSE", build, refs));
     const t = await this.toOrg(this.tenderingOrg(load), "TENDER_RESPONSE", build, refs);
     if (t) out.push(t);
@@ -137,7 +136,7 @@ export class IntegrationHub {
       return doc;
     };
     if (!statusFromEvent(load, event, "XXXX")) return out; // internal-only event
-    const origin = this.origins.get(load.id);
+    const origin = this.store.origins.get(load.id);
     if (origin) out.push(await this.toPartner(origin.carrierOrgId, origin.partnerKey, "SHIPMENT_STATUS", build, refs));
     for (const orgId of new Set([load.shipperOrgId, load.brokerOrgId].filter((x): x is string => !!x))) {
       const t = await this.toOrg(orgId, "SHIPMENT_STATUS", build, refs);
@@ -155,7 +154,7 @@ export class IntegrationHub {
     const refs = { loadId: load.id, invoiceId: inv.id };
     const build = (): FreightInvoice => invoiceDoc(inv, load.paymentTerms, load.loadNumber);
     const out: Transmission[] = [];
-    const origin = this.origins.get(load.id);
+    const origin = this.store.origins.get(load.id);
     const partnerKey = inv.billTo.partnerKey ?? origin?.partnerKey;
     if (partnerKey) out.push(await this.toPartner(inv.carrierOrgId, partnerKey, "FREIGHT_INVOICE", build, refs));
     if (inv.billTo.orgId && this.store.orgs.has(inv.billTo.orgId)) {
@@ -185,7 +184,7 @@ export class IntegrationHub {
 
   /** A partner may only touch loads it carries (or tendered to us). */
   private assertPartnerOwns(load: Load, partnerKey: string): void {
-    if (load.externalCarrierKey !== partnerKey && this.origins.get(load.id)?.partnerKey !== partnerKey) {
+    if (load.externalCarrierKey !== partnerKey && this.store.origins.get(load.id)?.partnerKey !== partnerKey) {
       throw new HttpError(403, "FORBIDDEN", `Load ${load.loadNumber} is not with partner ${partnerKey}`);
     }
   }
@@ -255,7 +254,7 @@ export class IntegrationHub {
         };
         this.store.loads.set(load.id, load);
         this.onLoadSaved?.(existing, load);
-        this.origins.set(load.id, { carrierOrgId: orgId, partnerKey });
+        this.store.origins.set(load.id, { carrierOrgId: orgId, partnerKey });
         return { loadId: load.id, action: existing ? "updated" : "created" };
       }
       case "TENDER_RESPONSE": {

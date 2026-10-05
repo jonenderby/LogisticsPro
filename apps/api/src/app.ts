@@ -21,6 +21,7 @@ import { orgRoutes } from "./routes/orgs.js";
 import { Tokens } from "./security/tokens.js";
 import { AlertEngine } from "./services/alerts.js";
 import { Notifier } from "./services/notify.js";
+import { PgPersistence } from "./persistence/postgres.js";
 import { IntegrationHub } from "./services/hub.js";
 import { ExpoPushSender, NoPushSender, type PushSender } from "./services/push.js";
 import { alertRoutes } from "./routes/alerts.js";
@@ -47,6 +48,8 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   const cfg = { ...loadConfig(), ...opts.config };
   const now = opts.now ?? (() => new Date());
   const store = opts.store ?? new MemoryStore();
+  // With a database, load everything and keep it written through before serving.
+  const persistence = cfg.databaseUrl ? await PgPersistence.start({ url: cfg.databaseUrl, store, log: { info: (m) => console.info(m), error: (m, e) => console.error(m, e) } }) : undefined;
   const outbox = new OutboxTransport(cfg.ediOutboxDir);
   const station = opts.as2Identity ?? loadAs2Identity(cfg, (m) => console.warn(m));
   const as2Transport = new As2Transport(() => station, { fetch: opts.as2Fetch, receiptUrl: `${cfg.publicUrl}/as2` });
@@ -68,6 +71,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
     push: opts.push ?? (cfg.push === "off" ? new NoPushSender() : new ExpoPushSender(cfg.expoAccessToken)),
     notifier: undefined as unknown as Notifier,
     alerts: undefined as unknown as AlertEngine,
+    persistence,
     now,
   };
   ctx.notifier = new Notifier(ctx);
@@ -82,6 +86,15 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   }
   // AS2 bodies are binary (encrypted or signed MIME).
   app.addContentTypeParser(["application/pkcs7-mime", "application/x-pkcs7-mime", "multipart/signed"], { parseAs: "buffer" }, (_req, body, done) => done(null, body));
+
+  if (persistence) {
+    // A response is sent only once the changes it made are committed.
+    app.addHook("onSend", async (_req, _reply, payload) => {
+      await persistence.flush();
+      return payload;
+    });
+    app.addHook("onClose", async () => persistence.close());
+  }
 
   app.setErrorHandler((err, _req, reply) => {
     const http = toHttpError(err);
@@ -109,6 +122,8 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
 
   if (cfg.alertIntervalSeconds > 0) {
     const timer = setInterval(() => {
+      // With several servers, only the one holding the job lock runs jobs.
+      if (persistence && !persistence.isLeader()) return;
       void ctx.alerts.tick().catch((e) => app.log.error(e));
       void ctx.notifier.checkReceipts().catch((e) => app.log.error(e));
     }, cfg.alertIntervalSeconds * 1000);

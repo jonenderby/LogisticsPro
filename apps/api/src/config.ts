@@ -37,6 +37,8 @@ export interface Config {
   expoAccessToken?: string;
   /** How often arrival alerts are checked, in seconds. 0 turns the checker off. */
   alertIntervalSeconds: number;
+  /** Postgres connection string. Without it, data lives in memory only. */
+  databaseUrl?: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -65,5 +67,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     push: env.LP_PUSH === "off" ? "off" : "expo",
     expoAccessToken: env.LP_EXPO_ACCESS_TOKEN,
     alertIntervalSeconds: Number(env.LP_ALERT_INTERVAL_SECONDS ?? 60),
+    databaseUrl: env.LP_DATABASE_URL || env.DATABASE_URL || undefined,
   };
 }

@@ -10,6 +10,7 @@ import type { Tokens } from "./security/tokens.js";
 import type { AlertEngine } from "./services/alerts.js";
 import type { IntegrationHub } from "./services/hub.js";
 import type { Notifier } from "./services/notify.js";
+import type { PgPersistence } from "./persistence/postgres.js";
 import type { PushSender } from "./services/push.js";
 import { recordOutcome } from "./services/reliability.js";
 import type { MemoryStore } from "./store.js";
@@ -41,6 +42,8 @@ export interface AppContext {
   push: PushSender;
   notifier: Notifier;
   alerts: AlertEngine;
+  /** Postgres write-through and replication; absent when running in memory. */
+  persistence?: PgPersistence;
   now: () => Date;
 }
 

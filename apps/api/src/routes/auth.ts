@@ -39,7 +39,8 @@ const LOCK_MS = 15 * 60_000;
  * full session is issued only after a valid authenticator code.
  */
 export function authRoutes(app: FastifyInstance, ctx: AppContext) {
-  const failures = new Map<string, { count: number; until: number }>();
+  // Lockout is shared across API servers through the store.
+  const failures = ctx.store.loginFailures;
 
   /**
    * An authenticator code works once (RFC 6238 section 5.2): a code seen on
@@ -153,13 +154,17 @@ export function authRoutes(app: FastifyInstance, ctx: AppContext) {
     }
     // Rotate: each refresh token is single-use.
     rec.revoked = true;
+    ctx.store.refreshTokens.touch(sha256(refreshToken!));
     return issueSession(ctx.store.accounts.get(rec.accountId)!, req, reply);
   });
 
   app.post("/v1/auth/logout", async (req, reply) => {
     const refreshToken = refreshTokenFrom(req);
     const rec = refreshToken ? ctx.store.refreshTokens.get(sha256(refreshToken)) : undefined;
-    if (rec) rec.revoked = true;
+    if (rec) {
+      rec.revoked = true;
+      ctx.store.refreshTokens.touch(sha256(refreshToken!));
+    }
     if (isWeb(req)) setCookie(reply, "", 0);
     return { ok: true };
   });

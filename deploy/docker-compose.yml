@@ -16,9 +16,28 @@ services:
       LP_GEOCODER: nominatim
       LP_GEOCODER_URL: http://nominatim:8080
       LP_AS2_ID: ${LP_AS2_ID:-LOGISTICSPRO}
+      LP_DATABASE_URL: postgres://logisticspro:${DB_PASSWORD:-change-me}@db:5432/logisticspro
     volumes:
       - lp-data:/data   # keeps the AS2 station certificate across restarts
-    depends_on: [valhalla, nominatim]
+    depends_on:
+      db: { condition: service_healthy }
+      valhalla: { condition: service_started }
+      nominatim: { condition: service_started }
+    # Scale out with `docker compose up -d --scale api=3` behind a load balancer;
+    # every API server shares the database, and one runs background jobs.
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: logisticspro
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change-me}
+      POSTGRES_DB: logisticspro
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U logisticspro"]
+      interval: 5s
+      retries: 20
 
   valhalla:
     image: ghcr.io/valhalla/valhalla-scripted:latest
@@ -44,6 +63,7 @@ services:
       - nominatim-data:/var/lib/postgresql/16/main
 
 volumes:
+  db-data:
   lp-data:
   valhalla-files:
   nominatim-data:

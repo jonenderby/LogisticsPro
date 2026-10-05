@@ -47,6 +47,6 @@ describe("delivery receipts", () => {
     now += 6 * 60_000;
     expect(await h.ctx.notifier.checkReceipts()).toEqual({ checked: 2, forgotten: 1 });
     expect((await S.get("/v1/me/alert-preferences")).devices).toBe(1);
-    expect(h.ctx.store.pushTickets).toEqual([]);
+    expect(h.ctx.store.pushTickets).toHaveLength(0);
   });
 });

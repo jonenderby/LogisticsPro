@@ -51,7 +51,8 @@ export function recordFix(store: MemoryStore, accountId: string, fix: TrackPoint
   const track = store.tracks.get(accountId) ?? [];
   const prev = track[track.length - 1];
   if (prev && fix.at <= prev.at) return;
-  store.tracks.set(accountId, prune([...track, fix], now));
+  store.tracks.append(accountId, fix);
+  store.tracks.prune(accountId, new Date(now.getTime() - KEEP_MS).toISOString());
   if (!opts.autoDuty || onTeamTruck(store, accountId)) return;
   const status = store.dutyLogs.get(accountId)?.at(-1)?.status ?? "OFF_DUTY";
   if (isMoving(prev, fix)) {

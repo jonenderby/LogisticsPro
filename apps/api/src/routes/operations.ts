@@ -166,6 +166,7 @@ export function operationsRoutes(app: FastifyInstance, ctx: AppContext) {
     ctx.store.reads.set(`${account.id}:load:${load.id}`, ctx.now().toISOString());
     // Reading the thread clears its message notifications.
     for (const n of ctx.store.notifications.get(account.id) ?? []) if (n.kind === "MESSAGE" && n.loadId === load.id) n.read = true;
+    ctx.store.notifications.touch(account.id);
     return msgs.map((m) => ({ ...m, senderName: ctx.store.accounts.get(m.senderAccountId)?.name ?? "Logistics Pro" }));
   });
 

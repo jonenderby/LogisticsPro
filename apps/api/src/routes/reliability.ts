@@ -139,6 +139,7 @@ export function reliabilityRoutes(app: FastifyInstance, ctx: AppContext) {
     if (!hasOrgCap(ctx, account.id, miss.reportedByOrgId, "SHIP") && !hasOrgCap(ctx, account.id, miss.reportedByOrgId, "BROKER")) throw new HttpError(403, "FORBIDDEN", "Only the business that reported it can withdraw it");
     if (miss.withdrawnAt) return missView(miss);
     miss.withdrawnAt = ctx.now().toISOString();
+    ctx.store.appointmentMisses.touch(miss.loadId);
     const load = touch(miss);
     if (load) postMessage(ctx, load, { senderAccountId: account.id, senderOrgId: miss.reportedByOrgId, kind: "SYSTEM", body: `${name(miss.reportedByOrgId)} withdrew the missed ${miss.stopType === "PICKUP" ? "pickup" : "delivery"} appointment report` });
     return missView(miss);
@@ -151,6 +152,7 @@ export function reliabilityRoutes(app: FastifyInstance, ctx: AppContext) {
     if (!hasOrgCap(ctx, account.id, miss.carrierOrgId, "DISPATCH")) throw new HttpError(403, "FORBIDDEN", "Only the carrier charged with it can dispute it");
     const body = parse(z.object({ note: z.string().trim().min(1).max(1000) }), req.body);
     miss.dispute = { note: body.note, accountId: account.id, at: ctx.now().toISOString() };
+    ctx.store.appointmentMisses.touch(miss.loadId);
     const load = ctx.store.loads.get(miss.loadId);
     if (load && loadParties(load).includes(miss.carrierOrgId!)) postMessage(ctx, load, { senderAccountId: account.id, senderOrgId: miss.carrierOrgId, kind: "SYSTEM", body: `${name(miss.carrierOrgId!)} disputed the missed appointment: ${body.note}` });
     return missView(miss);

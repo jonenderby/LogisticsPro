@@ -17,7 +17,7 @@ import { type AppContext, HttpError, authenticate, hasOrgCap, me, parse, require
  */
 export function networkRoutes(app: FastifyInstance, ctx: AppContext) {
   const auth = { preHandler: authenticate(ctx) };
-  const attempts = new Map<string, number[]>();
+  const attempts = ctx.store.joinAttempts;
 
   const newCode = (orgId: string): JoinCode => {
     const raw = Array.from({ length: 8 }, () => JOIN_CODE_ALPHABET[randomInt(JOIN_CODE_ALPHABET.length)]).join("");
@@ -116,7 +116,10 @@ export function networkRoutes(app: FastifyInstance, ctx: AppContext) {
     ctx.store.joinRequests.set(id, next);
     if (decision === "approve") {
       const existing = ctx.store.memberships.find((m) => m.accountId === r.accountId && m.orgId === orgId);
-      if (existing) existing.roles = [...new Set([...existing.roles, "DRIVER" as const])];
+      if (existing) {
+        existing.roles = [...new Set([...existing.roles, "DRIVER" as const])];
+        ctx.store.memberships.touch(existing);
+      }
       else ctx.store.memberships.push({ accountId: r.accountId, orgId, roles: ["DRIVER"] });
       const driver = ctx.store.accounts.get(r.accountId)!;
       ctx.store.accounts.set(driver.id, { ...driver, driver: { endorsements: [], twicCard: false, ...driver.driver, homeCarrierOrgId: driver.driver?.homeCarrierOrgId ?? orgId } });
@@ -132,7 +135,7 @@ export function networkRoutes(app: FastifyInstance, ctx: AppContext) {
     const m = ctx.store.memberships.find((x) => x.accountId === accountId && x.orgId === orgId);
     if (!m) throw new HttpError(404, "NOT_FOUND", "Not a member");
     if (m.roles.includes("OWNER")) throw new HttpError(409, "OWNER", "The owner cannot be removed");
-    ctx.store.memberships = ctx.store.memberships.filter((x) => x !== m);
+    ctx.store.memberships.removeWhere((x) => x === m);
     return { ok: true };
   });
 
@@ -143,7 +146,7 @@ export function networkRoutes(app: FastifyInstance, ctx: AppContext) {
     const m = ctx.store.memberships.find((x) => x.accountId === account.id && x.orgId === orgId);
     if (!m) throw new HttpError(404, "NOT_FOUND", "You are not a member");
     if (m.roles.includes("OWNER")) throw new HttpError(409, "OWNER", "Owners cannot leave their own company");
-    ctx.store.memberships = ctx.store.memberships.filter((x) => x !== m);
+    ctx.store.memberships.removeWhere((x) => x === m);
     const acct = ctx.store.accounts.get(account.id)!;
     if (acct.driver?.homeCarrierOrgId === orgId) ctx.store.accounts.set(acct.id, { ...acct, driver: { ...acct.driver, homeCarrierOrgId: undefined } });
     return { ok: true };

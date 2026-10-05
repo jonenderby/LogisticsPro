@@ -17,6 +17,10 @@
     "@logisticspro/workspace": "*",
     "fastify": "^5.12.5",
     "jose": "^6.2.12",
+    "pg": "^8.23.1",
     "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1"
   }
 }

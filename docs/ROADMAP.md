@@ -3,7 +3,7 @@
 What is built and tested is described in the README. This is what remains before a production launch, roughly in priority order.
 
 ## Must have before real customers
-- **Database.** The API stores everything in memory and loses it on restart. Replace `MemoryStore` with PostgreSQL (loads as JSONB with indexed columns for status, parties and load number), and keep the transmission log for audit.
+- **Database at scale.** Postgres persistence and multiple servers are built (see [ARCHITECTURE.md](ARCHITECTURE.md)). Every server still holds the full data set in memory, which suits thousands of loads a day, not millions. Past that, move hot collections (loads, messages, transmissions) to their own tables with indexed columns, read them per request, and use transactions for contested updates such as awarding a bid.
 - **Carrier onboarding and certification.** The catalog seeds methods per carrier, but each carrier still needs credentials (API keys or OAuth clients stored as secrets), its exact field names as a field map, and EDI test cycles against its implementation guide. Start with the carriers your first customers use.
 - **EDI connectivity.** AS2 is built in (central station, signed and encrypted, synchronous MDNs). Still to do: asynchronous MDNs, AS2 compression, certificate-exchange messages, and a native SFTP/VAN client (today those go through an outbox directory).
 - **Map servers.** Run Valhalla and Nominatim (or Pelias) with the full North America extract; see [NAVIGATION.md](NAVIGATION.md).

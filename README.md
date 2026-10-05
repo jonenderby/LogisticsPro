@@ -90,4 +90,4 @@ Copy `.env.example` to `.env` and set `LP_JWT_SECRET` before running anywhere bu
 
 ## Status
 
-This is a working foundation, not a production launch. The API keeps data in memory, carrier connections still need each carrier's credentials and certification, and the phone apps have been bundled for iOS and Android and exercised in a browser, but not yet run on physical devices. [docs/ROADMAP.md](docs/ROADMAP.md) lists what remains.
+This is a working foundation, not a production launch. Data is kept in Postgres when `LP_DATABASE_URL` is set (in memory otherwise), carrier connections still need each carrier's credentials and certification, and the phone apps have been bundled for iOS and Android and exercised in a browser, but not yet run on physical devices. [docs/ROADMAP.md](docs/ROADMAP.md) lists what remains.

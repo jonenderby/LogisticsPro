@@ -65,7 +65,7 @@ export class Notifier {
     const store = this.ctx.store;
     const now = this.ctx.now().getTime();
     const due = store.pushTickets.filter((t) => now - Date.parse(t.at) >= RECEIPT_AFTER_MS && now - Date.parse(t.at) < RECEIPT_KEEP_MS);
-    store.pushTickets = store.pushTickets.filter((t) => now - Date.parse(t.at) < RECEIPT_AFTER_MS);
+    store.pushTickets.removeWhere((t) => now - Date.parse(t.at) >= RECEIPT_AFTER_MS);
     if (!due.length || !sender.receipts) return { checked: 0, forgotten: 0 };
     let receipts: Awaited<ReturnType<NonNullable<typeof sender.receipts>>>;
     try {

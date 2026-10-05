@@ -65,7 +65,10 @@ export function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const member = ctx.store.accountByEmail(body.email);
     if (!member) throw new HttpError(404, "NOT_FOUND", "No account with that email; ask them to sign up first");
     const existing = ctx.store.memberships.find((m) => m.accountId === member.id && m.orgId === orgId);
-    if (existing) existing.roles = [...new Set([...existing.roles, ...body.roles])];
+    if (existing) {
+      existing.roles = [...new Set([...existing.roles, ...body.roles])];
+      ctx.store.memberships.touch(existing);
+    }
     else ctx.store.memberships.push({ accountId: member.id, orgId, roles: body.roles });
     if (body.roles.includes("DRIVER") && !member.driver) {
       ctx.store.accounts.set(member.id, { ...member, driver: { endorsements: [], twicCard: false, homeCarrierOrgId: orgId } });

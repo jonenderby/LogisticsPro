@@ -1,6 +1,7 @@
 import type { Account, AlertPreferences, AppointmentMiss, ArrivalStatus, Bid, DutyEvent, HosCycle, TrackPoint, Invoice, JoinCode, JoinRequest, Load, LoadException, Membership, Message, Organization, ShipmentOutcome } from "@logisticspro/domain";
 import type { PartnerProfile, Transmission } from "@logisticspro/integration";
 import type { Violation } from "@logisticspro/navigation";
+import { AppendLog, type ChangeSink, type Persisted, PersistentList, PersistentMap } from "./persistence/collections.js";
 
 export interface StoredProfile extends PartnerProfile {
   /** sha256 of the token partners send on inbound requests. */
@@ -61,62 +62,85 @@ export interface NavigationViolationRecord extends Violation {
  * implementation can replace it behind the same shape.
  */
 export class MemoryStore {
-  accounts = new Map<string, Account>();
-  orgs = new Map<string, Organization>();
-  memberships: Membership[] = [];
-  loads = new Map<string, Load>();
-  bids = new Map<string, Bid>();
-  invoices = new Map<string, Invoice>();
-  messages: Message[] = [];
+  accounts = new PersistentMap<Account>("accounts");
+  orgs = new PersistentMap<Organization>("orgs");
+  memberships = PersistentList.create<Membership>("memberships", (m) => `${m.accountId}:${m.orgId}`);
+  loads = new PersistentMap<Load>("loads");
+  bids = new PersistentMap<Bid>("bids");
+  invoices = new PersistentMap<Invoice>("invoices");
+  messages = PersistentList.create<Message>("messages", (m) => m.id);
   /** key: `${ownerOrgId}:${partnerKey}`; the org's own receiving preferences use partnerKey "receiving". */
-  profiles = new Map<string, StoredProfile>();
-  transmissions: Transmission[] = [];
-  refreshTokens = new Map<string, RefreshToken>();
-  violations: NavigationViolationRecord[] = [];
+  profiles = new PersistentMap<StoredProfile>("profiles");
+  transmissions = PersistentList.create<Transmission>("transmissions", (t) => t.id);
+  refreshTokens = new PersistentMap<RefreshToken>("refreshTokens");
+  violations = PersistentList.create<NavigationViolationRecord>("violations", (v) => v.id);
   /** last-read message timestamp per account+thread */
-  reads = new Map<string, string>();
+  reads = new PersistentMap<string>("reads");
   /** Current join code per carrier org. */
-  joinCodes = new Map<string, JoinCode>();
-  joinRequests = new Map<string, JoinRequest>();
+  joinCodes = new PersistentMap<JoinCode>("joinCodes");
+  joinRequests = new PersistentMap<JoinRequest>("joinRequests");
   /** Over/short/damage reports per load. */
-  exceptions = new Map<string, LoadException[]>();
+  exceptions = new PersistentMap<LoadException[]>("exceptions");
   /** Delivered-shipment outcomes used for reliability. Keyed by load id, plus "<loadId>#<carrierKey>" for carriers that missed an appointment and did not deliver. */
-  outcomes = new Map<string, ShipmentOutcome>();
+  outcomes = new PersistentMap<ShipmentOutcome>("outcomes");
   /** Missed appointments reported by businesses, by load id. */
-  appointmentMisses = new Map<string, AppointmentMiss[]>();
+  appointmentMisses = new PersistentMap<AppointmentMiss[]>("appointmentMisses");
   /** Latest reported position per driver account. */
-  positions = new Map<string, DriverPosition>();
+  positions = new PersistentMap<DriverPosition>("positions");
   /** Duty status log per driver (hours of service). */
-  dutyLogs = new Map<string, DutyEvent[]>();
+  dutyLogs = new PersistentMap<DutyEvent[]>("dutyLogs");
   /** Location trail per driver, kept for 9 days, for miles driven. */
-  tracks = new Map<string, TrackPoint[]>();
+  tracks = new AppendLog<TrackPoint>("tracks");
   /** Hours-of-service cycle per driver. */
-  hosSettings = new Map<string, { cycle: HosCycle }>();
+  hosSettings = new PersistentMap<{ cycle: HosCycle }>("hosSettings");
   /** Since when a driver's truck has been stopped while driving (automatic duty status). */
-  stoppedSince = new Map<string, string>();
+  stoppedSince = new PersistentMap<string>("stoppedSince");
   /** Arrival alert settings per account. */
-  alertPrefs = new Map<string, AlertPreferences>();
+  alertPrefs = new PersistentMap<AlertPreferences>("alertPrefs");
   /** Last authenticator step accepted per account; older or equal codes are refused. */
-  totpLastStep = new Map<string, number>();
+  totpLastStep = new PersistentMap<number>("totpLastStep");
   /** Tender and message notification switches per account. */
-  notificationSettings = new Map<string, NotificationSettings>();
+  notificationSettings = new PersistentMap<NotificationSettings>("notificationSettings");
   /** Pushes accepted by Expo whose delivery receipts are still to be checked. */
-  pushTickets: Array<{ id: string; token: string; at: string }> = [];
+  pushTickets = PersistentList.create<{ id: string; token: string; at: string }>("pushTickets", (t) => t.id);
+  /** Partner that sent each inbound tender, by load id (to route its responses back). */
+  origins = new PersistentMap<{ carrierOrgId: string; partnerKey: string }>("origins");
+  /** Failed sign-ins per email, for lockout. */
+  loginFailures = new PersistentMap<{ count: number; until: number }>("loginFailures");
+  /** Join code attempts per account in the last hour. */
+  joinAttempts = new PersistentMap<number[]>("joinAttempts");
   /** Phone push tokens per account. */
-  pushTokens = new Map<string, PushToken[]>();
+  pushTokens = new PersistentMap<PushToken[]>("pushTokens");
   /** In-app alert inbox per account, newest first. */
-  notifications = new Map<string, InboxItem[]>();
+  notifications = new PersistentMap<InboxItem[]>("notifications");
   /** Last arrival status the alert engine saw per load. */
-  arrivalSeen = new Map<string, ArrivalStatus>();
+  arrivalSeen = new PersistentMap<ArrivalStatus>("arrivalSeen");
   /** Last instant alert per "<accountId>:<loadId>", to suppress flip-flops. */
-  alertSent = new Map<string, { status: string; at: string }>();
+  alertSent = new PersistentMap<{ status: string; at: string }>("alertSent");
   /** Scheduled summary slots already sent, "<accountId>:<slot>" to when it was sent. */
-  digestsSent = new Map<string, string>();
+  digestsSent = new PersistentMap<string>("digestsSent");
   private loadCounter = 100_000;
+  private loadNumberSource?: () => number;
 
   nextLoadNumber(): string {
-    this.loadCounter += 1;
-    return `LP-${this.loadCounter}`;
+    return `LP-${this.loadNumberSource ? this.loadNumberSource() : ++this.loadCounter}`;
+  }
+
+  /** Several API servers draw load numbers from blocks reserved in the database. */
+  useLoadNumbers(source: () => number): void {
+    this.loadNumberSource = source;
+  }
+
+  /** Every persisted collection, by name. */
+  collections(): Map<string, Persisted> {
+    const out = new Map<string, Persisted>();
+    for (const value of Object.values(this)) if (value instanceof PersistentMap || value instanceof PersistentList || value instanceof AppendLog) out.set(value.collection, value);
+    return out;
+  }
+
+  /** Report every change to `sink` (the database layer). */
+  attach(sink: ChangeSink): void {
+    for (const c of this.collections().values()) c.sink = sink;
   }
 
   accountByEmail(email: string): Account | undefined {

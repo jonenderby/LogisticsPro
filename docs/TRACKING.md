@@ -125,5 +125,4 @@ The website draws maps with Leaflet. By default it uses OpenStreetMap's public t
 
 - Distances are estimates, not road routes. Valhalla could supply exact route times later.
 - Hours-of-service is estimated, not read from an ELD.
-- Positions, alert settings and alert history are kept in memory with the rest of the store.
-- The alert check runs in the API process. With several API servers, run it on one of them only.
+- With several API servers, the alert check runs on the one holding the job lock.
