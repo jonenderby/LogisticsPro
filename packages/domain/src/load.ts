@@ -195,6 +195,8 @@ export const Load = z.object({
   shipConfirmedAt: z.string().optional(),
   pickedUpAt: z.string().optional(),
   deliveredAt: z.string().optional(),
+  /** When the current carrier was given the load. A carrier is never charged for an appointment missed before this. */
+  carrierSince: z.string().optional(),
   legs: z.array(Leg).default([]),
   events: z.array(LoadEvent).default([]),
   documents: z.array(LoadDocument).default([]),

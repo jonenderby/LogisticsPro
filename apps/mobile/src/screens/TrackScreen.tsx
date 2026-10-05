@@ -25,7 +25,7 @@ interface Shipment {
 interface FleetDriver {
   accountId: string;
   name: string;
-  state: "ON_LOAD" | "AVAILABLE" | "OFFLINE";
+  state: "ON_LOAD" | "AVAILABLE" | "OFFLINE" | "OTHER_CARRIER";
   position?: { geo: { lat: number; lng: number }; at: string; speedMps?: number; stale: boolean };
   load?: { id: string; loadNumber: string; status: string; origin: string; destination: string; customerName?: string; eta: Eta };
 }
@@ -44,6 +44,13 @@ function Tiles({ items }: { items: Array<{ label: string; value: number; tone: T
     </View>
   );
 }
+
+const STATE: Record<FleetDriver["state"], { label: string; tone: Tone }> = {
+  ON_LOAD: { label: "On a load", tone: "info" },
+  AVAILABLE: { label: "Available", tone: "success" },
+  OFFLINE: { label: "Offline", tone: "neutral" },
+  OTHER_CARRIER: { label: "Other carrier", tone: "neutral" },
+};
 
 /** Shippers and 3PLs: every undelivered shipment with its ETA and arrival status. */
 function Shipments() {
@@ -96,7 +103,7 @@ function Fleet() {
   const nav = useNav();
   const { wide } = useLayout();
   const { dark } = useTheme();
-  const [data, setData] = useState<{ name: string; summary: Summary; trucks: { total: number; onLoad: number; available: number; offline: number }; drivers: FleetDriver[] }>();
+  const [data, setData] = useState<{ name: string; summary: Summary; trucks: { total: number; onLoad: number; available: number; offline: number; otherCarrier?: number }; drivers: FleetDriver[] }>();
   const load = useCallback(async () => setData(await api.get("/v1/tracking/fleet")), []);
   usePolling(load);
   if (!data) return null;
@@ -113,6 +120,7 @@ function Fleet() {
           { label: "On a load", value: data.trucks.onLoad, tone: "info" },
           { label: "Available", value: data.trucks.available, tone: "success" },
           { label: "Offline", value: data.trucks.offline, tone: "neutral" },
+          ...(data.trucks.otherCarrier ? [{ label: "With another carrier", value: data.trucks.otherCarrier, tone: "neutral" as Tone }] : []),
           { label: "Late", value: data.summary.LATE, tone: "danger" },
           { label: "At risk", value: data.summary.AT_RISK, tone: "warning" },
         ]}
@@ -125,8 +133,8 @@ function Fleet() {
           <Row
             key={d.accountId}
             title={d.name}
-            subtitle={d.load ? `${d.load.loadNumber} · ${d.load.origin} → ${d.load.destination}\n${etaLine(d.load.eta)}${d.load.eta.reasons[0] ? `\n${d.load.eta.reasons[0]}` : ""}` : `${d.state === "AVAILABLE" ? "Available" : "Offline"} · last seen ${ago(d.position?.at)}`}
-            right={d.load ? <ArrivalChip eta={d.load.eta} /> : <Chip label={d.state === "AVAILABLE" ? "Available" : "Offline"} tone={d.state === "AVAILABLE" ? "success" : "neutral"} />}
+            subtitle={d.load ? `${d.load.loadNumber} · ${d.load.origin} → ${d.load.destination}\n${etaLine(d.load.eta)}${d.load.eta.reasons[0] ? `\n${d.load.eta.reasons[0]}` : ""}` : d.state === "OTHER_CARRIER" ? "Driving a load for another carrier they work with" : `${d.state === "AVAILABLE" ? "Available" : "Offline"} · last seen ${ago(d.position?.at)}`}
+            right={d.load ? <ArrivalChip eta={d.load.eta} /> : <Chip label={STATE[d.state].label} tone={STATE[d.state].tone} />}
             onPress={d.load ? () => nav.navigate("LoadDetail", { id: d.load!.id }) : undefined}
           />
         ))}

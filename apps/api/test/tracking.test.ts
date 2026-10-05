@@ -44,7 +44,7 @@ describe("live tracking", () => {
   it("shows a carrier every truck under its umbrella with load and arrival status", async () => {
     const { F, onTime, quiet, missed } = await world();
     const fleet = await F.get("/v1/tracking/fleet");
-    expect(fleet.trucks).toEqual({ total: 5, onLoad: 3, available: 1, offline: 1 });
+    expect(fleet.trucks).toEqual({ total: 5, onLoad: 3, otherCarrier: 0, available: 1, offline: 1 });
     expect(fleet.summary).toMatchObject({ LATE: 1, AT_RISK: 1, ON_TIME: 1 });
     expect(fleet.drivers.map((d: { name: string; state: string; load?: { loadNumber: string; eta: { status: string } } }) => [d.name, d.state, d.load?.loadNumber, d.load?.eta.status])).toEqual([
       ["Cal", "ON_LOAD", missed.loadNumber, "LATE"],
@@ -90,6 +90,22 @@ describe("live tracking", () => {
     await F.get("/v1/tracking/shipments", 403);
     await S.post("/v1/me/location", { lat: 1, lng: 1 }, 403);
     await drivers[0]!.api.post("/v1/me/location", { lat: 1, lng: 1, at: "2026-10-09T15:00:00Z" }, 400);
+  });
+
+  it("shows a driver shared with another carrier as busy, without location, while hauling for that carrier", async () => {
+    const { h, drivers } = await world();
+    const O = api(h, await signUp(h, "CARRIER", "Other Owner"));
+    const other = (await O.post("/v1/orgs", { name: "Other Fleet", kinds: ["CARRIER"], scac: "OTHR" })).org;
+    await O.post(`/v1/orgs/${other.id}/members`, { email: drivers[0]!.email, roles: ["DRIVER"] }, 201);
+    await O.post(`/v1/orgs/${other.id}/members`, { email: drivers[3]!.email, roles: ["DRIVER"] }, 201);
+    const fleet = await O.get("/v1/tracking/fleet");
+    const ana = fleet.drivers.find((d: { name: string }) => d.name === "Ana")!;
+    expect(ana).toMatchObject({ state: "OTHER_CARRIER" });
+    expect(ana.position).toBeUndefined();
+    expect(ana.load).toBeUndefined();
+    // Dot is free, so either carrier can see where she is.
+    expect(fleet.drivers.find((d: { name: string }) => d.name === "Dot")).toMatchObject({ state: "AVAILABLE" });
+    expect(fleet.trucks).toMatchObject({ total: 2, otherCarrier: 1, available: 1 });
   });
 
   it("gives each party on a load its arrival estimate, and nobody else", async () => {

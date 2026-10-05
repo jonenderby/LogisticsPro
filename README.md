@@ -73,6 +73,7 @@ Copy `.env.example` to `.env` and set `LP_JWT_SECRET` before running anywhere bu
 | EDI send and receive, central AS2 | `packages/integration/src/as2` and `apps/api/src/routes/as2.ts`; see [docs/EDI_AS2.md](docs/EDI_AS2.md) |
 | Truckers belong to carriers, join codes | `apps/api/src/routes/network.ts`; see [docs/NETWORK_AND_RELIABILITY.md](docs/NETWORK_AND_RELIABILITY.md) |
 | Reliability profiles (drivers and carriers, overall and per business) | `packages/domain/src/reliability.ts`, `apps/api/src/routes/reliability.ts` |
+| Businesses ding carriers for missed appointments; truckers in several carriers only affect the carrier hauling | `AppointmentMiss` and `missedAppointmentOutcomes` in `packages/domain/src/reliability.ts`; see [docs/NETWORK_AND_RELIABILITY.md](docs/NETWORK_AND_RELIABILITY.md#missed-appointments) |
 | Carriers see every truck; shippers and 3PLs see every undelivered shipment with ETA and late, at risk, on time or early | `packages/domain/src/eta.ts`, `apps/api/src/routes/tracking.ts`, `apps/mobile/src/screens/TrackScreen.tsx`; see [docs/TRACKING.md](docs/TRACKING.md) |
 | Standard and oversize navigation | `packages/navigation`; the app screen is `apps/mobile/src/screens/NavigateScreen.tsx` |
 | A webpage with the same data | The Expo web build, served by the API (`LP_WEB_DIR`); wide-screen layouts in `apps/mobile/src/ui/responsive.ts`, URLs in `apps/mobile/src/navigation/linking.ts` |

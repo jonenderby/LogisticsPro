@@ -8,7 +8,10 @@ import {
   driverReliability,
   planRelay,
   reliabilityByBusiness,
+  handoffLegs,
+  missedAppointmentOutcomes,
   shipmentOutcome,
+  type AppointmentMiss,
 } from "../src/index.js";
 import { NASHVILLE_YARD, makeLoad } from "./fixtures.js";
 
@@ -81,5 +84,48 @@ describe("shipment outcomes", () => {
     const o = shipmentOutcome(load, [{ id: "x", loadId: load.id, type: "DAMAGE", note: "Crushed pallet", reportedByAccountId: "s", at: "2026-10-08T20:00:00Z" }]);
     expect(o).toMatchObject({ onTimePickup: true, onTimeDelivery: false, damageFree: false, pickupDriverIds: ["d1"], deliveryDriverIds: ["d2", "d3"], businessOrgIds: ["org_shipper"] });
     expect(o.driverIds.sort()).toEqual(["d1", "d2", "d3"]);
+  });
+});
+
+describe("missed appointments", () => {
+  const miss = (over: Partial<AppointmentMiss>): AppointmentMiss => ({
+    id: "m1",
+    loadId: "load_1",
+    loadNumber: "LP-1",
+    stopId: "s1",
+    stopType: "PICKUP",
+    appointmentAt: "2026-10-06T15:00:00Z",
+    kind: "NO_SHOW",
+    note: "",
+    carrierKey: "carrierA",
+    carrierOrgId: "carrierA",
+    driverIds: ["d1"],
+    businessOrgIds: ["org_shipper"],
+    reportedByAccountId: "s",
+    reportedByOrgId: "org_shipper",
+    at: "2026-10-06T16:00:00Z",
+    ...over,
+  });
+
+  it("override the reported pickup time for the carrier that missed, and nobody else", () => {
+    let load = makeLoad({ id: "load_1", carrierOrgId: "carrierA" });
+    load = { ...load, legs: handoffLegs(load.stops) };
+    load = assignLeg(load, load.legs[0]!.id, { driverAccountIds: ["d1"] });
+    load = applyStatusEvent(load, { code: "LOADED", at: "2026-10-06T14:00:00Z", source: "APP" });
+    load = applyStatusEvent(load, { code: "DELIVERED", at: "2026-10-08T15:00:00Z", source: "APP" });
+    expect(shipmentOutcome(load, [], undefined, [miss({})])).toMatchObject({ onTimePickup: false, missedPickup: true, carrierKey: "carrierA" });
+    expect(shipmentOutcome(load, [], undefined, [miss({ carrierKey: "carrierB", carrierOrgId: "carrierB" })])).toMatchObject({ onTimePickup: true, missedPickup: false });
+    expect(shipmentOutcome(load, [], undefined, [miss({ withdrawnAt: "2026-10-07T00:00:00Z" })]).onTimePickup).toBe(true);
+    expect(missedAppointmentOutcomes(load, [miss({})])).toEqual([]);
+  });
+
+  it("give a carrier that lost the load its own outcome, and leave a shared driver's other carrier alone", () => {
+    const load = makeLoad({ id: "load_1", status: "CANCELLED" });
+    const [o] = missedAppointmentOutcomes(load, [miss({})]);
+    expect(o).toMatchObject({ carrierKey: "carrierA", onTimePickup: false, onTimeDelivery: null, damageFree: null, pickupDriverIds: ["d1"] });
+    expect(carrierReliability([o!], "carrierA", 1).overall).toMatchObject({ shipments: 1, onTimePickupPct: 0, damageFreePct: null, missedAppointments: 1, score: 0 });
+    expect(carrierReliability([o!], "carrierB", 1).overall).toMatchObject({ shipments: 0, score: null });
+    expect(driverReliability([o!], "d1", undefined, "carrierB").forCarrier).toMatchObject({ shipments: 0 });
+    expect(driverReliability([o!], "d1", undefined, "carrierA").forCarrier).toMatchObject({ shipments: 1, missedAppointments: 1 });
   });
 });

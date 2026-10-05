@@ -156,7 +156,7 @@ export function BusinessScreen() {
             </Padded>
           </Section>
           {isCarrier ? <DriverNetworkSection orgId={orgId} onChange={refresh} /> : null}
-          {isCarrier && reliability ? <ReliabilitySections profile={reliability} subject="carrier" /> : null}
+          {isCarrier && reliability ? <ReliabilitySections profile={reliability} subject="carrier" canDispute={orgsWithRole("OWNER", "ADMIN", "DISPATCHER").includes(orgId)} onChanged={refresh} /> : null}
           {isCarrier ? (
             <Section title="Distribution centers" footer="Route LTL shipments through a DC to combine loads headed to the same area.">
               {detail.org.distributionCenters.map((d) => (

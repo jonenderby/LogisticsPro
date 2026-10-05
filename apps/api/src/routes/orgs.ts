@@ -82,7 +82,7 @@ export function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const { businessOrgId } = req.query as { businessOrgId?: string };
     return ctx.store.memberships
       .filter((m) => m.orgId === orgId && m.roles.includes("DRIVER"))
-      .map((m) => ({ ...toPublicAccount(ctx.store.accounts.get(m.accountId)!), reliability: driverProfile(ctx.store, m.accountId, businessOrgId) }));
+      .map((m) => ({ ...toPublicAccount(ctx.store.accounts.get(m.accountId)!), reliability: driverProfile(ctx.store, m.accountId, businessOrgId, orgId) }));
   });
 
   app.post("/v1/orgs/:orgId/distribution-centers", auth, async (req, reply) => {

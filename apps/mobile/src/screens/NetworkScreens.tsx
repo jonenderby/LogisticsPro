@@ -5,6 +5,7 @@ import { View } from "react-native";
 import { api, errorMessage } from "../api/client";
 import { useNav } from "../navigation/types";
 import { useMe } from "../state/MeProvider";
+import { MissRow, type MissView } from "../ui/Appointments";
 import { Banner, Body, Button, Chip, Empty, Field, Padded, Row, Screen, Section } from "../ui/components";
 import { confirm, notify } from "../ui/dialog";
 import { when } from "../ui/format";
@@ -144,11 +145,13 @@ interface Profile {
   overall: Score;
   forBusiness?: Score;
   byBusiness?: Array<Score & { businessOrgId: string; businessName: string }>;
+  byCarrier?: Array<Score & { carrierKey: string; carrierName: string }>;
+  appointmentMisses?: MissView[];
   windows: { overall: number; perBusiness: number };
   truckers?: number;
 }
 
-export function ReliabilitySections({ profile, subject }: { profile: Profile; subject: "carrier" | "driver" }) {
+export function ReliabilitySections({ profile, subject, canDispute, onChanged }: { profile: Profile; subject: "carrier" | "driver"; canDispute?: boolean; onChanged?: () => unknown }) {
   return (
     <>
       <Section
@@ -161,6 +164,20 @@ export function ReliabilitySections({ profile, subject }: { profile: Profile; su
         <Section title="By customer" footer="Each customer sees only its own relationship, plus the overall score.">
           {profile.byBusiness.map((b) => (
             <ScoreRow key={b.businessOrgId} title={b.businessName} score={b} />
+          ))}
+        </Section>
+      ) : null}
+      {profile.byCarrier?.length ? (
+        <Section title="By carrier" footer="You drive for more than one carrier. Each carrier is scored only on the loads you hauled for it.">
+          {profile.byCarrier.map((c) => (
+            <ScoreRow key={c.carrierKey} title={c.carrierName} score={c} />
+          ))}
+        </Section>
+      ) : null}
+      {profile.appointmentMisses?.length ? (
+        <Section title="Missed appointments" footer="Reported by customers. Each counts as a missed on-time pickup or delivery until the customer withdraws it.">
+          {profile.appointmentMisses.map((m) => (
+            <MissRow key={m.id} miss={m} showLoad canDispute={canDispute} onChanged={onChanged ?? (() => undefined)} />
           ))}
         </Section>
       ) : null}

@@ -1,5 +1,5 @@
 import type { Account, Load, Message } from "@logisticspro/domain";
-import { DomainError, loadParties, newId } from "@logisticspro/domain";
+import { DomainError, carrierKeyOf, loadParties, newId } from "@logisticspro/domain";
 import type { As2Identity, As2Transport, IntegrationEngine } from "@logisticspro/integration";
 import type { Geocoder, RoutingProvider } from "@logisticspro/navigation";
 import { type Capability, type ResolvedCapabilities, resolveCapabilities } from "@logisticspro/workspace";
@@ -104,6 +104,9 @@ export function getLoad(ctx: AppContext, accountId: string, id: string): Load {
 }
 
 export function saveLoad(ctx: AppContext, load: Load): Load {
+  const prior = ctx.store.loads.get(load.id);
+  const key = carrierKeyOf(load);
+  if (key !== (prior ? carrierKeyOf(prior) : undefined)) load = { ...load, carrierSince: key ? ctx.now().toISOString() : undefined };
   ctx.store.loads.set(load.id, load);
   recordOutcome(ctx.store, load);
   return load;

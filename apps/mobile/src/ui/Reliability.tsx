@@ -7,6 +7,7 @@ export interface Score {
   onTimePickupPct: number | null;
   onTimeDeliveryPct: number | null;
   damageFreePct: number | null;
+  missedAppointments?: number;
   score: number | null;
 }
 
@@ -18,7 +19,7 @@ export function ScoreRow({ title, score }: { title: string; score: Score }) {
   return (
     <Row
       title={title}
-      subtitle={score.shipments ? `On-time pickup ${fmt(score.onTimePickupPct)} · delivery ${fmt(score.onTimeDeliveryPct)} · damage-free ${fmt(score.damageFreePct)}\nLast ${score.shipments.toLocaleString()} of up to ${score.window.toLocaleString()} shipments` : `No delivered shipments yet (window: last ${score.window.toLocaleString()})`}
+      subtitle={score.shipments ? `On-time pickup ${fmt(score.onTimePickupPct)} · delivery ${fmt(score.onTimeDeliveryPct)} · damage-free ${fmt(score.damageFreePct)}${score.missedAppointments ? `\n${score.missedAppointments} missed appointment${score.missedAppointments === 1 ? "" : "s"} reported` : ""}\nLast ${score.shipments.toLocaleString()} of up to ${score.window.toLocaleString()} shipments` : `No delivered shipments yet (window: last ${score.window.toLocaleString()})`}
       right={<Chip label={score.score === null ? "New" : `${fmt(score.score)}`} tone={scoreTone(score.score)} />}
     />
   );

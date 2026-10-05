@@ -171,6 +171,24 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
     return { load: next, transmissions };
   });
 
+  /**
+   * Take the load back from its carrier before pickup (after a no-show, for
+   * example) so it can go to another carrier. The old carrier is told it is
+   * cancelled for them. Anything they missed stays on their record only.
+   */
+  app.post("/v1/loads/:id/release-carrier", auth, async (req) => {
+    const account = me(ctx, req);
+    const load = getLoad(ctx, account.id, (req.params as { id: string }).id);
+    if (!canShip(ctx, account.id, load)) throw new HttpError(403, "FORBIDDEN", "Only the shipper or broker can release the carrier");
+    if (!load.carrierOrgId && !load.externalCarrierKey) throw new HttpError(409, "NO_CARRIER", "This load has no carrier");
+    if (load.pickedUpAt || !["TENDERED", "BOOKED", "DISPATCHED", "AT_PICKUP"].includes(load.status)) throw new HttpError(409, "LOAD_LOCKED", "The carrier already has the freight");
+    const from = load.carrierOrgId ? (ctx.store.orgs.get(load.carrierOrgId)?.name ?? "the carrier") : load.externalCarrierKey!;
+    postMessage(ctx, load, { senderAccountId: account.id, kind: "SYSTEM", body: `Load released from ${from}. It will go to another carrier.` });
+    const transmissions = await ctx.hub.tender(load, "CANCEL");
+    const next = saveLoad(ctx, { ...load, status: "DRAFT", carrierOrgId: undefined, externalCarrierKey: undefined, legs: [], version: load.version + 1, updatedAt: ctx.now().toISOString() });
+    return { load: next, transmissions };
+  });
+
   // ---------------------------------------------------------------- load board & bids
 
   app.post("/v1/loads/:id/post", auth, async (req) => {

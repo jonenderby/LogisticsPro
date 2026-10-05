@@ -1,3 +1,4 @@
+import { ON_TIME_GRACE_MINUTES, carrierKeyOf } from "@logisticspro/domain";
 import { nextDriverAction } from "@logisticspro/workspace";
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useState } from "react";
@@ -12,11 +13,17 @@ import { Banner, Body, Button, Chip, Field, Padded, Row, Screen, Section, Segmen
 import { money, titleCase, when } from "../ui/format";
 import { type Score, ScoreChip } from "../ui/Reliability";
 import { ArrivalChip, type Eta, ago, time } from "../ui/arrival";
+import { MissRow, type MissView } from "../ui/Appointments";
 
 type BidView = Bid & { carrierName?: string; reliability?: { overall: Score; withYou?: Score; truckers: number } };
 interface Tracking {
   eta: Eta;
   truck?: { geo: { lat: number; lng: number }; at: string; stale: boolean };
+}
+interface CarrierScore {
+  name: string;
+  overall: Score;
+  forBusiness?: Score;
 }
 const TRACKED = ["TENDERED", "BOOKED", "DISPATCHED", "AT_PICKUP", "IN_TRANSIT", "AT_DELIVERY"];
 interface LoadExceptionView {
@@ -38,6 +45,12 @@ export function LoadDetailScreen() {
   const [bids, setBids] = useState<BidView[]>([]);
   const [exceptions, setExceptions] = useState<LoadExceptionView[]>([]);
   const [tracking, setTracking] = useState<Tracking>();
+  const [misses, setMisses] = useState<MissView[]>([]);
+  const [carrierScore, setCarrierScore] = useState<CarrierScore>();
+  const [missStop, setMissStop] = useState("");
+  const [missKind, setMissKind] = useState<"NO_SHOW" | "LATE">("NO_SHOW");
+  const [missMinutes, setMissMinutes] = useState("");
+  const [missNote, setMissNote] = useState("");
   const [excType, setExcType] = useState<(typeof EXCEPTION_TYPES)[number]>("DAMAGE");
   const [excNote, setExcNote] = useState("");
   const [notes, setNotes] = useState("");
@@ -56,8 +69,18 @@ export function LoadDetailScreen() {
     nav.setOptions({ title: l.loadNumber });
     if (l.status === "POSTED") setBids(await api.get<BidView[]>(`/v1/loads/${id}/bids`).catch(() => []));
     setTracking(TRACKED.includes(l.status) ? await api.get<Tracking>(`/v1/loads/${id}/tracking`).catch(() => undefined) : undefined);
+    const hasCarrier = !!(l.carrierOrgId || l.externalCarrierKey);
+    const myBusiness = [l.brokerOrgId, l.shipperOrgId].find((o) => !!o && me?.orgs.some((x) => x.id === o));
+    setMisses(hasCarrier || l.status === "CANCELLED" || l.status === "DRAFT" ? await api.get<MissView[]>(`/v1/loads/${id}/appointment-misses`).catch(() => []) : []);
+    setCarrierScore(
+      l.carrierOrgId
+        ? await api.get<CarrierScore>(`/v1/reliability/carriers/${l.carrierOrgId}${myBusiness ? `?businessOrgId=${myBusiness}` : ""}`).catch(() => undefined)
+        : l.externalCarrierKey
+          ? await api.get<CarrierScore>(`/v1/reliability/partners/${encodeURIComponent(l.externalCarrierKey)}?orgId=${l.brokerOrgId ?? l.shipperOrgId}`).catch(() => undefined)
+          : undefined,
+    );
     if (l.pickedUpAt) setExceptions(await api.get<LoadExceptionView[]>(`/v1/loads/${id}/exceptions`).catch(() => []));
-  }, [id, nav]);
+  }, [id, nav, me]);
   useFocusEffect(
     useCallback(() => {
       void fetchLoad();
@@ -68,6 +91,18 @@ export function LoadDetailScreen() {
   const rel = relation(load);
   const myLeg = load.legs.find((l) => l.driverAccountIds.includes(me.account.id) && l.status !== "COMPLETED");
   const next = rel.driver ? nextDriverAction(load, myLeg) : undefined;
+  // Stops whose appointment has passed while the current carrier had the load, not yet reported.
+  const carrierKey = carrierKeyOf(load);
+  const reportable = rel.shipper && carrierKey
+    ? load.stops.filter(
+        (s) =>
+          (s.type === "PICKUP" || s.type === "DELIVERY") &&
+          Date.now() > Date.parse(s.window.end) + ON_TIME_GRACE_MINUTES * 60_000 &&
+          Date.parse(s.window.end) >= Date.parse(load.carrierSince ?? load.createdAt) &&
+          !misses.some((m) => m.stopId === s.id && m.carrierKey === carrierKey && !m.withdrawnAt),
+      )
+    : [];
+  const stopForMiss = reportable.find((s) => s.id === missStop) ?? reportable[0];
   const bidOrgs = me.orgs.filter((o) => o.kinds.includes("CARRIER") && o.roles.some((r) => ["OWNER", "ADMIN", "DISPATCHER"].includes(r)));
 
   /** `leave`: the action ends this account's access to the load (e.g. declining a tender), so go back instead of reloading it. */
@@ -124,6 +159,46 @@ export function LoadDetailScreen() {
           {tracking.eta.reasons.map((r) => (
             <Row key={r} title={r} />
           ))}
+        </Section>
+      ) : null}
+
+      {rel.shipper && carrierScore ? (
+        <Section title="Carrier reliability" footer="Every carrier is scored on the loads it hauls, including carriers connected by API or EDI. Missed appointments you report count against it.">
+          <Row title={carrierScore.name} />
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, paddingHorizontal: 16, paddingBottom: 12 }}>
+            <ScoreChip label="With you" score={carrierScore.forBusiness} />
+            {load.carrierOrgId ? <ScoreChip label="Overall" score={carrierScore.overall} /> : null}
+          </View>
+        </Section>
+      ) : null}
+
+      {misses.length || reportable.length ? (
+        <Section title="Appointments" footer="A missed appointment counts against the carrier that was hauling the load at the time, and the drivers on that leg. It never counts against another carrier the driver also works for.">
+          {misses.map((m) => (
+            <MissRow key={m.id} miss={m} canWithdraw={rel.shipper} canDispute={rel.dispatcher} onChanged={fetchLoad} />
+          ))}
+          {stopForMiss ? (
+            <Padded>
+              <Body secondary>Did the carrier miss an appointment?</Body>
+              {reportable.length > 1 ? <Segmented options={reportable.map((s) => ({ value: s.id, label: `${titleCase(s.type)} · ${s.address.city}` }))} value={stopForMiss.id} onChange={setMissStop} /> : <Body>{`${titleCase(stopForMiss.type)} at ${stopForMiss.address.city}, ${when(stopForMiss.window.start)} – ${when(stopForMiss.window.end)}`}</Body>}
+              <Segmented options={[{ value: "NO_SHOW", label: "No-show" }, { value: "LATE", label: "Arrived late" }]} value={missKind} onChange={setMissKind} />
+              {missKind === "LATE" ? <Field label="Minutes late (optional)" value={missMinutes} onChangeText={setMissMinutes} keyboardType="number-pad" /> : null}
+              <Field label="Note (optional)" value={missNote} onChangeText={setMissNote} multiline />
+              <Button
+                title="Report missed appointment"
+                variant="destructive"
+                onPress={async () => {
+                  if (!(await confirm("Report a missed appointment?", "It counts against the carrier's reliability with you and overall. The carrier can respond, and you can withdraw it later.", "Report", true))) return;
+                  const minutes = parseInt(missMinutes, 10);
+                  await run(async () => {
+                    await api.post(`/v1/loads/${load.id}/appointment-misses`, { stopId: stopForMiss.id, kind: missKind, minutesLate: missKind === "LATE" && minutes > 0 ? minutes : undefined, note: missNote });
+                    setMissNote("");
+                    setMissMinutes("");
+                  }, "Missed appointment reported")();
+                }}
+              />
+            </Padded>
+          ) : null}
         </Section>
       ) : null}
 
@@ -191,6 +266,16 @@ export function LoadDetailScreen() {
               </>
             ) : null}
             {["BOOKED", "DISPATCHED", "AT_PICKUP"].includes(load.status) && !load.shipConfirmedAt ? <Button title="Confirm shipment" variant="tonal" onPress={async () => { if (await confirm("Confirm shipment?", "The load details lock for everyone once confirmed.", "Confirm")) await run(() => api.post(`/v1/loads/${load.id}/ship-confirm`), "Shipment confirmed")(); }} /> : null}
+            {(load.carrierOrgId || load.externalCarrierKey) && !load.pickedUpAt && ["TENDERED", "BOOKED", "DISPATCHED", "AT_PICKUP"].includes(load.status) ? (
+              <Button
+                title="Release carrier"
+                variant="tonal"
+                accessibilityHint="Take the load back so you can give it to another carrier"
+                onPress={async () => {
+                  if (await confirm("Release this carrier?", "The load comes back to you as a draft so you can tender it to another carrier. The carrier is notified. Missed appointments stay on their record only.", "Release", true)) await run(() => api.post(`/v1/loads/${load.id}/release-carrier`), "Carrier released")();
+                }}
+              />
+            ) : null}
             {!load.pickedUpAt && load.status !== "CANCELLED" ? <Button title="Cancel load" variant="destructive" onPress={async () => { if (await confirm("Cancel this load?", "The carrier is notified and the load cannot be reopened.", "Cancel load", true)) await run(() => api.post(`/v1/loads/${load.id}/cancel`))(); }} /> : null}
           </Padded>
           {load.status === "POSTED"

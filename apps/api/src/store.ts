@@ -1,4 +1,4 @@
-import type { Account, Bid, Invoice, JoinCode, JoinRequest, Load, LoadException, Membership, Message, Organization, ShipmentOutcome } from "@logisticspro/domain";
+import type { Account, AppointmentMiss, Bid, Invoice, JoinCode, JoinRequest, Load, LoadException, Membership, Message, Organization, ShipmentOutcome } from "@logisticspro/domain";
 import type { PartnerProfile, Transmission } from "@logisticspro/integration";
 import type { Violation } from "@logisticspro/navigation";
 
@@ -55,7 +55,10 @@ export class MemoryStore {
   /** Over/short/damage reports per load. */
   exceptions = new Map<string, LoadException[]>();
   /** Delivered-shipment outcomes used for reliability, keyed by load id. */
+  /** Keyed by load id, plus "<loadId>#<carrierKey>" for carriers that missed an appointment and did not deliver. */
   outcomes = new Map<string, ShipmentOutcome>();
+  /** Missed appointments reported by businesses, by load id. */
+  appointmentMisses = new Map<string, AppointmentMiss[]>();
   /** Latest reported position per driver account. */
   positions = new Map<string, DriverPosition>();
   private loadCounter = 100_000;
