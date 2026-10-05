@@ -37,7 +37,7 @@ export function HoursScreen() {
   if (!hos) return null;
   return (
     <Screen onRefresh={load}>
-      <Section title="Hours of service" footer="An estimate from your duty status and your phone's location while the app is open. It is not an ELD: your ELD's record is the legal one.">
+      <Section title="Hours of service" footer={hos.source === "ELD" ? "From your carrier's ELD, the legal record, every few minutes. Miles this shift come from your truck's GPS." : "An estimate from your duty status and your phone's location while the app is open. It is not an ELD: your ELD's record is the legal one."}>
         <HosSummary hos={hos} onStatus={setStatus} full />
       </Section>
       <Section title="Weekly cycle" footer="Use the cycle your carrier runs. 34 hours off in a row restarts it.">

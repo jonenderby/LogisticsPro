@@ -1,4 +1,4 @@
-import { AUTO_STOP_MINUTES, type DutyEvent, type HosClock, type Load, type TrackPoint, hosClock, isMoving, milesDriven } from "@logisticspro/domain";
+import { AUTO_STOP_MINUTES, type DutyEvent, ELD_FRESH_MS, type EldProvider, type HosClock, type Load, type TrackPoint, hosClock, isMoving, milesDriven, withEldClock } from "@logisticspro/domain";
 import type { MemoryStore } from "../store.js";
 import { MOVING, activeLeg } from "./tracking.js";
 
@@ -12,10 +12,21 @@ export interface HosView extends HosClock {
   milesLeft: number;
   avgMph: number;
   avgMphSource: "SHIFT" | "DEFAULT";
+  /** ELD: the clock is the ELD's (the legal record). PHONE: estimated from duty taps and the phone's movement. */
+  source: "ELD" | "PHONE";
+  eld?: { provider: EldProvider; asOf: string };
+}
+
+/** The driver's hours clock: from their ELD while its report is fresh, otherwise the phone's estimate. */
+export function currentHosClock(store: MemoryStore, accountId: string, now: Date): HosClock & Pick<HosView, "source" | "eld"> {
+  const estimate = hosClock(store.dutyLogs.get(accountId) ?? [], now.toISOString(), store.hosSettings.get(accountId)?.cycle ?? "70/8");
+  const link = store.eldDrivers.get(accountId);
+  if (link?.clock && now.getTime() - Date.parse(link.clock.asOf) <= ELD_FRESH_MS) return { ...withEldClock(estimate, link.clock), source: "ELD", eld: { provider: link.provider, asOf: link.clock.asOf } };
+  return { ...estimate, source: "PHONE" };
 }
 
 export function hosFor(store: MemoryStore, accountId: string, now: Date): HosView {
-  const clock = hosClock(store.dutyLogs.get(accountId) ?? [], now.toISOString(), store.hosSettings.get(accountId)?.cycle ?? "70/8");
+  const clock = currentHosClock(store, accountId, now);
   const milesThisShift = clock.shiftStart ? milesDriven(store.tracks.get(accountId) ?? [], clock.shiftStart, now.toISOString()) : 0;
   // Use this shift's own pace once there is enough of it, within sane bounds.
   const measured = clock.drivingUsedMin >= 30 && milesThisShift > 0 ? milesThisShift / (clock.drivingUsedMin / 60) : undefined;

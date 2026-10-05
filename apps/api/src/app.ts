@@ -38,6 +38,9 @@ import { iftaRoutes } from "./routes/ifta.js";
 import { MemoryStore } from "./store.js";
 import { type FmcsaClient, QcMobileFmcsa, StaticFmcsa } from "./services/fmcsa.js";
 import { DiskFileBytes, MemoryFileBytes, PgFileBytes } from "./services/files.js";
+import { eldClient } from "./services/eldClients.js";
+import { syncAllEld } from "./services/eld.js";
+import { eldRoutes } from "./routes/eld.js";
 
 export interface AppOptions {
   config?: Partial<Config>;
@@ -55,6 +58,8 @@ export interface AppOptions {
   push?: PushSender;
   /** FMCSA lookups; defaults to QCMobile when LP_FMCSA_WEBKEY is set. */
   fmcsa?: FmcsaClient;
+  /** ELD clients; defaults to the real Motive, Samsara and Geotab APIs. */
+  eldClient?: AppContext["eldClient"];
 }
 
 export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyInstance; ctx: AppContext }> {
@@ -85,6 +90,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
     notifier: undefined as unknown as Notifier,
     alerts: undefined as unknown as AlertEngine,
     persistence,
+    eldClient: opts.eldClient ?? ((provider, creds) => eldClient(provider, creds, fetch, now)),
     files: persistence ? new PgFileBytes(persistence) : cfg.filesDir ? new DiskFileBytes(cfg.filesDir) : new MemoryFileBytes(),
     fmcsa: opts.fmcsa ?? (cfg.fmcsaWebKey ? new QcMobileFmcsa(cfg.fmcsaWebKey, fetch, now) : cfg.fmcsaFixtures ? StaticFmcsa.fromFile(cfg.fmcsaFixtures) : undefined),
     now,
@@ -142,6 +148,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   paymentRoutes(app, ctx);
   vettingRoutes(app, ctx);
   documentRoutes(app, ctx);
+  eldRoutes(app, ctx);
 
   if (cfg.alertIntervalSeconds > 0) {
     const timer = setInterval(() => {
@@ -151,6 +158,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
       void ctx.notifier.checkReceipts().catch((e) => app.log.error(e));
       void refreshRoutes(ctx).catch((e) => app.log.error(e));
       void recheckCarriers(ctx).catch((e) => app.log.error(e));
+      void syncAllEld(ctx).catch((e) => app.log.error(e));
       try {
         checkDetention(ctx);
       } catch (e) {

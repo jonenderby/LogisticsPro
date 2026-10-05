@@ -32,6 +32,8 @@ export function hosRoutes(app: FastifyInstance, ctx: AppContext) {
     driver(account.id);
     const body = parse(z.object({ status: DutyStatus, note: z.string().trim().max(200).optional() }), req.body);
     const now = ctx.now();
+    const eld = ctx.store.eldDrivers.get(account.id);
+    if (eld) throw new HttpError(409, "ON_ELD", `Your hours are kept by your ${eld.provider[0]}${eld.provider.slice(1).toLowerCase()} ELD. Change your duty status there.`);
     setDutyStatus(ctx.store, account.id, { status: body.status, at: now.toISOString(), source: "DRIVER", note: body.note || undefined }, now);
     return hosFor(ctx.store, account.id, now);
   });

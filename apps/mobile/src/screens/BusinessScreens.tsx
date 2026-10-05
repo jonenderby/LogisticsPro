@@ -12,6 +12,7 @@ import { DriverNetworkSection, ReliabilitySections } from "./NetworkScreens";
 import { confirm } from "../ui/dialog";
 import { FactoringSection, PayerTermsSection } from "./PaymentSettings";
 import { VettingPolicySection } from "./CarrierCheckScreen";
+import { EldSection } from "./EldSection";
 
 type Kind = "CARRIER" | "BROKER_3PL" | "SHIPPER";
 const KINDS: Array<{ value: Kind; label: string }> = [
@@ -194,6 +195,7 @@ export function BusinessScreen() {
           {isCarrier ? <DriverNetworkSection orgId={orgId} onChange={refresh} /> : null}
           {isCarrier && reliability ? <ReliabilitySections profile={reliability} subject="carrier" canDispute={orgsWithRole("OWNER", "ADMIN", "DISPATCHER").includes(orgId)} onChanged={refresh} /> : null}
           {isCarrier ? <DetentionTermsSection orgId={orgId} terms={detail.org.detention} onSaved={refresh} /> : null}
+          {isCarrier ? <EldSection key={`eld-${orgId}`} orgId={orgId} canManage={orgsWithRole("OWNER", "ADMIN").includes(orgId)} /> : null}
           {isCarrier ? <FactoringSection key={`f-${orgId}`} orgId={orgId} factoring={detail.org.factoring} onSaved={refresh} /> : null}
           {detail.org.kinds.some((k) => k === "SHIPPER" || k === "BROKER_3PL") ? <PayerTermsSection key={`p-${orgId}-${detail.org.payerTerms?.termsDays ?? 30}`} orgId={orgId} terms={detail.org.payerTerms} onSaved={refresh} /> : null}
           {detail.org.kinds.some((k) => k === "SHIPPER" || k === "BROKER_3PL") ? <VettingPolicySection key={`v-${orgId}-${JSON.stringify(detail.org.vetting ?? {})}`} orgId={orgId} policy={detail.org.vetting} onSaved={refresh} /> : null}

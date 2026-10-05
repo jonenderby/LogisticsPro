@@ -49,6 +49,8 @@ function Meter({ label, leftMin, totalMin }: { label: string; leftMin: number; t
  * far the remaining time goes, and the duty status switch. `full` adds a
  * meter for each limit.
  */
+export const ELD_NAME = { MOTIVE: "Motive", SAMSARA: "Samsara", GEOTAB: "Geotab" } as const;
+
 export function HosSummary({ hos, onStatus, full }: { hos: HosView; onStatus: (s: DutyStatus) => void; full?: boolean }) {
   const { colors } = useTheme();
   const color = useLeftColor()(hos.availableMin);
@@ -79,7 +81,11 @@ export function HosSummary({ hos, onStatus, full }: { hos: HosView; onStatus: (s
         </View>
       </View>
       {hos.restCompleteAt ? <Body secondary>{`A fresh 11 hours from ${clock(hos.restCompleteAt)}.`}</Body> : null}
-      <Segmented options={(Object.keys(DUTY) as DutyStatus[]).map((s) => ({ value: s, label: DUTY[s] }))} value={hos.status} onChange={onStatus} />
+      {hos.source === "ELD" && hos.eld ? (
+        <Body secondary>{`${DUTY[hos.status]} on your ${ELD_NAME[hos.eld.provider]} ELD, updated ${clock(hos.eld.asOf)}. Change duty status on the ELD.`}</Body>
+      ) : (
+        <Segmented options={(Object.keys(DUTY) as DutyStatus[]).map((s) => ({ value: s, label: DUTY[s] }))} value={hos.status} onChange={onStatus} />
+      )}
       {full ? (
         <View style={{ gap: 12 }}>
           <Meter label="Driving (11 h)" leftMin={hos.drivingLeftMin} totalMin={HOS.driveMin} />

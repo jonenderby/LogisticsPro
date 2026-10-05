@@ -22,6 +22,9 @@ export interface HosView extends HosClock {
   log?: DutyEvent[];
   /** On a team truck the drivers set Driving themselves, so either can be the passenger. */
   teamTruck?: boolean;
+  /** ELD: the clock comes from the carrier's ELD, the legal record. */
+  source?: "ELD" | "PHONE";
+  eld?: { provider: "MOTIVE" | "SAMSARA" | "GEOTAB"; asOf: string };
 }
 
 export interface Transmission {

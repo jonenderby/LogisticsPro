@@ -1,4 +1,4 @@
-import type { Account, Load, Message } from "@logisticspro/domain";
+import type { Account, EldProvider, Load, Message } from "@logisticspro/domain";
 import { DomainError, carrierKeyOf, loadParties, newId } from "@logisticspro/domain";
 import type { As2Identity, As2Transport, IntegrationEngine } from "@logisticspro/integration";
 import type { Geocoder, RoutingProvider } from "@logisticspro/navigation";
@@ -14,6 +14,7 @@ import type { PgPersistence } from "./persistence/postgres.js";
 import type { PushSender } from "./services/push.js";
 import type { FmcsaClient } from "./services/fmcsa.js";
 import type { FileBytes } from "./services/files.js";
+import type { EldClient, EldCredentials } from "./services/eldClients.js";
 import { recordOutcome } from "./services/reliability.js";
 import { rateConOnSave } from "./services/rateconfirmations.js";
 import type { MemoryStore } from "./store.js";
@@ -51,6 +52,8 @@ export interface AppContext {
   fmcsa?: FmcsaClient;
   /** Bytes of uploaded documents. */
   files: FileBytes;
+  /** Opens a carrier's ELD account (Motive, Samsara or Geotab). */
+  eldClient: (provider: EldProvider, creds: EldCredentials) => EldClient;
   now: () => Date;
 }
 

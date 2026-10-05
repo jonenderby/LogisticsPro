@@ -1,3 +1,4 @@
+import type { EldClock, EldDriver, EldProvider } from "@logisticspro/domain";
 import type { Account, AlertPreferences, AppointmentMiss, ArrivalStatus, Bid, DailyMiles, DutyEvent, FuelPurchase, HosCycle, TrackPoint, Invoice, JoinCode, FmcsaRecord, JoinRequest, Load, LoadException, RateConfirmation, Membership, Message, Organization, ShipmentOutcome } from "@logisticspro/domain";
 import type { PartnerProfile, Transmission } from "@logisticspro/integration";
 import type { Violation } from "@logisticspro/navigation";
@@ -38,6 +39,30 @@ export interface InboxItem {
   status?: string;
   at: string;
   read: boolean;
+}
+
+export interface EldConnection {
+  orgId: string;
+  provider: EldProvider;
+  /** Encrypted credentials (see security/sealed.ts). */
+  sealedCredentials: string;
+  /** A hint for people, such as the last four of the key or the Geotab database. */
+  label: string;
+  connectedAt: string;
+  connectedByAccountId: string;
+  lastSyncAt?: string;
+  lastError?: string;
+  drivers: Array<EldDriver & { accountId?: string; match?: "AUTO" | "MANUAL" }>;
+  vehicles: number;
+}
+
+export interface EldDriverLink {
+  accountId: string;
+  orgId: string;
+  provider: EldProvider;
+  externalDriverId: string;
+  clock?: EldClock;
+  syncedAt?: string;
 }
 
 export interface StoredFile {
@@ -83,6 +108,8 @@ export interface DriverPosition {
   speedMps?: number;
   headingDeg?: number;
   accuracyM?: number;
+  /** The driver's phone, or the truck's ELD. */
+  source?: "PHONE" | "ELD";
 }
 
 export interface RefreshToken {
@@ -138,6 +165,10 @@ export class MemoryStore {
   stoppedSince = new PersistentMap<string>("stoppedSince");
   /** Routed distance and driving time for what is left of a moving load, from the routing server. */
   routeEstimates = new PersistentMap<RouteEstimate>("routeEstimates");
+  /** A carrier's ELD account, by carrier org id. */
+  eldConnections = new PersistentMap<EldConnection>("eldConnections");
+  /** Drivers whose hours come from an ELD: account id to the ELD driver and its latest clock. */
+  eldDrivers = new PersistentMap<EldDriverLink>("eldDrivers");
   /** Uploaded files' details (the bytes are in the file store). */
   files = new PersistentMap<StoredFile>("files");
   /** FMCSA facts per USDOT number, with earlier versions whose contact details differ. */

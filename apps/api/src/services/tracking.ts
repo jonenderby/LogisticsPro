@@ -1,4 +1,5 @@
-import { type GeoPoint, type Load, type ShipmentEta, finalDeliveryStop, haversineMiles, hosClock, pickupStop, shipmentEta } from "@logisticspro/domain";
+import { type GeoPoint, type Load, type ShipmentEta, finalDeliveryStop, haversineMiles, pickupStop, shipmentEta } from "@logisticspro/domain";
+import { currentHosClock } from "./hos.js";
 import type { DriverPosition, MemoryStore } from "../store.js";
 
 export const UNDELIVERED = ["POSTED", "TENDERED", "BOOKED", "DISPATCHED", "AT_PICKUP", "IN_TRANSIT", "AT_DELIVERY"];
@@ -46,7 +47,7 @@ export function etaFor(store: MemoryStore, load: Load, now: Date): ShipmentEta {
   const leg = activeLeg(load);
   const solo = leg?.driverAccountIds.length === 1 ? leg.driverAccountIds[0]! : undefined;
   const log = solo ? store.dutyLogs.get(solo) : undefined;
-  const hos = solo && log?.length ? hosClock(log, now.toISOString(), store.hosSettings.get(solo)?.cycle ?? "70/8") : undefined;
+  const hos = solo && (log?.length || store.eldDrivers.has(solo)) ? currentHosClock(store, solo, now) : undefined;
   return shipmentEta(load, {
     now: now.toISOString(),
     position: p ? { geo: p.geo, at: p.at, speedMps: p.speedMps, headingDeg: p.headingDeg } : undefined,

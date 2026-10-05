@@ -45,6 +45,8 @@ export interface Config {
   fmcsaFixtures?: string;
   /** Directory for uploaded documents when there is no database. Without either, they are kept in memory. */
   filesDir?: string;
+  /** Key for encrypting credentials businesses give us (ELD API keys). Defaults to the JWT secret. */
+  dataKey?: Uint8Array;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -76,6 +78,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     fmcsaWebKey: env.LP_FMCSA_WEBKEY || undefined,
     fmcsaFixtures: env.LP_FMCSA_FIXTURES || undefined,
     filesDir: env.LP_FILES_DIR || undefined,
+    dataKey: env.LP_DATA_KEY ? new TextEncoder().encode(env.LP_DATA_KEY) : undefined,
     databaseUrl: env.LP_DATABASE_URL || env.DATABASE_URL || undefined,
   };
 }

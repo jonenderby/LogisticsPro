@@ -18,7 +18,6 @@ import {
   refinementLock,
   shipConfirm,
   transition,
-  hosClock,
   matchLoad,
   rankMatches,
 } from "@logisticspro/domain";
@@ -27,6 +26,7 @@ import { z } from "zod";
 import { geocodeStops } from "../services/geocode.js";
 import { carrierProfile } from "../services/reliability.js";
 import { approvalKey, requireEligible, vettingFor } from "../services/vetting.js";
+import { currentHosClock } from "../services/hos.js";
 import { documentViews } from "./documents.js";
 import { type AppContext, HttpError, authenticate, canSeeLoad, canShip, capsOf, getLoad, hasOrgCap, isDriverOn, me, parse, postMessage, requireOrgCap, saveLoad } from "../http.js";
 
@@ -239,7 +239,7 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
     const from = q.lat && q.lng ? { geo: { lat: Number(q.lat), lng: Number(q.lng) }, at: now.toISOString(), source: "CHOSEN" as const } : position ? { geo: position.geo, at: position.at, source: "PHONE" as const } : undefined;
     if (!from || Number.isNaN(from.geo.lat) || Number.isNaN(from.geo.lng)) throw new HttpError(409, "NO_LOCATION", "No location for this driver yet. Pick a starting point.");
     const log = ctx.store.dutyLogs.get(driverId);
-    const hos = log?.length ? hosClock(log, now.toISOString(), ctx.store.hosSettings.get(driverId)?.cycle ?? "70/8") : undefined;
+    const hos = log?.length || ctx.store.eldDrivers.has(driverId) ? currentHosClock(ctx.store, driverId, now) : undefined;
     const mine = new Set(ctx.store.membershipsOf(account.id).map((m) => m.orgId));
     const board = [...ctx.store.loads.values()].filter((l) => l.status === "POSTED" && !mine.has(l.board!.postedByOrgId));
     const matches = rankMatches(board.map((l) => matchLoad(l, { now: now.toISOString(), from: from.geo, hos, team: q.team === "true" })).filter((m): m is NonNullable<typeof m> => !!m));

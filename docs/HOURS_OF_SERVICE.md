@@ -58,6 +58,8 @@ Otherwise the app unlocks by itself after 5 minutes stopped. The website is not 
 
 ## It is not an ELD
 
-This is an estimate from the driver's own entries and phone. It is not a registered electronic logging device and does not replace one; the ELD's record is the legal one. Reading hours from the carrier's ELD provider is on the [roadmap](ROADMAP.md).
+Without a connected ELD, this is an estimate from the driver's own entries and phone. It is not a registered electronic logging device and does not replace one; the ELD's record is the legal one.
+
+When the carrier connects its ELD (Motive, Samsara or Geotab), the clocks come from the ELD instead, every five minutes. Duty status is then changed on the ELD, not in the app. See [ELD.md](ELD.md).
 
 API: `GET /v1/me/hos`, `POST /v1/me/duty-status`, `PUT /v1/me/hos-settings`. `GET /v1/me` includes the summary for drivers.

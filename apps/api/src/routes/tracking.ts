@@ -2,9 +2,8 @@ import { type Load, byUrgency, loadParties, summarizeEtas } from "@logisticspro/
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { type AppContext, HttpError, authenticate, capsOf, getLoad, hasOrgCap, isDriverOn, me, parse } from "../http.js";
-import { hosFor, recordFix } from "../services/hos.js";
-import { recordStopVisits } from "../services/stops.js";
-import { recordMiles } from "../services/ifta.js";
+import { hosFor } from "../services/hos.js";
+import { acceptLocation } from "../services/location.js";
 import { MOVING, OFFLINE_AFTER_MS, UNDELIVERED, activeLeg, etaFor, lane, positionForLoad } from "../services/tracking.js";
 
 /**
@@ -22,20 +21,7 @@ export function trackingRoutes(app: FastifyInstance, ctx: AppContext) {
 
   const Fix = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180), at: z.string().optional(), speedMps: z.number().min(0).max(80).optional(), headingDeg: z.number().min(0).max(360).optional(), accuracyM: z.number().min(0).optional() });
 
-  /** Record one location fix: the latest position, the trail for miles, and automatic duty status. */
-  const acceptFix = (accountId: string, b: z.infer<typeof Fix>, now: Date) => {
-    const at = b.at ? new Date(b.at) : now;
-    if (Number.isNaN(at.getTime()) || at.getTime() > now.getTime() + 5 * 60_000) throw new HttpError(400, "INVALID_REQUEST", "Position time is invalid");
-    const prior = ctx.store.positions.get(accountId);
-    if (!prior || prior.at <= at.toISOString()) {
-      ctx.store.positions.set(accountId, { accountId, geo: { lat: b.lat, lng: b.lng }, at: at.toISOString(), speedMps: b.speedMps, headingDeg: b.headingDeg, accuracyM: b.accuracyM });
-    }
-    const prev = ctx.store.tracks.get(accountId)?.at(-1);
-    const point = { geo: { lat: b.lat, lng: b.lng }, at: at.toISOString(), speedMps: b.speedMps };
-    recordFix(ctx.store, accountId, point, now, { autoDuty: true });
-    recordMiles(ctx, accountId, prev, point);
-    recordStopVisits(ctx, accountId, { geo: { lat: b.lat, lng: b.lng }, at: at.toISOString() });
-  };
+  const acceptFix = (accountId: string, b: z.infer<typeof Fix>, now: Date) => acceptLocation(ctx, accountId, b, now, "PHONE");
   const driverOnly = (accountId: string) => {
     if (!capsOf(ctx, accountId).all.has("DRIVE")) throw new HttpError(403, "FORBIDDEN", "Only drivers share their location");
   };

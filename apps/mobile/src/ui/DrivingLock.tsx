@@ -43,6 +43,8 @@ export function DrivingLock({ onNavigate, routeName }: { onNavigate: (loadId?: s
   const { me, refresh } = useMe();
   const { colors } = useTheme();
   const [trip, setTrip] = useState<Tracking>();
+  // An ELD driver's status changes on the ELD; "I've stopped" just hides the lock until the next report.
+  const [dismissedAt, setDismissedAt] = useState<string>();
   const hos = me?.hos;
   const driving = !IS_WEB && hos?.status === "DRIVING";
   const loadId = me?.feed.find((i) => i.id.startsWith("drive:") && i.priority >= 100)?.loadId;
@@ -60,6 +62,7 @@ export function DrivingLock({ onNavigate, routeName }: { onNavigate: (loadId?: s
   }, [driving, loadId]);
 
   if (!driving || !hos || routeName === "Navigate") return null;
+  if (hos.source === "ELD" && dismissedAt && dismissedAt === hos.eld?.asOf) return null;
 
   const next = trip?.eta.nextStop;
   const say = () =>
@@ -73,6 +76,7 @@ export function DrivingLock({ onNavigate, routeName }: { onNavigate: (loadId?: s
     try {
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       if ((pos.coords.speed ?? 0) > 1) return notify("Still moving", "The app unlocks once the truck has stopped.");
+      if (hos.source === "ELD") return setDismissedAt(hos.eld?.asOf);
       await api.post("/v1/me/duty-status", { status: "ON_DUTY", note: "Stopped" });
       await refresh();
     } catch (e) {
@@ -81,6 +85,7 @@ export function DrivingLock({ onNavigate, routeName }: { onNavigate: (loadId?: s
   };
   const passenger = async () => {
     if (!(await confirm("Are you the passenger?", "Only if your co-driver is at the wheel. You will be logged as on duty, not driving.", "I'm the passenger"))) return;
+    if (hos.source === "ELD") return setDismissedAt(hos.eld?.asOf);
     await api.post("/v1/me/duty-status", { status: "ON_DUTY", note: "Team passenger" });
     await refresh();
   };
