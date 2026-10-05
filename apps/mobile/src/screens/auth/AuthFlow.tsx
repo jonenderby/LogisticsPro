@@ -13,7 +13,7 @@ function Shell({ title, subtitle, children }: { title: string; subtitle?: string
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <ScrollView contentContainerStyle={{ padding: 24, gap: 8 }} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={{ padding: 24, gap: 8, width: "100%", maxWidth: 480, alignSelf: "center" }} keyboardShouldPersistTaps="handled">
           <Text accessibilityRole="header" style={{ color: colors.text, fontSize: 34, fontWeight: "700", marginTop: 24 }}>
             {title}
           </Text>
@@ -66,7 +66,7 @@ export function AuthFlow() {
           </Text>
           <Button title="Copy setup key" variant="plain" onPress={() => Clipboard.setStringAsync(phase.secret)} />
         </View>
-        <Field label="6-digit code" value={code} onChangeText={setCode} keyboardType="number-pad" textContentType="oneTimeCode" autoComplete="one-time-code" maxLength={6} />
+        <Field label="6-digit code" value={code} onChangeText={setCode} keyboardType="number-pad" textContentType="oneTimeCode" autoComplete="one-time-code" maxLength={6} returnKeyType="go" onSubmitEditing={() => code.length === 6 && void run(() => auth.activate(code))()} />
         {err}
         <Button title="Turn on two-factor" disabled={code.length !== 6} onPress={run(() => auth.activate(code))} />
         <Button title="Cancel" variant="plain" onPress={auth.cancel} />
@@ -91,7 +91,7 @@ export function AuthFlow() {
   if (phase.name === "mfa") {
     return (
       <Shell title="Enter your code" subtitle="Open your authenticator app and enter the 6-digit code for Logistics Pro, or use a recovery code.">
-        <Field label="Code" value={code} onChangeText={setCode} autoCapitalize="none" textContentType="oneTimeCode" autoComplete="one-time-code" autoFocus />
+        <Field label="Code" value={code} onChangeText={setCode} autoCapitalize="none" textContentType="oneTimeCode" autoComplete="one-time-code" autoFocus returnKeyType="go" onSubmitEditing={() => code.length >= 6 && void run(() => auth.verify(code))()} />
         {err}
         <Button title="Verify" disabled={code.length < 6} onPress={run(() => auth.verify(code))} />
         <Button title="Cancel" variant="plain" onPress={auth.cancel} />
@@ -103,7 +103,7 @@ export function AuthFlow() {
     return (
       <Shell title="Sign in">
         <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" textContentType="username" autoComplete="email" />
-        <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry textContentType="password" autoComplete="current-password" />
+        <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry textContentType="password" autoComplete="current-password" returnKeyType="go" onSubmitEditing={() => email && password && void run(() => auth.signIn(email, password))()} />
         {err}
         <Button title="Continue" disabled={!email || !password} onPress={run(() => auth.signIn(email, password))} />
         <Button title="Create an account instead" variant="plain" onPress={() => setMode("register")} />

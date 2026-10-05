@@ -16,7 +16,8 @@ interface Enrollment {
 }
 interface SessionResponse {
   accessToken: string;
-  refreshToken: string;
+  /** Absent on web, where the API keeps it in an httpOnly cookie. */
+  refreshToken?: string;
 }
 
 export type ProfileType = "TRUCKER" | "CARRIER" | "BROKER_3PL" | "BUSINESS";

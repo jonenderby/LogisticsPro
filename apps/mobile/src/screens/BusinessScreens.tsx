@@ -1,8 +1,9 @@
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useState } from "react";
-import { Alert, View } from "react-native";
+import { View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { api, errorMessage } from "../api/client";
+import { notify } from "../ui/dialog";
 import { useNav } from "../navigation/types";
 import { useMe } from "../state/MeProvider";
 import { Banner, Body, Button, Chip, Field, Padded, Row, Screen, Section } from "../ui/components";
@@ -47,7 +48,7 @@ export function RegisterCompanyScreen() {
                 await refresh();
                 nav.goBack();
               } catch (e) {
-                Alert.alert("Couldn't register", errorMessage(e));
+                notify("Couldn't register", errorMessage(e));
               }
             }}
           />
@@ -96,7 +97,7 @@ export function BusinessScreen() {
       await fn();
       await refresh();
     } catch (e) {
-      Alert.alert("Couldn't save", errorMessage(e));
+      notify("Couldn't save", errorMessage(e));
     }
   };
   const isCarrier = detail?.org.kinds.includes("CARRIER");

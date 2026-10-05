@@ -1,8 +1,9 @@
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useState } from "react";
-import { Alert, View } from "react-native";
+import { View } from "react-native";
 import { api, errorMessage } from "../api/client";
 import type { Invoice, Load, Transmission } from "../api/types";
+import { notify } from "../ui/dialog";
 import { useNav, useParams } from "../navigation/types";
 import { useMe } from "../state/MeProvider";
 import { Body, Button, Chip, Empty, Field, Padded, Row, Screen, Section, Segmented } from "../ui/components";
@@ -33,7 +34,7 @@ export function MoneyScreen() {
       await api.post(`/v1/invoices/${id}/status`, { status });
       await Promise.all([refresh(), refreshMe()]);
     } catch (e) {
-      Alert.alert("Couldn't update invoice", errorMessage(e));
+      notify("Couldn't update invoice", errorMessage(e));
     }
   };
 
@@ -96,11 +97,11 @@ export function SendInvoiceScreen() {
     try {
       const r = await api.post<{ invoice: Invoice; transmissions: Transmission[] }>(`/v1/loads/${loadId}/invoices`, { fuelSurchargePct: Number(fuel) || undefined, lines: extras.length ? extras : undefined });
       const how = r.transmissions.length ? r.transmissions.map((t) => `${METHOD_LABEL[t.method]} to ${t.partnerKey === "receiving" ? "the customer's system" : t.partnerKey}: ${t.status.toLowerCase()}${t.error ? ` (${t.error})` : ""}`).join("\n") : "Delivered in the app to the customer.";
-      Alert.alert(`Invoice ${r.invoice.invoiceNumber} · ${money(r.invoice.total)}`, how);
+      notify(`Invoice ${r.invoice.invoiceNumber} · ${money(r.invoice.total)}`, how);
       await refreshMe();
       nav.goBack();
     } catch (e) {
-      Alert.alert("Couldn't send the invoice", errorMessage(e));
+      notify("Couldn't send the invoice", errorMessage(e));
     }
   };
 

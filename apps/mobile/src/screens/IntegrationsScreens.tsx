@@ -1,8 +1,9 @@
 import { useFocusEffect } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import { useCallback, useState } from "react";
-import { Alert, View } from "react-native";
+import { View } from "react-native";
 import { api, errorMessage } from "../api/client";
+import { notify } from "../ui/dialog";
 import { useNav, useParams } from "../navigation/types";
 import { useMe } from "../state/MeProvider";
 import { Banner, Body, Button, Chip, Field, Padded, Row, Screen, Section, Segmented } from "../ui/components";
@@ -152,9 +153,9 @@ export function IntegrationsScreen() {
             try {
               await api.put(`/v1/orgs/${orgId}/receiving`, { channels: toChannels(drafts), edi: usesEdi ? { receiverQualifier: ediQual, receiverId: ediId } : undefined });
               await refresh();
-              Alert.alert("Saved");
+              notify("Saved");
             } catch (e) {
-              Alert.alert("Couldn't save", errorMessage(e));
+              notify("Couldn't save", errorMessage(e));
             }
           }}
         />
@@ -175,7 +176,7 @@ export function IntegrationsScreen() {
               key={c.code}
               title={`${c.ttRank2026 ? `#${c.ttRank2026} ` : ""}${c.name}`}
               subtitle={`${c.scac.join(", ") || "SCAC at onboarding"} · ${titleCase(c.confidence)}`}
-              right={added ? <Chip label="Added" tone="success" /> : <Button title="Add" variant="tonal" style={{ minHeight: 36 }} onPress={async () => { await api.post(`/v1/orgs/${orgId}/partners/from-catalog/${c.code}`).catch((e) => Alert.alert("Couldn't add", errorMessage(e))); await refresh(); }} />}
+              right={added ? <Chip label="Added" tone="success" /> : <Button title="Add" variant="tonal" style={{ minHeight: 36 }} onPress={async () => { await api.post(`/v1/orgs/${orgId}/partners/from-catalog/${c.code}`).catch((e) => notify("Couldn't add", errorMessage(e))); await refresh(); }} />}
             />
           );
         })}
@@ -242,7 +243,7 @@ export function PartnerEditScreen() {
               await api.put(`/v1/orgs/${orgId}/partners/${key}`, { name: profile.name, kind: profile.kind, scac: scac || undefined, catalogCode: profile.catalogCode, channels: toChannels(drafts), edi: usesEdi ? { receiverQualifier: ediQual, receiverId: ediId } : undefined });
               await refresh();
             } catch (e) {
-              Alert.alert("Couldn't save", errorMessage(e));
+              notify("Couldn't save", errorMessage(e));
             }
           }}
         />

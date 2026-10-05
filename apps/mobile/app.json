@@ -21,7 +21,13 @@
       "package": "com.logisticspro.app"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "output": "single",
+      "name": "Logistics Pro",
+      "shortName": "Logistics Pro",
+      "themeColor": "#1D5FD1",
+      "backgroundColor": "#F8F9FF",
+      "lang": "en"
     },
     "plugins": [
       [

@@ -1,10 +1,11 @@
 import { nextDriverAction } from "@logisticspro/workspace";
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useState } from "react";
-import { Alert, View } from "react-native";
+import { View } from "react-native";
 import { reportStatus } from "../actions";
 import { api, errorMessage } from "../api/client";
 import type { Bid, LoadDetail } from "../api/types";
+import { confirm, notify } from "../ui/dialog";
 import { useNav, useParams } from "../navigation/types";
 import { useMe } from "../state/MeProvider";
 import { Banner, Body, Button, Field, Padded, Row, Screen, Section, Segmented, StatusPill } from "../ui/components";
@@ -46,14 +47,21 @@ export function LoadDetailScreen() {
   const next = rel.driver ? nextDriverAction(load, myLeg) : undefined;
   const bidOrgs = me.orgs.filter((o) => o.kinds.includes("CARRIER") && o.roles.some((r) => ["OWNER", "ADMIN", "DISPATCHER"].includes(r)));
 
-  const run = (fn: () => Promise<unknown>, ok?: string) => async () => {
+  /** `leave`: the action ends this account's access to the load (e.g. declining a tender), so go back instead of reloading it. */
+  const run = (fn: () => Promise<unknown>, ok?: string, leave = false) => async () => {
     try {
       const res = (await fn()) as { transmissions?: Array<{ method: string; status: string; partnerKey: string; error?: string }> } | undefined;
       const sent = res?.transmissions?.map((t) => `${t.partnerKey}: ${t.method.replace("_", " ")} ${t.status.toLowerCase()}${t.error ? ` (${t.error})` : ""}`).join("\n");
-      if (ok || sent) Alert.alert(ok ?? "Done", sent);
+      if (ok || sent) notify(ok ?? "Done", sent);
+      if (leave) {
+        await refreshMe();
+        if (nav.canGoBack()) nav.goBack();
+        else nav.navigate("Today");
+        return;
+      }
       await Promise.all([fetchLoad(), refreshMe()]);
     } catch (e) {
-      Alert.alert("Couldn't complete that", errorMessage(e));
+      notify("Couldn't complete that", errorMessage(e));
     }
   };
 
@@ -116,7 +124,7 @@ export function LoadDetailScreen() {
             <Body secondary>Accepting books the load to your company. The shipper receives your response in their format (API or EDI 990).</Body>
             <Field label="Your PRO number (optional)" value={pro} onChangeText={setPro} autoCapitalize="characters" />
             <Button title="Accept tender" onPress={run(() => api.post(`/v1/loads/${load.id}/tender-response`, { decision: "ACCEPT", pro: pro || undefined }))} />
-            <Button title="Decline" variant="destructive" onPress={run(() => api.post(`/v1/loads/${load.id}/tender-response`, { decision: "DECLINE", reason: "No capacity" }))} />
+            <Button title="Decline" variant="destructive" onPress={async () => { if (await confirm("Decline this tender?", "The shipper is told you have no capacity.", "Decline", true)) await run(() => api.post(`/v1/loads/${load.id}/tender-response`, { decision: "DECLINE", reason: "No capacity" }), "Tender declined", true)(); }} />
           </Padded>
         </Section>
       ) : null}
@@ -146,8 +154,8 @@ export function LoadDetailScreen() {
                 <Button title="Tender directly" variant="tonal" disabled={!tenderTo} onPress={run(() => api.post(`/v1/loads/${load.id}/tender`, tenderKind === "carrier" ? { carrierOrgId: tenderTo } : { partnerKey: tenderTo }))} />
               </>
             ) : null}
-            {["BOOKED", "DISPATCHED", "AT_PICKUP"].includes(load.status) && !load.shipConfirmedAt ? <Button title="Confirm shipment" variant="tonal" onPress={run(() => api.post(`/v1/loads/${load.id}/ship-confirm`), "Shipment confirmed")} /> : null}
-            {!load.pickedUpAt && load.status !== "CANCELLED" ? <Button title="Cancel load" variant="destructive" onPress={run(() => api.post(`/v1/loads/${load.id}/cancel`))} /> : null}
+            {["BOOKED", "DISPATCHED", "AT_PICKUP"].includes(load.status) && !load.shipConfirmedAt ? <Button title="Confirm shipment" variant="tonal" onPress={async () => { if (await confirm("Confirm shipment?", "The load details lock for everyone once confirmed.", "Confirm")) await run(() => api.post(`/v1/loads/${load.id}/ship-confirm`), "Shipment confirmed")(); }} /> : null}
+            {!load.pickedUpAt && load.status !== "CANCELLED" ? <Button title="Cancel load" variant="destructive" onPress={async () => { if (await confirm("Cancel this load?", "The carrier is notified and the load cannot be reopened.", "Cancel load", true)) await run(() => api.post(`/v1/loads/${load.id}/cancel`))(); }} /> : null}
           </Padded>
           {load.status === "POSTED"
             ? bids.map((b) => <Row key={b.id} title={`${money(b.amount.amount)} · ${titleCase(b.plan)}`} subtitle={`${b.transitHours ? `${b.transitHours} h transit · ` : ""}${b.notes ?? ""}`} right={<Button title="Award" variant="tonal" onPress={run(() => api.post(`/v1/loads/${load.id}/bids/${b.id}/award`), "Awarded")} style={{ minHeight: 36 }} />} />)

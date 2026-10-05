@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Alert, View } from "react-native";
+import { View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { api, errorMessage } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { type StackParams, useNav } from "../navigation/types";
+import { notify } from "../ui/dialog";
 import { useMe } from "../state/MeProvider";
 import { Body, Button, Chip, Field, Padded, Row, Screen, Section } from "../ui/components";
 import { titleCase } from "../ui/format";
@@ -80,7 +81,7 @@ export function SecurityScreen() {
                   try {
                     setCodes((await api.post<{ recoveryCodes: string[] }>("/v1/auth/mfa/recovery-codes", { code })).recoveryCodes);
                   } catch (e) {
-                    Alert.alert("Couldn't create codes", errorMessage(e));
+                    notify("Couldn't create codes", errorMessage(e));
                   }
                 }}
               />

@@ -1,10 +1,12 @@
-import { Alert, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { api, errorMessage } from "../api/client";
 import type { ActionItem } from "../api/types";
 import { reportStatus } from "../actions";
 import { useNav } from "../navigation/types";
 import { useMe } from "../state/MeProvider";
+import { confirm, notify } from "../ui/dialog";
 import { Banner, Button, Chip, Empty, Screen, Section, type Tone } from "../ui/components";
+import { useLayout } from "../ui/responsive";
 import { useTheme } from "../ui/theme";
 
 const HAT: Record<ActionItem["hat"], { label: string; tone: Tone }> = {
@@ -24,6 +26,7 @@ export function TodayScreen() {
   const { me, refresh, error } = useMe();
   const nav = useNav();
   const { colors, metrics } = useTheme();
+  const { wide } = useLayout();
   if (!me) return null;
 
   const act = async (item: ActionItem) => {
@@ -34,10 +37,10 @@ export function TodayScreen() {
           await refresh();
           return;
         case "ship-confirm":
-          Alert.alert("Confirm shipment?", "The load details lock for everyone once confirmed.", [
-            { text: "Cancel", style: "cancel" },
-            { text: "Confirm", onPress: async () => { await api.post(`/v1/loads/${item.loadId}/ship-confirm`).catch((e) => Alert.alert("Couldn't confirm", errorMessage(e))); await refresh(); } },
-          ]);
+          if (await confirm("Confirm shipment?", "The load details lock for everyone once confirmed.", "Confirm")) {
+            await api.post(`/v1/loads/${item.loadId}/ship-confirm`);
+            await refresh();
+          }
           return;
         case "dispatch":
           return nav.navigate("Dispatch", { loadId: item.loadId! });
@@ -51,7 +54,7 @@ export function TodayScreen() {
           return nav.navigate("LoadDetail", { id: item.loadId! });
       }
     } catch (e) {
-      Alert.alert("Couldn't update", errorMessage(e));
+      notify("Couldn't update", errorMessage(e));
     }
   };
 
@@ -84,18 +87,27 @@ export function TodayScreen() {
           </View>
         </Section>
       ) : null}
-      <Section title="Needs your attention">
+      <Section title="Needs your attention" bare={wide}>
         {me.feed.length === 0 ? <Empty title="You're all caught up" message="New tenders, loads and invoices show up here." /> : null}
-        {me.feed.map((item) => (
-          <View key={item.id} style={{ padding: 16, gap: 8, borderBottomWidth: 0.5, borderBottomColor: colors.separator }}>
-            <Chip label={HAT[item.hat].label} tone={HAT[item.hat].tone} />
-            <Text accessibilityRole="header" style={{ color: colors.text, fontSize: metrics.body, fontWeight: "600" }} onPress={() => item.loadId && nav.navigate("LoadDetail", { id: item.loadId })}>
-              {item.title}
-            </Text>
-            {item.subtitle ? <Text style={{ color: colors.textSecondary, fontSize: metrics.callout }}>{item.subtitle}</Text> : null}
-            <Button title={item.cta.label} variant={item.priority >= 90 ? "filled" : "tonal"} onPress={() => act(item)} />
-          </View>
-        ))}
+        <View style={wide ? { flexDirection: "row", flexWrap: "wrap", gap: 12 } : undefined}>
+          {me.feed.map((item) => (
+            <View
+              key={item.id}
+              style={[
+                { padding: 16, gap: 8, borderBottomWidth: 0.5, borderBottomColor: colors.separator },
+                // Desktop: a grid of cards instead of one long list.
+                wide ? { flexBasis: "48%", flexGrow: 1, backgroundColor: colors.surface, borderRadius: metrics.radius, borderWidth: 0.5, borderColor: colors.separator } : null,
+              ]}
+            >
+              <Chip label={HAT[item.hat].label} tone={HAT[item.hat].tone} />
+              <Text accessibilityRole="header" style={{ color: colors.text, fontSize: metrics.body, fontWeight: "600" }} onPress={() => item.loadId && nav.navigate("LoadDetail", { id: item.loadId })}>
+                {item.title}
+              </Text>
+              {item.subtitle ? <Text style={{ color: colors.textSecondary, fontSize: metrics.callout }}>{item.subtitle}</Text> : null}
+              <Button title={item.cta.label} variant={item.priority >= 90 ? "filled" : "tonal"} onPress={() => act(item)} style={wide ? { alignSelf: "flex-start" } : undefined} />
+            </View>
+          ))}
+        </View>
       </Section>
     </Screen>
   );

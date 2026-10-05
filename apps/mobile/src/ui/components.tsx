@@ -1,10 +1,12 @@
 import { type ReactNode, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, type TextInputProps, View, type ViewStyle } from "react-native";
 import { Icon } from "./Icon";
+import { CONTENT_MAX_WIDTH, useLayout } from "./responsive";
 import { isIOS, useTheme } from "./theme";
 
 export function Screen({ children, onRefresh, padded = false }: { children: ReactNode; onRefresh?: () => Promise<void>; padded?: boolean }) {
   const { colors } = useTheme();
+  const { wide } = useLayout();
   const [refreshing, setRefreshing] = useState(false);
   return (
     <ScrollView
@@ -24,13 +26,14 @@ export function Screen({ children, onRefresh, padded = false }: { children: Reac
         ) : undefined
       }
     >
-      {children}
+      {/* On wide screens content is centered with a readable maximum width. */}
+      <View style={wide ? { width: "100%", maxWidth: CONTENT_MAX_WIDTH, alignSelf: "center", paddingTop: 8 } : undefined}>{children}</View>
     </ScrollView>
   );
 }
 
 /** iOS inset-grouped section / Material card with an optional header and footer. */
-export function Section({ title, footer, children, style }: { title?: string; footer?: string; children: ReactNode; style?: ViewStyle }) {
+export function Section({ title, footer, children, style, bare }: { title?: string; footer?: string; children: ReactNode; style?: ViewStyle; bare?: boolean }) {
   const { colors, metrics } = useTheme();
   return (
     <View style={[{ marginTop: 20, marginHorizontal: 16 }, style]}>
@@ -39,7 +42,7 @@ export function Section({ title, footer, children, style }: { title?: string; fo
           {title}
         </Text>
       ) : null}
-      <View style={{ backgroundColor: colors.surface, borderRadius: metrics.radius, overflow: "hidden", ...(isIOS ? {} : { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.separator }) }}>{children}</View>
+      {bare ? children : <View style={{ backgroundColor: colors.surface, borderRadius: metrics.radius, overflow: "hidden", ...(isIOS ? {} : { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.separator }) }}>{children}</View>}
       {footer ? <Text style={{ color: colors.textSecondary, fontSize: metrics.caption, marginTop: 6, marginHorizontal: 16 }}>{footer}</Text> : null}
     </View>
   );

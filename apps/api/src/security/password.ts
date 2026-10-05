@@ -28,6 +28,7 @@ export function passwordProblems(password: string, email: string): string[] {
   const issues: string[] = [];
   if (password.length < 12) issues.push("Use at least 12 characters");
   if (password.length > 256) issues.push("Use at most 256 characters");
-  if (password.toLowerCase().includes(email.split("@")[0]!.toLowerCase())) issues.push("Do not include your email name");
+  const local = email.split("@")[0]!.toLowerCase();
+  if (local.length >= 4 && password.toLowerCase().includes(local)) issues.push("Do not include your email name");
   return issues;
 }

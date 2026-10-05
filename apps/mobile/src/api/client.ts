@@ -1,6 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
-import { API_URL } from "../config";
+import { API_URL, IS_WEB } from "../config";
 
 export class ApiError extends Error {
   constructor(
@@ -31,23 +31,31 @@ const secure = {
   },
 };
 
+/**
+ * Phones keep the refresh token in the Keychain / Keystore. Browsers never
+ * see it: the API keeps it in an httpOnly cookie, so a page reload restores
+ * the session without exposing the token to scripts.
+ */
 export const session = {
   async restore(): Promise<boolean> {
+    if (IS_WEB) return refresh();
     refreshToken = await secure.get(REFRESH_KEY);
     if (!refreshToken) return false;
     return refresh();
   },
-  async set(tokens: { accessToken: string; refreshToken: string }) {
+  async set(tokens: { accessToken: string; refreshToken?: string }) {
     accessToken = tokens.accessToken;
-    refreshToken = tokens.refreshToken;
-    await secure.set(REFRESH_KEY, tokens.refreshToken);
+    if (tokens.refreshToken) {
+      refreshToken = tokens.refreshToken;
+      await secure.set(REFRESH_KEY, tokens.refreshToken);
+    }
   },
   async clear() {
     const rt = refreshToken;
     accessToken = undefined;
     refreshToken = undefined;
     await secure.del(REFRESH_KEY);
-    if (rt) await raw("POST", "/v1/auth/logout", { refreshToken: rt }).catch(() => undefined);
+    if (rt || IS_WEB) await raw("POST", "/v1/auth/logout", rt ? { refreshToken: rt } : {}).catch(() => undefined);
   },
   onSignedOut(cb: () => void) {
     onSignedOut = cb;
@@ -57,8 +65,13 @@ export const session = {
 async function raw(method: string, path: string, body?: unknown, token?: string) {
   const res = await fetch(`${API_URL}${path}`, {
     method,
-    headers: { ...(body !== undefined ? { "content-type": "application/json" } : {}), ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    headers: {
+      ...(body !== undefined ? { "content-type": "application/json" } : {}),
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...(IS_WEB ? { "x-lp-client": "web" } : {}),
+    },
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    credentials: IS_WEB ? "include" : undefined,
   });
   const text = await res.text();
   const json = text ? (JSON.parse(text) as unknown) : undefined;
@@ -71,10 +84,10 @@ async function raw(method: string, path: string, body?: unknown, token?: string)
 
 let refreshing: Promise<boolean> | undefined;
 async function refresh(): Promise<boolean> {
-  if (!refreshToken) return false;
+  if (!refreshToken && !IS_WEB) return false;
   refreshing ??= (async () => {
     try {
-      const r = (await raw("POST", "/v1/auth/refresh", { refreshToken })) as { accessToken: string; refreshToken: string };
+      const r = (await raw("POST", "/v1/auth/refresh", refreshToken ? { refreshToken } : {})) as { accessToken: string; refreshToken?: string };
       await session.set(r);
       return true;
     } catch {

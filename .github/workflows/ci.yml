@@ -17,3 +17,4 @@ jobs:
       - run: npm run typecheck
       - run: npm run typecheck:mobile
       - run: npm test
+      - run: npm run build:web

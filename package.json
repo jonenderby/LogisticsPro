@@ -15,7 +15,9 @@
     "typecheck:mobile": "npm run typecheck --workspace @logisticspro/mobile",
     "dev:api": "npm run dev --workspace @logisticspro/api",
     "start:api": "npm run start --workspace @logisticspro/api",
-    "dev:mobile": "npm run start --workspace @logisticspro/mobile"
+    "dev:mobile": "npm run start --workspace @logisticspro/mobile",
+    "build:web": "npm run build:web --workspace @logisticspro/mobile",
+    "serve": "npm run build:web && LP_WEB_DIR=$PWD/dist/web npm run start:api"
   },
   "engines": {
     "node": ">=20"

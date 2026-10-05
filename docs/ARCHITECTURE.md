@@ -52,5 +52,13 @@ Fastify. Notable rules:
 - **Integration hub** (`services/hub.ts`): decides who receives each event and in which format. Inbound partner traffic is authenticated with a per-partner token, and a partner can only touch loads it carries or tendered.
 - **Persistence**: `MemoryStore` is a set of maps behind one class, so a database-backed store can replace it without touching routes.
 
+## Website
+The website is the same Expo app exported for the browser (`npm run build:web`), not a separate codebase, so every feature lands on phones and the web together.
+- **Layout**: below 900 px wide it matches the phone app. Above that it switches to a sidebar listing every destination (the phone's More overflow included), centers content at a readable width, shows loads as a table and the Today feed as a grid.
+- **URLs**: every screen has a path (`/loads`, `/loads/load/:id`, `/load/:loadId/messages`, `/business/integrations`, ...). Browser back, forward, reload and bookmarks work. The same paths open the phone app through the `logisticspro://` scheme.
+- **Sessions**: in the browser the refresh token is an httpOnly, SameSite=Strict cookie scoped to `/v1/auth` (Secure in production). The access token stays in memory. Credentialed CORS is allowed only for origins listed in `LP_WEB_ORIGINS`.
+- **Hosting**: with `LP_WEB_DIR` set, the API serves the site at `/` with long-lived caching for hashed assets, falls back to `index.html` for deep links, and keeps `/v1` 404s as JSON. Pages get `X-Frame-Options: DENY` and `nosniff`.
+- **Dialogs**: React Native's `Alert` does nothing in a browser, so confirmations and messages go through `ui/dialog.ts`, which uses native dialogs on phones and the browser's on the web.
+
 ## Mobile (`apps/mobile`)
 Expo SDK 57, React Navigation (native stacks inside bottom tabs), expo-secure-store for the refresh token, expo-location and react-native-maps for navigation, expo-symbols for SF Symbols on iOS and Material Symbols on Android. The tab bar and Today feed come from `GET /v1/me`, so the same build serves a company driver, an owner-operator, a dispatcher, a shipper and a broker. The navigation screen runs the same navigation package as the server.

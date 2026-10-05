@@ -1,5 +1,5 @@
 import { type Account, ProfileType, newId, toPublicAccount } from "@logisticspro/domain";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { type AppContext, HttpError, authenticate, me, parse } from "../http.js";
 import { hashPassword, passwordProblems, verifyPassword } from "../security/password.js";
@@ -19,6 +19,18 @@ const Login = z.object({ email: z.string(), password: z.string() });
 const Code = z.object({ token: z.string(), code: z.string().min(6).max(12) });
 
 const MAX_FAILURES = 5;
+const COOKIE = "lp_rt";
+
+/** Browsers keep the refresh token in an httpOnly cookie that page scripts cannot read. */
+const isWeb = (req: FastifyRequest) => req.headers["x-lp-client"] === "web";
+
+function readCookie(req: FastifyRequest, name: string): string | undefined {
+  for (const part of (req.headers.cookie ?? "").split(";")) {
+    const [k, ...v] = part.trim().split("=");
+    if (k === name) return decodeURIComponent(v.join("="));
+  }
+  return undefined;
+}
 const LOCK_MS = 15 * 60_000;
 
 /**
@@ -29,12 +41,22 @@ const LOCK_MS = 15 * 60_000;
 export function authRoutes(app: FastifyInstance, ctx: AppContext) {
   const failures = new Map<string, { count: number; until: number }>();
 
-  const issueSession = async (account: Account) => {
+  const setCookie = (reply: FastifyReply, value: string, maxAge: number) =>
+    reply.header("set-cookie", `${COOKIE}=${encodeURIComponent(value)}; HttpOnly; SameSite=Strict; Path=/v1/auth; Max-Age=${maxAge}${ctx.cfg.cookieSecure ? "; Secure" : ""}`);
+
+  const issueSession = async (account: Account, req: FastifyRequest, reply: FastifyReply) => {
     const refresh = newOpaqueToken();
     const days = ctx.cfg.refreshTokenDays;
     ctx.store.refreshTokens.set(refresh.hash, { hash: refresh.hash, accountId: account.id, expiresAt: new Date(ctx.now().getTime() + days * 86_400_000).toISOString(), revoked: false });
-    return { accessToken: await ctx.tokens.sign(account.id, "access"), refreshToken: refresh.token, account: toPublicAccount(account) };
+    const accessToken = await ctx.tokens.sign(account.id, "access");
+    if (isWeb(req)) {
+      setCookie(reply, refresh.token, days * 86_400);
+      return { accessToken, account: toPublicAccount(account) };
+    }
+    return { accessToken, refreshToken: refresh.token, account: toPublicAccount(account) };
   };
+
+  const refreshTokenFrom = (req: FastifyRequest) => (req.body as { refreshToken?: string } | undefined)?.refreshToken ?? readCookie(req, COOKIE);
 
   const enrollment = async (account: Account) => {
     const secret = account.mfa.totpSecret ?? newTotpSecret();
@@ -64,7 +86,7 @@ export function authRoutes(app: FastifyInstance, ctx: AppContext) {
     return { account: toPublicAccount(account), ...(await enrollment(account)) };
   });
 
-  app.post("/v1/auth/mfa/activate", async (req) => {
+  app.post("/v1/auth/mfa/activate", async (req, reply) => {
     const body = parse(Code, req.body);
     const claims = await ctx.tokens.verify(body.token, "enroll").catch(() => {
       throw new HttpError(401, "UNAUTHENTICATED", "Enrollment expired; sign in again");
@@ -74,7 +96,7 @@ export function authRoutes(app: FastifyInstance, ctx: AppContext) {
     const codes = newRecoveryCodes();
     const updated: Account = { ...account, mfa: { enabled: true, totpSecret: account.mfa.totpSecret, recoveryCodeHashes: codes.map(hashCode) } };
     ctx.store.accounts.set(account.id, updated);
-    return { ...(await issueSession(updated)), recoveryCodes: codes };
+    return { ...(await issueSession(updated, req, reply)), recoveryCodes: codes };
   });
 
   app.post("/v1/auth/login", async (req) => {
@@ -94,36 +116,40 @@ export function authRoutes(app: FastifyInstance, ctx: AppContext) {
     return { status: "MFA_REQUIRED", mfaToken: await ctx.tokens.sign(account.id, "mfa") };
   });
 
-  app.post("/v1/auth/login/mfa", async (req) => {
+  app.post("/v1/auth/login/mfa", async (req, reply) => {
     const body = parse(Code, req.body);
     const claims = await ctx.tokens.verify(body.token, "mfa").catch(() => {
       throw new HttpError(401, "UNAUTHENTICATED", "Sign-in expired; start again");
     });
     const account = ctx.store.accounts.get(claims.sub)!;
     const secret = account.mfa.totpSecret!;
-    if (verifyTotp(secret, body.code, ctx.now().getTime())) return issueSession(account);
+    if (verifyTotp(secret, body.code, ctx.now().getTime())) return issueSession(account, req, reply);
     const h = hashCode(body.code);
     if (account.mfa.recoveryCodeHashes.includes(h)) {
       const updated = { ...account, mfa: { ...account.mfa, recoveryCodeHashes: account.mfa.recoveryCodeHashes.filter((x) => x !== h) } };
       ctx.store.accounts.set(account.id, updated);
-      return { ...(await issueSession(updated)), usedRecoveryCode: true, recoveryCodesLeft: updated.mfa.recoveryCodeHashes.length };
+      return { ...(await issueSession(updated, req, reply)), usedRecoveryCode: true, recoveryCodesLeft: updated.mfa.recoveryCodeHashes.length };
     }
     throw new HttpError(400, "BAD_CODE", "That code did not match");
   });
 
-  app.post("/v1/auth/refresh", async (req) => {
-    const { refreshToken } = parse(z.object({ refreshToken: z.string() }), req.body);
-    const rec = ctx.store.refreshTokens.get(sha256(refreshToken));
-    if (!rec || rec.revoked || rec.expiresAt < ctx.now().toISOString()) throw new HttpError(401, "UNAUTHENTICATED", "Session expired; sign in again");
+  app.post("/v1/auth/refresh", async (req, reply) => {
+    const refreshToken = refreshTokenFrom(req);
+    const rec = refreshToken ? ctx.store.refreshTokens.get(sha256(refreshToken)) : undefined;
+    if (!rec || rec.revoked || rec.expiresAt < ctx.now().toISOString()) {
+      if (isWeb(req)) setCookie(reply, "", 0);
+      throw new HttpError(401, "UNAUTHENTICATED", "Session expired; sign in again");
+    }
     // Rotate: each refresh token is single-use.
     rec.revoked = true;
-    return issueSession(ctx.store.accounts.get(rec.accountId)!);
+    return issueSession(ctx.store.accounts.get(rec.accountId)!, req, reply);
   });
 
-  app.post("/v1/auth/logout", async (req) => {
-    const { refreshToken } = parse(z.object({ refreshToken: z.string() }), req.body);
-    const rec = ctx.store.refreshTokens.get(sha256(refreshToken));
+  app.post("/v1/auth/logout", async (req, reply) => {
+    const refreshToken = refreshTokenFrom(req);
+    const rec = refreshToken ? ctx.store.refreshTokens.get(sha256(refreshToken)) : undefined;
     if (rec) rec.revoked = true;
+    if (isWeb(req)) setCookie(reply, "", 0);
     return { ok: true };
   });
 

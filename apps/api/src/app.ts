@@ -1,4 +1,7 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import cors from "@fastify/cors";
+import fastifyStatic from "@fastify/static";
 import { IntegrationEngine, HttpTransport, OutboxTransport, envSecrets, type SecretResolver, type Transport } from "@logisticspro/integration";
 import { type RoutingProvider, StaticProvider, ValhallaProvider } from "@logisticspro/navigation";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -45,7 +48,8 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   };
 
   const app = Fastify({ logger: opts.logger ?? false, bodyLimit: 5 * 1024 * 1024 });
-  await app.register(cors, { origin: true });
+  // Credentialed CORS (the web session cookie) only for configured origins.
+  await app.register(cors, cfg.webOrigins.length ? { origin: cfg.webOrigins, credentials: true } : { origin: true });
   for (const type of ["application/edi-x12", "application/edifact", "text/plain", "application/xml", "text/xml"]) {
     app.addContentTypeParser(type, { parseAs: "string" }, (_req, body, done) => done(null, body));
   }
@@ -60,6 +64,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   });
 
   app.get("/health", async () => ({ ok: true }));
+  if (cfg.webDir) await serveWeb(app, cfg.webDir);
   authRoutes(app, ctx);
   meRoutes(app, ctx);
   orgRoutes(app, ctx);
@@ -67,4 +72,34 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   operationsRoutes(app, ctx);
   integrationRoutes(app, ctx);
   return { app, ctx };
+}
+
+/**
+ * Serve the website (the Expo web export of the same app) from the API
+ * origin. Unknown non-API paths fall back to index.html so deep links such as
+ * /loads/load/123 open the right screen.
+ */
+async function serveWeb(app: FastifyInstance, dir: string) {
+  const root = resolve(dir);
+  if (!existsSync(resolve(root, "index.html"))) throw new Error(`LP_WEB_DIR has no index.html: ${root}`);
+  await app.register(fastifyStatic, {
+    root,
+    wildcard: false,
+    setHeaders: (res, path) => {
+      res.header("cache-control", path.includes("/_expo/") || path.includes("/assets/") ? "public, max-age=31536000, immutable" : "no-cache");
+    },
+  });
+  app.addHook("onSend", async (req, reply, payload) => {
+    if (!req.url.startsWith("/v1/")) {
+      reply.header("x-content-type-options", "nosniff");
+      reply.header("x-frame-options", "DENY");
+      reply.header("referrer-policy", "strict-origin-when-cross-origin");
+    }
+    return payload;
+  });
+  app.setNotFoundHandler((req, reply) => {
+    const wantsPage = req.method === "GET" && !req.url.startsWith("/v1/") && !req.url.startsWith("/health") && String(req.headers.accept ?? "").includes("text/html");
+    if (wantsPage) return reply.header("cache-control", "no-cache").sendFile("index.html");
+    return reply.code(404).send({ error: { code: "NOT_FOUND", message: "Not found" } });
+  });
 }

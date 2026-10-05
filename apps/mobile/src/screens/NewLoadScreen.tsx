@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Alert } from "react-native";
 import { api, errorMessage } from "../api/client";
 import type { Load } from "../api/types";
+import { notify } from "../ui/dialog";
 import { useNav } from "../navigation/types";
 import { useMe } from "../state/MeProvider";
 import { Banner, Button, Field, Padded, Screen, Section, Segmented } from "../ui/components";
@@ -83,7 +83,7 @@ export function NewLoadScreen() {
       nav.goBack();
       nav.navigate("LoadDetail", { id: load.id });
     } catch (e) {
-      Alert.alert("Couldn't create the load", errorMessage(e));
+      notify("Couldn't create the load", errorMessage(e));
     }
   };
 

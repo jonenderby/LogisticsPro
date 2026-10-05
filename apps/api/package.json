@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
+    "@fastify/static": "^10.1.5",
     "@logisticspro/domain": "*",
     "@logisticspro/integration": "*",
     "@logisticspro/navigation": "*",

@@ -1,9 +1,10 @@
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useState } from "react";
-import { Alert, View } from "react-native";
+import { View } from "react-native";
 import { api, errorMessage } from "../api/client";
 import type { LoadDetail } from "../api/types";
 import { useParams } from "../navigation/types";
+import { notify } from "../ui/dialog";
 import { Banner, Body, Button, Chip, Field, Padded, Row, Screen, Section } from "../ui/components";
 import { parseCoords, titleCase } from "../ui/format";
 
@@ -53,7 +54,7 @@ export function DispatchScreen() {
       await fn();
       await refresh();
     } catch (e) {
-      Alert.alert("Couldn't update dispatch", errorMessage(e));
+      notify("Couldn't update dispatch", errorMessage(e));
     }
   };
 

@@ -9,6 +9,10 @@ What is built and tested is described in the README. This is what remains before
 - **Secrets management.** Partner credentials resolve from `LP_SECRET_*` environment variables. Move them to a secrets manager.
 - **Device testing and store builds.** The app is typechecked, bundled for iOS and Android, and exercised on web. It still needs EAS builds, testing on physical phones, App Store and Play Store listings, and a Google Maps key for Android.
 
+## Website
+- Desktop-first screens for heavy office work: bulk load entry or CSV import, a dispatch board with drag-and-drop driver assignment, and a map of all trucks.
+- Content Security Policy headers tuned to the exported bundle.
+
 ## Driver experience
 - Camera document scanning for BOL and POD (today a document is added by link).
 - Push notifications for tenders, messages and corridor violations.
