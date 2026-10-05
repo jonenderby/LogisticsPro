@@ -11,6 +11,7 @@ import { as2Routes } from "./routes/as2.js";
 import { authRoutes } from "./routes/auth.js";
 import { networkRoutes } from "./routes/network.js";
 import { reliabilityRoutes } from "./routes/reliability.js";
+import { trackingRoutes } from "./routes/tracking.js";
 import { loadAs2Identity } from "./services/as2station.js";
 import { integrationRoutes } from "./routes/integrations.js";
 import { loadRoutes } from "./routes/loads.js";
@@ -89,6 +90,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   as2Routes(app, ctx);
   networkRoutes(app, ctx);
   reliabilityRoutes(app, ctx);
+  trackingRoutes(app, ctx);
   return { app, ctx };
 }
 

@@ -17,8 +17,10 @@ import { NavigateScreen } from "../screens/NavigateScreen";
 import { JoinCarrierScreen, ReliabilityScreen } from "../screens/NetworkScreens";
 import { NewLoadScreen } from "../screens/NewLoadScreen";
 import { TodayScreen } from "../screens/TodayScreen";
+import { TrackScreen } from "../screens/TrackScreen";
 import { AuthFlow } from "../screens/auth/AuthFlow";
 import { MeProvider, useMe } from "../state/MeProvider";
+import { useLocationSharing } from "../state/useLocationSharing";
 import { Icon } from "../ui/Icon";
 import { useLayout } from "../ui/responsive";
 import { isIOS, useTheme } from "../ui/theme";
@@ -28,11 +30,12 @@ import type { StackParams } from "./types";
 const Tabs = createBottomTabNavigator();
 const Stack = createNativeStackNavigator<StackParams>();
 
-type TabRoot = "Today" | "Loads" | "Navigate" | "Board" | "Messages" | "Money" | "Business" | "More";
+type TabRoot = "Today" | "Loads" | "Track" | "Navigate" | "Board" | "Messages" | "Money" | "Business" | "More";
 
 const ROOTS: Record<string, { name: TabRoot; component: ComponentType }> = {
   today: { name: "Today", component: TodayScreen },
   loads: { name: "Loads", component: LoadsScreen },
+  track: { name: "Track", component: TrackScreen },
   navigate: { name: "Navigate", component: NavigateScreen },
   board: { name: "Board", component: BoardScreen },
   messages: { name: "Messages", component: MessagesScreen },
@@ -79,6 +82,7 @@ const STACKS = Object.fromEntries(Object.values(ROOTS).map((r) => [r.name, stack
 /** Icons for destinations that live under More on phones but get their own sidebar entry on wide screens. */
 const EXTRA_ICONS: Record<string, { ios: string; android: string }> = {
   loads: { ios: "shippingbox", android: "local_shipping" },
+  track: { ios: "mappin.and.ellipse", android: "location_on" },
   navigate: { ios: "map", android: "navigation" },
   board: { ios: "list.bullet.rectangle", android: "view_list" },
   messages: { ios: "bubble.left.and.bubble.right", android: "chat" },
@@ -92,6 +96,7 @@ const EXTRA_ICONS: Record<string, { ios: string; android: string }> = {
  */
 function AppNavigation() {
   const { me } = useMe();
+  useLocationSharing();
   const { dark, colors } = useTheme();
   const { wide } = useLayout();
   const tabs = useMemo(() => {

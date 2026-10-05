@@ -11,6 +11,7 @@ import { titleCase } from "../ui/format";
 
 const TARGET: Record<string, keyof StackParams> = {
   loads: "Loads",
+  track: "Track",
   navigate: "Navigate",
   board: "Board",
   messages: "Messages",

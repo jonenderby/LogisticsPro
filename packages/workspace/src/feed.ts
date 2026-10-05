@@ -22,6 +22,8 @@ export interface FeedData {
   unreadByLoad?: Record<string, number>;
   /** Pending requests to join carriers this person manages. */
   joinRequests?: Array<{ id: string; carrierOrgId: string; carrierName?: string; accountName: string }>;
+  /** Shipments whose arrival is late or at risk. */
+  arrivalAlerts?: Array<{ loadId: string; loadNumber: string; status: "LATE" | "AT_RISK"; eta?: string; reason?: string }>;
   now?: string;
 }
 
@@ -125,6 +127,11 @@ export function buildFeed(caps: ResolvedCapabilities, data: FeedData): ActionIte
     }
     const unread = data.unreadByLoad?.[load.id] ?? 0;
     if (unread > 0) items.push({ id: `msg:${load.id}`, hat: "MESSAGES", priority: 55, title: `${unread} new message${unread > 1 ? "s" : ""} on ${load.loadNumber}`, loadId: load.id, cta: { label: "Open thread", action: "messages" } });
+  }
+
+  for (const a of data.arrivalAlerts ?? []) {
+    const hat: Hat = has("SHIP") || has("BROKER") ? "SHIPPING" : "DISPATCH";
+    items.push({ id: `arrival:${a.loadId}`, hat, priority: a.status === "LATE" ? 94 : 86, title: `${a.loadNumber} ${a.status === "LATE" ? "will be late" : "is at risk of arriving late"}`, subtitle: a.reason, loadId: a.loadId, cta: { label: "Track", action: "track" } });
   }
 
   if (has("PAY")) {

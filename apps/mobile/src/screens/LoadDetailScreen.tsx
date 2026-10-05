@@ -11,8 +11,14 @@ import { useMe } from "../state/MeProvider";
 import { Banner, Body, Button, Chip, Field, Padded, Row, Screen, Section, Segmented, StatusPill } from "../ui/components";
 import { money, titleCase, when } from "../ui/format";
 import { type Score, ScoreChip } from "../ui/Reliability";
+import { ArrivalChip, type Eta, ago, time } from "../ui/arrival";
 
 type BidView = Bid & { carrierName?: string; reliability?: { overall: Score; withYou?: Score; truckers: number } };
+interface Tracking {
+  eta: Eta;
+  truck?: { geo: { lat: number; lng: number }; at: string; stale: boolean };
+}
+const TRACKED = ["TENDERED", "BOOKED", "DISPATCHED", "AT_PICKUP", "IN_TRANSIT", "AT_DELIVERY"];
 interface LoadExceptionView {
   id: string;
   type: string;
@@ -31,6 +37,7 @@ export function LoadDetailScreen() {
   const [load, setLoad] = useState<LoadDetail>();
   const [bids, setBids] = useState<BidView[]>([]);
   const [exceptions, setExceptions] = useState<LoadExceptionView[]>([]);
+  const [tracking, setTracking] = useState<Tracking>();
   const [excType, setExcType] = useState<(typeof EXCEPTION_TYPES)[number]>("DAMAGE");
   const [excNote, setExcNote] = useState("");
   const [notes, setNotes] = useState("");
@@ -48,6 +55,7 @@ export function LoadDetailScreen() {
     setNotes(l.notes ?? "");
     nav.setOptions({ title: l.loadNumber });
     if (l.status === "POSTED") setBids(await api.get<BidView[]>(`/v1/loads/${id}/bids`).catch(() => []));
+    setTracking(TRACKED.includes(l.status) ? await api.get<Tracking>(`/v1/loads/${id}/tracking`).catch(() => undefined) : undefined);
     if (l.pickedUpAt) setExceptions(await api.get<LoadExceptionView[]>(`/v1/loads/${id}/exceptions`).catch(() => []));
   }, [id, nav]);
   useFocusEffect(
@@ -103,6 +111,19 @@ export function LoadDetailScreen() {
             {["IN_TRANSIT", "AT_PICKUP", "DISPATCHED"].includes(load.status) ? <Button title="Report a delay" variant="tonal" onPress={run(() => reportStatus(load.id, "DELAYED", { reason: "TRAFFIC" }), "Delay reported")} /> : null}
             <Button title={load.oversize ? "Start permitted-route navigation" : "Navigate"} variant="tonal" onPress={() => nav.navigate("Navigate", { loadId: load.id })} />
           </Padded>
+        </Section>
+      ) : null}
+
+      {tracking ? (
+        <Section title="Arrival" footer="Estimated from the truck's latest location, the stops ahead and driving-hour rules. A recent ETA from the carrier takes precedence.">
+          <Row title="Delivery" right={<ArrivalChip eta={tracking.eta} />} />
+          <Row title={tracking.eta.etaSource === "ARRIVED" ? "Arrived" : tracking.eta.etaSource === "CARRIER" ? "ETA from carrier" : "Estimated arrival"} value={time(tracking.eta.eta)} />
+          <Row title="Window" value={`${time(tracking.eta.window.start)} – ${time(tracking.eta.window.end)}`} />
+          {tracking.eta.remainingMiles != null ? <Row title="Miles to go" value={`${Math.round(tracking.eta.remainingMiles)}`} /> : null}
+          {tracking.truck ? <Row title="Truck last seen" value={ago(tracking.truck.at)} subtitle={tracking.truck.stale ? "Location is out of date" : undefined} /> : null}
+          {tracking.eta.reasons.map((r) => (
+            <Row key={r} title={r} />
+          ))}
         </Section>
       ) : null}
 

@@ -278,6 +278,7 @@ export class IntegrationHub {
           state: s.location.state,
           geo: s.location.lat !== undefined && s.location.lng !== undefined ? { lat: s.location.lat, lng: s.location.lng } : undefined,
           note: s.reason !== "NORMAL" ? `Reason: ${s.reason.toLowerCase().replace(/_/g, " ")}` : undefined,
+          eta: s.eta,
           source,
         });
         if (s.references.pro && !updated.references.pro) updated.references = { ...updated.references, pro: s.references.pro };

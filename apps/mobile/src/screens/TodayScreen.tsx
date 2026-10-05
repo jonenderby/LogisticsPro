@@ -50,6 +50,8 @@ export function TodayScreen() {
           return nav.navigate("Thread", { loadId: item.loadId!, title: item.title });
         case "invoice-review":
           return nav.navigate("Money");
+        case "track":
+          return nav.navigate("Track");
         case "join-carrier":
           return nav.navigate("JoinCarrier");
         case "join-requests":

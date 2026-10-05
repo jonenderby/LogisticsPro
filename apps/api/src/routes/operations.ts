@@ -128,9 +128,15 @@ export function operationsRoutes(app: FastifyInstance, ctx: AppContext) {
       city: body.city,
       state: body.state,
       note: body.note,
+      eta: body.eta ? new Date(body.eta).toISOString() : undefined,
       reportedByAccountId: account.id,
       source: "APP",
     };
+    // A status with a location also updates the driver's position on the fleet map.
+    if (driving && body.geo) {
+      const prior = ctx.store.positions.get(account.id);
+      if (!prior || prior.at <= event.at) ctx.store.positions.set(account.id, { accountId: account.id, geo: body.geo, at: event.at });
+    }
     const next = saveLoad(ctx, applyStatusEvent(load, event));
     const where = body.city ? ` · ${body.city}${body.state ? `, ${body.state}` : ""}` : "";
     postMessage(ctx, next, { senderAccountId: account.id, senderOrgId: next.carrierOrgId, kind: "STATUS", statusCode: body.code, body: `${statusText(body.code)}${where}${body.note ? ` — ${body.note}` : ""}` });

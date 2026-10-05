@@ -2,6 +2,7 @@ import { toPublicAccount } from "@logisticspro/domain";
 import { buildFeed, buildWorkspace } from "@logisticspro/workspace";
 import type { FastifyInstance } from "fastify";
 import { type AppContext, authenticate, canSeeLoad, capsOf, me } from "../http.js";
+import { UNDELIVERED, etaFor } from "../services/tracking.js";
 
 /**
  * Everything the app needs to draw its home screen: who you are, what you
@@ -27,13 +28,20 @@ export function meRoutes(app: FastifyInstance, ctx: AppContext) {
     const joinRequests = [...ctx.store.joinRequests.values()]
       .filter((r) => r.status === "PENDING" && managed.has(r.carrierOrgId))
       .map((r) => ({ id: r.id, carrierOrgId: r.carrierOrgId, carrierName: ctx.store.orgs.get(r.carrierOrgId)?.name, accountName: ctx.store.accounts.get(r.accountId)?.name ?? "A driver" }));
+    // Late and at-risk shipments surface on Today for shippers, brokers and dispatch.
+    const watched = new Set([...caps.byOrg].filter(([, s]) => s.has("SHIP") || s.has("BROKER") || s.has("DISPATCH")).map(([id]) => id));
+    const arrivalAlerts = loads
+      .filter((l) => UNDELIVERED.includes(l.status) && [l.shipperOrgId, l.brokerOrgId, l.carrierOrgId].some((o) => o && watched.has(o)))
+      .map((l) => ({ load: l, eta: etaFor(ctx.store, l, ctx.now()) }))
+      .filter((x) => x.eta.status === "LATE" || x.eta.status === "AT_RISK")
+      .map((x) => ({ loadId: x.load.id, loadNumber: x.load.loadNumber, status: x.eta.status as "LATE" | "AT_RISK", eta: x.eta.eta, reason: x.eta.reasons[0] }));
     return {
       account: toPublicAccount(account),
       orgs: ctx.store.orgsOf(account.id).map((o) => ({ ...o, roles: ctx.store.membershipsOf(account.id).find((m) => m.orgId === o.id)!.roles })),
       capabilities: [...caps.all].sort(),
       ownerOperator: caps.ownerOperator,
       workspace: buildWorkspace(caps),
-      feed: buildFeed(caps, { accountId: account.id, loads, boardLoads, bids, invoices, unreadByLoad, joinRequests, now: ctx.now().toISOString() }),
+      feed: buildFeed(caps, { accountId: account.id, loads, boardLoads, bids, invoices, unreadByLoad, joinRequests, arrivalAlerts, now: ctx.now().toISOString() }),
     };
   });
 }

@@ -1,6 +1,6 @@
 import type { Capability, ResolvedCapabilities } from "./capabilities.js";
 
-export type TabId = "today" | "loads" | "navigate" | "board" | "messages" | "money" | "business" | "more";
+export type TabId = "today" | "loads" | "track" | "navigate" | "board" | "messages" | "money" | "business" | "more";
 
 export interface TabSpec {
   id: TabId;
@@ -25,6 +25,7 @@ export interface Workspace {
 const TABS: Record<Exclude<TabId, "more">, TabSpec> = {
   today: { id: "today", title: "Today", icon: { ios: "house", android: "home" } },
   loads: { id: "loads", title: "Loads", icon: { ios: "shippingbox", android: "local_shipping" } },
+  track: { id: "track", title: "Tracking", icon: { ios: "mappin.and.ellipse", android: "location_on" } },
   navigate: { id: "navigate", title: "Navigate", icon: { ios: "map", android: "navigation" } },
   board: { id: "board", title: "Board", icon: { ios: "list.bullet.rectangle", android: "view_list" } },
   messages: { id: "messages", title: "Messages", icon: { ios: "bubble.left.and.bubble.right", android: "chat" } },
@@ -48,6 +49,8 @@ export function buildWorkspace(caps: ResolvedCapabilities): Workspace {
     { id: "loads", score: 90 },
   ];
   if (has("DRIVE")) candidates.push({ id: "navigate", score: 80 });
+  // Office users live on the map: carriers see their fleet, shippers and 3PLs their shipments.
+  if (has("DISPATCH") || has("SHIP") || has("BROKER")) candidates.push({ id: "track", score: has("DRIVE") ? 55 : 88 });
   candidates.push({ id: "messages", score: has("DRIVE") ? 75 : 60 });
   if (has("BID") || has("BROKER")) candidates.push({ id: "board", score: has("DRIVE") ? 70 : 85 });
   if (has("INVOICE") || has("PAY")) candidates.push({ id: "money", score: has("DRIVE") ? 50 : 65 });
@@ -76,5 +79,7 @@ export function buildWorkspace(caps: ResolvedCapabilities): Workspace {
   if (has("BID")) quickActions.push({ id: "find-loads", title: "Find loads" });
   if (has("INVOICE")) quickActions.push({ id: "new-invoice", title: "Send invoice" });
 
-  return { tabs: [...primary.map((c) => TABS[c.id]), MORE_TAB], more, loadFilters, quickActions };
+  const trackTitle = has("SHIP") || has("BROKER") ? "Tracking" : "Fleet";
+  const label = (t: TabSpec) => (t.id === "track" ? { ...t, title: trackTitle } : t);
+  return { tabs: [...primary.map((c) => label(TABS[c.id])), MORE_TAB], more: more.map((m) => (m.id === "track" ? { ...m, title: trackTitle } : m)), loadFilters, quickActions };
 }

@@ -8,6 +8,15 @@ export interface StoredProfile extends PartnerProfile {
   updatedAt: string;
 }
 
+export interface DriverPosition {
+  accountId: string;
+  geo: { lat: number; lng: number };
+  at: string;
+  speedMps?: number;
+  headingDeg?: number;
+  accuracyM?: number;
+}
+
 export interface RefreshToken {
   hash: string;
   accountId: string;
@@ -47,6 +56,8 @@ export class MemoryStore {
   exceptions = new Map<string, LoadException[]>();
   /** Delivered-shipment outcomes used for reliability, keyed by load id. */
   outcomes = new Map<string, ShipmentOutcome>();
+  /** Latest reported position per driver account. */
+  positions = new Map<string, DriverPosition>();
   private loadCounter = 100_000;
 
   nextLoadNumber(): string {

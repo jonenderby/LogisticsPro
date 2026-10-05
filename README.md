@@ -23,14 +23,14 @@ One app and one integration hub for truckers, carriers, 3PLs and shippers.
 
 | Path | What it is |
 |---|---|
-| `packages/domain` | Business model and rules: organizations, accounts, loads, lifecycle, refinement lock, relays, teams, hours-of-service estimates, LTL consolidation, bids, invoices, messages. |
+| `packages/domain` | Business model and rules: organizations, accounts, loads, lifecycle, refinement lock, relays, teams, hours-of-service estimates, arrival estimates, LTL consolidation, bids, invoices, messages. |
 | `packages/integration` | The integration engine: canonical transaction schemas, JSON/XML/X12 renderers and parsers, 997 acknowledgments, partner profiles, field maps, transports, and the 25-carrier catalog. |
 | `packages/navigation` | Truck routing provider (Valhalla), standard turn-by-turn with rerouting, strict oversize corridor navigation, permit and restriction checks, sunrise/sunset travel windows. |
 | `packages/workspace` | Builds one layout from everything a person can do, plus a single prioritized action feed across roles. |
 | `apps/api` | Fastify API server: auth with mandatory 2FA, companies, loads, board, dispatch, status, messaging, invoices, integrations, inbound API/EDI. |
 | `apps/mobile` | Expo (React Native) app: iOS, Android and the website from one codebase. |
 | `deploy/` | Docker Compose with the API, Valhalla (truck routing) and Nominatim (address search); a synthetic map for testing Valhalla. |
-| `docs/` | [Architecture](docs/ARCHITECTURE.md), [integrations and carrier catalog](docs/INTEGRATIONS.md), [EDI and AS2](docs/EDI_AS2.md), [navigation and addresses](docs/NAVIGATION.md), [truckers, carriers and reliability](docs/NETWORK_AND_RELIABILITY.md), [roadmap](docs/ROADMAP.md). |
+| `docs/` | [Architecture](docs/ARCHITECTURE.md), [integrations and carrier catalog](docs/INTEGRATIONS.md), [EDI and AS2](docs/EDI_AS2.md), [navigation and addresses](docs/NAVIGATION.md), [truckers, carriers and reliability](docs/NETWORK_AND_RELIABILITY.md), [live tracking and ETAs](docs/TRACKING.md), [roadmap](docs/ROADMAP.md). |
 
 ## Quick start
 
@@ -73,6 +73,7 @@ Copy `.env.example` to `.env` and set `LP_JWT_SECRET` before running anywhere bu
 | EDI send and receive, central AS2 | `packages/integration/src/as2` and `apps/api/src/routes/as2.ts`; see [docs/EDI_AS2.md](docs/EDI_AS2.md) |
 | Truckers belong to carriers, join codes | `apps/api/src/routes/network.ts`; see [docs/NETWORK_AND_RELIABILITY.md](docs/NETWORK_AND_RELIABILITY.md) |
 | Reliability profiles (drivers and carriers, overall and per business) | `packages/domain/src/reliability.ts`, `apps/api/src/routes/reliability.ts` |
+| Carriers see every truck; shippers and 3PLs see every undelivered shipment with ETA and late, at risk, on time or early | `packages/domain/src/eta.ts`, `apps/api/src/routes/tracking.ts`, `apps/mobile/src/screens/TrackScreen.tsx`; see [docs/TRACKING.md](docs/TRACKING.md) |
 | Standard and oversize navigation | `packages/navigation`; the app screen is `apps/mobile/src/screens/NavigateScreen.tsx` |
 | A webpage with the same data | The Expo web build, served by the API (`LP_WEB_DIR`); wide-screen layouts in `apps/mobile/src/ui/responsive.ts`, URLs in `apps/mobile/src/navigation/linking.ts` |
 | Apple and Google conventions | Platform-adaptive theme and components in `apps/mobile/src/ui`; SF Symbols on iOS, Material Symbols on Android; 3–5 bottom tabs; light and dark mode |

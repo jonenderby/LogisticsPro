@@ -26,6 +26,7 @@ Plain TypeScript plus zod, with no Node-only imports, so it runs on the server a
 - **Teams**: team-expedited loads refuse solo assignments and solo bids. `estimateTransit` compares solo hours-of-service (11 h driving, 30-minute break, 10 h reset) with a team.
 - **LTL consolidation**: `planConsolidation` routes LTL loads through a carrier distribution center, groups them by destination 3-digit ZIP, bin-packs trailers by weight and linear feet, and orders deliveries by nearest neighbor.
 - **Bids and invoices**: award one bid and reject the rest; build invoices from the agreed rate plus fuel and accessorials.
+- **Arrival estimates**: `shipmentEta` estimates arrival at the final delivery from the truck's last position, the stops still ahead and hours-of-service, prefers a recent carrier ETA, and classifies the shipment as late, at risk, on time or early with reasons. See [TRACKING.md](TRACKING.md).
 
 ### `packages/integration`
 - **Canonical transactions**: `LOAD_TENDER`, `TENDER_RESPONSE`, `SHIPMENT_STATUS`, `FREIGHT_INVOICE`, `RATE_QUOTE`, `PICKUP_REQUEST`. One zod schema each. Required fields are listed by `fieldPaths()` and served at `GET /v1/integrations/transactions`.
@@ -54,6 +55,7 @@ Fastify. Notable rules:
 - **Auth**: registration returns an enrollment token that can only activate TOTP. A session is issued only after a valid authenticator code; 10 single-use recovery codes are shown once. Five failed passwords lock the email for 15 minutes. Refresh tokens rotate on every use and are stored hashed.
 - **Visibility**: a load is visible to members of its shipper, broker and carrier orgs, to drivers assigned to any leg, and to carriers while it is posted on the board.
 - **Integration hub** (`services/hub.ts`): decides who receives each event and in which format. Inbound partner traffic is authenticated with a per-partner token, and a partner can only touch loads it carries or tendered.
+- **Tracking** (`routes/tracking.ts`): drivers' phones report positions; carriers get a fleet view of every driver, shippers and 3PLs get every undelivered shipment with its arrival status. Truck positions are shown to a shipper only while that truck is moving their freight.
 - **Persistence**: `MemoryStore` is a set of maps behind one class, so a database-backed store can replace it without touching routes.
 
 ## Website
@@ -65,4 +67,4 @@ The website is the same Expo app exported for the browser (`npm run build:web`),
 - **Dialogs**: React Native's `Alert` does nothing in a browser, so confirmations and messages go through `ui/dialog.ts`, which uses native dialogs on phones and the browser's on the web.
 
 ## Mobile (`apps/mobile`)
-Expo SDK 57, React Navigation (native stacks inside bottom tabs), expo-secure-store for the refresh token, expo-location and react-native-maps for navigation, expo-symbols for SF Symbols on iOS and Material Symbols on Android. The tab bar and Today feed come from `GET /v1/me`, so the same build serves a company driver, an owner-operator, a dispatcher, a shipper and a broker. The navigation screen runs the same navigation package as the server.
+Expo SDK 57, React Navigation (native stacks inside bottom tabs), expo-secure-store for the refresh token, expo-location and react-native-maps for navigation, expo-symbols for SF Symbols on iOS and Material Symbols on Android. The tab bar and Today feed come from `GET /v1/me`, so the same build serves a company driver, an owner-operator, a dispatcher, a shipper and a broker. The navigation screen runs the same navigation package as the server. Tracking maps use react-native-maps on phones and Leaflet on the website (`ui/FleetMap.tsx` and `ui/FleetMap.native.tsx`). While a driver has a load, `state/useLocationSharing.ts` reports their position about once a minute.

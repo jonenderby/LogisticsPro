@@ -33,7 +33,12 @@ describe("capabilities and layout", () => {
 
   it("puts the load board up front for a broker", () => {
     const caps = resolveCapabilities({ account: acct("b", "BROKER_3PL"), memberships: [mem("b", "org_3pl", ["OWNER"])], orgs: [org("org_3pl", ["BROKER_3PL"])] });
-    expect(buildWorkspace(caps).tabs.map((t) => t.id)).toEqual(["today", "loads", "board", "money", "more"]);
+    expect(buildWorkspace(caps).tabs.map((t) => [t.id, t.title])).toEqual([["today", "Today"], ["loads", "Loads"], ["track", "Tracking"], ["board", "Board"], ["more", "More"]]);
+  });
+
+  it("puts the fleet map up front for a dispatcher", () => {
+    const caps = resolveCapabilities({ account: acct("x", "CARRIER"), memberships: [mem("x", "c", ["DISPATCHER"])], orgs: [org("c", ["CARRIER"])] });
+    expect(buildWorkspace(caps).tabs.map((t) => [t.id, t.title]).slice(0, 3)).toEqual([["today", "Today"], ["loads", "Loads"], ["track", "Fleet"]]);
   });
 
   it("never shows more than five bottom tabs", () => {

@@ -4,6 +4,7 @@ export type StackParams = {
   Today: undefined;
   Loads: { filter?: string } | undefined;
   Navigate: { loadId?: string } | undefined;
+  Track: undefined;
   Board: undefined;
   Messages: undefined;
   Money: undefined;

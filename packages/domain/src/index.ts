@@ -10,3 +10,4 @@ export * from "./invoice.js";
 export * from "./message.js";
 export * from "./reliability.js";
 export * from "./network.js";
+export * from "./eta.js";

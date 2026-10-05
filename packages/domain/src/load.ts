@@ -137,6 +137,8 @@ export const LoadEvent = z.object({
   city: z.string().optional(),
   state: z.string().optional(),
   note: z.string().optional(),
+  /** Estimated arrival at the final delivery, when the carrier reports one (ETA updates, delays). */
+  eta: z.string().optional(),
   reportedByAccountId: z.string().optional(),
   /** Where the event came from: the app, a partner API, or an inbound EDI 214. */
   source: z.enum(["APP", "API", "EDI", "SYSTEM"]).default("APP"),
