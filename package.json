@@ -1,0 +1,29 @@
+{
+  "name": "logistics-pro",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Logistics Pro: one integration hub and one app for shippers, 3PLs, carriers and truckers.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:mobile": "npm run typecheck --workspace @logisticspro/mobile",
+    "dev:api": "npm run dev --workspace @logisticspro/api",
+    "start:api": "npm run start --workspace @logisticspro/api",
+    "dev:mobile": "npm run start --workspace @logisticspro/mobile"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}
