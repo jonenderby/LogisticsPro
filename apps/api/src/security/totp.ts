@@ -53,12 +53,17 @@ export function totp(secret: string, at = Date.now(), step = 30, digits = 6): st
 
 /** Accept the current code and one step either side for clock drift. */
 export function verifyTotp(secret: string, code: string, at = Date.now()): boolean {
-  if (!/^\d{6}$/.test(code)) return false;
+  return totpStep(secret, code, at) !== undefined;
+}
+
+/** The 30-second step a code belongs to, or undefined when it does not match. */
+export function totpStep(secret: string, code: string, at = Date.now()): number | undefined {
+  if (!/^\d{6}$/.test(code)) return undefined;
   for (const drift of [-1, 0, 1]) {
     const expected = Buffer.from(totp(secret, at + drift * 30_000));
-    if (timingSafeEqual(expected, Buffer.from(code))) return true;
+    if (timingSafeEqual(expected, Buffer.from(code))) return Math.floor(at / 30_000) + drift;
   }
-  return false;
+  return undefined;
 }
 
 export function otpauthUri(secret: string, account: string, issuer = "Logistics Pro"): string {

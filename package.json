@@ -17,12 +17,14 @@
     "start:api": "npm run start --workspace @logisticspro/api",
     "dev:mobile": "npm run start --workspace @logisticspro/mobile",
     "build:web": "npm run build:web --workspace @logisticspro/mobile",
-    "serve": "npm run build:web && LP_WEB_DIR=$PWD/dist/web npm run start:api"
+    "serve": "npm run build:web && LP_WEB_DIR=$PWD/dist/web npm run start:api",
+    "test:e2e": "playwright test"
   },
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
+    "@playwright/test": "~1.63.0",
     "@types/node": "^26.6.4",
     "@types/node-forge": "^1.3.14",
     "tsx": "^4.23.15",

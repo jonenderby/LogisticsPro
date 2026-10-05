@@ -96,6 +96,8 @@ export class MemoryStore {
   stoppedSince = new Map<string, string>();
   /** Arrival alert settings per account. */
   alertPrefs = new Map<string, AlertPreferences>();
+  /** Last authenticator step accepted per account; older or equal codes are refused. */
+  totpLastStep = new Map<string, number>();
   /** Tender and message notification switches per account. */
   notificationSettings = new Map<string, NotificationSettings>();
   /** Pushes accepted by Expo whose delivery receipts are still to be checked. */

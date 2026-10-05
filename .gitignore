@@ -11,3 +11,5 @@ coverage/
 ios/
 android/
 var/
+playwright-report/
+test-results/

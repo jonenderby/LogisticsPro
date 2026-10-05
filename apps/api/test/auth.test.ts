@@ -20,15 +20,23 @@ describe("accounts and two-factor authentication", () => {
   });
 
   it("signs in with password + authenticator code, or a single-use recovery code", async () => {
-    const h = await harness();
+    let now = Date.parse("2026-10-05T15:00:00Z");
+    const h = await harness({ now: () => new Date(now) });
     const s = await signUp(h, "BUSINESS", "Pat Shipper");
     expect(s.recoveryCodes).toHaveLength(10);
     const login = async () => (await h.app.inject({ method: "POST", url: "/v1/auth/login", payload: { email: s.email, password: "correct horse battery staple" } })).json();
     const l1 = await login();
     expect(l1.status).toBe("MFA_REQUIRED");
-    const ok = await h.app.inject({ method: "POST", url: "/v1/auth/login/mfa", payload: { token: l1.mfaToken, code: totp(s.totpSecret) } });
+    // The code used to activate two-factor cannot be used again.
+    const replay = await h.app.inject({ method: "POST", url: "/v1/auth/login/mfa", payload: { token: l1.mfaToken, code: totp(s.totpSecret, now) } });
+    expect(replay.statusCode).toBe(400);
+    now += 30_000;
+    const code = totp(s.totpSecret, now);
+    const ok = await h.app.inject({ method: "POST", url: "/v1/auth/login/mfa", payload: { token: l1.mfaToken, code } });
     expect(ok.statusCode).toBe(200);
     expect(ok.json().accessToken).toBeTruthy();
+    // Each code opens one session.
+    expect((await h.app.inject({ method: "POST", url: "/v1/auth/login/mfa", payload: { token: (await login()).mfaToken, code } })).statusCode).toBe(400);
 
     const rec = await h.app.inject({ method: "POST", url: "/v1/auth/login/mfa", payload: { token: (await login()).mfaToken, code: s.recoveryCodes[0] } });
     expect(rec.json()).toMatchObject({ usedRecoveryCode: true, recoveryCodesLeft: 9 });

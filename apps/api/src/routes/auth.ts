@@ -3,7 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { type AppContext, HttpError, authenticate, me, parse } from "../http.js";
 import { hashPassword, passwordProblems, verifyPassword } from "../security/password.js";
-import { hashCode, newRecoveryCodes, newTotpSecret, otpauthUri, verifyTotp } from "../security/totp.js";
+import { hashCode, newRecoveryCodes, newTotpSecret, otpauthUri, totpStep } from "../security/totp.js";
 import { newOpaqueToken, sha256 } from "../security/tokens.js";
 
 const Register = z.object({
@@ -40,6 +40,17 @@ const LOCK_MS = 15 * 60_000;
  */
 export function authRoutes(app: FastifyInstance, ctx: AppContext) {
   const failures = new Map<string, { count: number; until: number }>();
+
+  /**
+   * An authenticator code works once (RFC 6238 section 5.2): a code seen on
+   * the wire, or reused within its 30 seconds, cannot open a second session.
+   */
+  const acceptCode = (accountId: string, secret: string, code: string): boolean => {
+    const step = totpStep(secret, code, ctx.now().getTime());
+    if (step === undefined || step <= (ctx.store.totpLastStep.get(accountId) ?? -1)) return false;
+    ctx.store.totpLastStep.set(accountId, step);
+    return true;
+  };
 
   const setCookie = (reply: FastifyReply, value: string, maxAge: number) =>
     reply.header("set-cookie", `${COOKIE}=${encodeURIComponent(value)}; HttpOnly; SameSite=Strict; Path=/v1/auth; Max-Age=${maxAge}${ctx.cfg.cookieSecure ? "; Secure" : ""}`);
@@ -92,7 +103,7 @@ export function authRoutes(app: FastifyInstance, ctx: AppContext) {
       throw new HttpError(401, "UNAUTHENTICATED", "Enrollment expired; sign in again");
     });
     const account = ctx.store.accounts.get(claims.sub)!;
-    if (!account.mfa.totpSecret || !verifyTotp(account.mfa.totpSecret, body.code, ctx.now().getTime())) throw new HttpError(400, "BAD_CODE", "That code did not match. Check your authenticator app's time and try again.");
+    if (!account.mfa.totpSecret || !acceptCode(account.id, account.mfa.totpSecret, body.code)) throw new HttpError(400, "BAD_CODE", "That code did not match. Check your authenticator app's time and try again.");
     const codes = newRecoveryCodes();
     const updated: Account = { ...account, mfa: { enabled: true, totpSecret: account.mfa.totpSecret, recoveryCodeHashes: codes.map(hashCode) } };
     ctx.store.accounts.set(account.id, updated);
@@ -123,7 +134,7 @@ export function authRoutes(app: FastifyInstance, ctx: AppContext) {
     });
     const account = ctx.store.accounts.get(claims.sub)!;
     const secret = account.mfa.totpSecret!;
-    if (verifyTotp(secret, body.code, ctx.now().getTime())) return issueSession(account, req, reply);
+    if (acceptCode(account.id, secret, body.code)) return issueSession(account, req, reply);
     const h = hashCode(body.code);
     if (account.mfa.recoveryCodeHashes.includes(h)) {
       const updated = { ...account, mfa: { ...account.mfa, recoveryCodeHashes: account.mfa.recoveryCodeHashes.filter((x) => x !== h) } };
@@ -156,7 +167,7 @@ export function authRoutes(app: FastifyInstance, ctx: AppContext) {
   app.post("/v1/auth/mfa/recovery-codes", { preHandler: authenticate(ctx) }, async (req) => {
     const { code } = parse(z.object({ code: z.string() }), req.body);
     const account = me(ctx, req);
-    if (!verifyTotp(account.mfa.totpSecret!, code, ctx.now().getTime())) throw new HttpError(400, "BAD_CODE", "That code did not match");
+    if (!acceptCode(account.id, account.mfa.totpSecret!, code)) throw new HttpError(400, "BAD_CODE", "That code did not match");
     const codes = newRecoveryCodes();
     ctx.store.accounts.set(account.id, { ...account, mfa: { ...account.mfa, recoveryCodeHashes: codes.map(hashCode) } });
     return { recoveryCodes: codes };

@@ -77,5 +77,15 @@ describe("serving the website", () => {
     expect(api404.statusCode).toBe(404);
     expect(api404.json().error.code).toBe("NOT_FOUND");
     expect((await app.inject({ method: "GET", url: "/health" })).json()).toEqual({ ok: true });
+
+    // A new build adds new hashed bundles while the server runs: they are served without a restart.
+    await writeFile(join(dir, "_expo", "app-new.js"), "console.log(2)");
+    const fresh = await app.inject({ method: "GET", url: "/_expo/app-new.js" });
+    expect(fresh.statusCode).toBe(200);
+    expect(fresh.body).toBe("console.log(2)");
+    // A missing asset is a 404, not the app page.
+    expect((await app.inject({ method: "GET", url: "/_expo/missing.js" })).statusCode).toBe(404);
+    // Paths outside the build folder are refused.
+    expect((await app.inject({ method: "GET", url: "/../package.json" })).statusCode).toBe(404);
   });
 });

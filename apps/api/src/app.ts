@@ -128,7 +128,9 @@ async function serveWeb(app: FastifyInstance, dir: string) {
   if (!existsSync(resolve(root, "index.html"))) throw new Error(`LP_WEB_DIR has no index.html: ${root}`);
   await app.register(fastifyStatic, {
     root,
-    wildcard: false,
+    // Look files up on each request, so a new web build (new hashed bundle
+    // names) is served without restarting the API.
+    wildcard: true,
     setHeaders: (res, path) => {
       res.header("cache-control", path.includes("/_expo/") || path.includes("/assets/") ? "public, max-age=31536000, immutable" : "no-cache");
     },

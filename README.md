@@ -38,7 +38,8 @@ Requires Node 20 or newer.
 
 ```bash
 npm install
-npm test                 # 118 tests across domain, integration, navigation, workspace and API
+npm test                 # unit and API tests across every package
+npm run build:web && npm run test:e2e   # browser tests against the website build (Playwright)
 npm run typecheck        # server-side packages
 npm run typecheck:mobile # the Expo app
 npm run dev:api          # API on http://localhost:8080
