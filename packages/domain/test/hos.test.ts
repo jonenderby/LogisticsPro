@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type DutyEvent, hosClock, isMoving, milesDriven } from "../src/index.js";
+import { type DutyEvent, driveTimeline, hosClock, isMoving, milesDriven } from "../src/index.js";
 
 const ev = (status: DutyEvent["status"], at: string): DutyEvent => ({ status, at, source: "DRIVER" });
 // Thursday 2026-10-08. The driver rested overnight and came on duty at 06:00.
@@ -77,5 +77,18 @@ describe("miles from the phone's trail", () => {
     expect(isMoving(p(35, "2026-10-08T10:00:00Z"), p(35.0001, "2026-10-08T10:05:00Z"))).toBe(false);
     // 200 miles in 5 minutes is a glitch, not driving.
     expect(isMoving(p(35, "2026-10-08T10:00:00Z"), p(37.9, "2026-10-08T10:05:00Z"))).toBe(false);
+  });
+});
+
+describe("driving time on the clock", () => {
+  it("adds the break, the 10-hour reset and the 34-hour restart where the rules require", () => {
+    // Fresh: 8 h, a 30-minute break, 3 h, then 10 h off, then the last 1 h.
+    expect(driveTimeline(12 * 60)).toEqual({ elapsedMin: 8 * 60 + 30 + 3 * 60 + 600 + 60, breaks: 1, resets: 1, restarts: 0 });
+    // Only 2 h left today: 2 h, 10 h off, then the remaining 3 h.
+    expect(driveTimeline(5 * 60, { drivingLeftMin: 120, windowLeftMin: 300, breakLeftMin: 400, cycleLeftMin: 3000 }).elapsedMin).toBe(120 + 600 + 180);
+    // Out of weekly hours after 1 h: 34 h restart.
+    expect(driveTimeline(3 * 60, { drivingLeftMin: 600, windowLeftMin: 800, breakLeftMin: 480, cycleLeftMin: 60 })).toMatchObject({ elapsedMin: 60 + 34 * 60 + 120, restarts: 1 });
+    // A team only swaps drivers.
+    expect(driveTimeline(20 * 60, undefined, { team: true })).toEqual({ elapsedMin: 20 * 60 + 15, breaks: 1, resets: 0, restarts: 0 });
   });
 });

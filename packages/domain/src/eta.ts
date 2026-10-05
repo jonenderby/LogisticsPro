@@ -1,5 +1,5 @@
 import type { GeoPoint } from "./common.js";
-import { estimateTransit } from "./dispatch.js";
+import { type HosStart, driveTimeline } from "./hos.js";
 import { estimatedRoadMiles } from "./geo.js";
 import { type Load, type Stop, finalDeliveryStop, pickupStop } from "./load.js";
 
@@ -40,6 +40,10 @@ export interface EtaOptions {
   /** Arriving with less slack than this before the window closes is at risk. */
   atRiskMinutes?: number;
   graceMinutes?: number;
+  /** The driver's hours left right now; without it the driver is assumed fresh. */
+  hos?: HosStart;
+  /** A road route for what is left, from a routing server; replaces the road-factor estimate. */
+  route?: { miles: number; minutes: number };
 }
 
 const MIN = 60_000;
@@ -62,6 +66,7 @@ export function shipmentEta(load: Load, o: EtaOptions): ShipmentEta {
   const final = finalDeliveryStop(load);
   const window = { start: final.window.start, end: final.window.end };
   const out: ShipmentEta = { loadId: load.id, status: "UNKNOWN", etaSource: "NONE", window, reasons: [] };
+  const notes: string[] = [];
   const classify = (etaMs: number) => {
     out.slackMinutes = Math.round((Date.parse(window.end) - etaMs) / MIN);
     if (etaMs > Date.parse(window.end) + grace) return "LATE" as const;
@@ -119,11 +124,19 @@ export function shipmentEta(load: Load, o: EtaOptions): ShipmentEta {
       miles += estimatedRoadMiles(here, s.address.geo!);
       here = s.address.geo!;
     }
+    // A routed distance and time, when one is available for the truck's position, beats the estimate.
+    const routed = pickedUp && o.route && o.route.miles > 0;
+    if (routed) miles = o.route!.miles;
     out.remainingMiles = Math.round(miles);
     const team = load.teamRequired || load.service === "TEAM_EXPEDITED";
-    const hours = estimateTransit(miles, { team, avgMph: o.avgMph ?? 50 }).totalHours;
+    const drivingMin = routed ? o.route!.minutes : (miles / (o.avgMph ?? 50)) * 60;
+    // Driving rules apply from the driver's real clock once rolling; before pickup assume a fresh driver.
+    const timeline = driveTimeline(drivingMin, pickedUp ? o.hos : undefined, { team });
     const stopsBetween = Math.max(0, legs.length - 1);
-    const computed = start + hours * H + stopsBetween * dwell;
+    const computed = start + timeline.elapsedMin * MIN + stopsBetween * dwell;
+    // Information, not a risk: added after the status is decided.
+    if (timeline.restarts) notes.push("Includes a 34-hour restart: the driver is out of weekly hours");
+    else if (timeline.resets) notes.push(`Includes ${timeline.resets === 1 ? "a 10-hour rest" : `${timeline.resets} 10-hour rests`} under driving-hour rules`);
     out.eta = new Date(computed).toISOString();
     out.etaSource = "COMPUTED";
   }
@@ -142,6 +155,7 @@ export function shipmentEta(load: Load, o: EtaOptions): ShipmentEta {
   out.status = base;
   if (base === "LATE") {
     out.reasons.unshift(`Expected ${ago(-out.slackMinutes! * MIN)} after the delivery window closes`);
+    if (out.etaSource === "COMPUTED") out.reasons.push(...notes);
     return out;
   }
 
@@ -161,6 +175,7 @@ export function shipmentEta(load: Load, o: EtaOptions): ShipmentEta {
   } else {
     out.reasons.push(base === "EARLY" ? `Expected ${ago((Date.parse(window.start) - Date.parse(out.eta)))} before the window opens` : "On track for the delivery window");
   }
+  if (out.etaSource === "COMPUTED") out.reasons.push(...notes);
   return out;
 }
 

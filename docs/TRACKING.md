@@ -37,8 +37,8 @@ Each load's page has an **Arrival** section with the same estimate (`GET /v1/loa
 `shipmentEta` in `packages/domain/src/eta.ts`:
 
 1. **Where is the truck?** The newest of the driver's phone location and the location attached to their latest status update. Before pickup with no location, the estimate starts at the pickup.
-2. **What is left?** The stops still ahead, skipping legs already completed in a relay. Miles are straight-line distance times a road factor.
-3. **How long?** Driving time follows hours-of-service rules for a solo driver (11 h driving, 30-minute break, 10 h reset) or a team. One hour of dwell is added at every stop still ahead. Before pickup, the clock starts at the pickup window.
+2. **What is left?** The stops still ahead, skipping legs already completed in a relay. With a routing server (Valhalla), the job runner routes each moving load's remaining stops for the truck every 30 minutes or 50 miles, and the ETA uses that road distance and driving time, scaled to the truck's progress since. Without one, miles are straight-line distance times a road factor at 50 mph.
+3. **How long?** Once the load is rolling, driving time starts from the solo driver's real hours of service: the time they have left, then the 30-minute break, 10-hour rest or 34-hour restart the rules require (`driveTimeline` in `packages/domain/src/hos.ts`). The reason says when a rest is included. Before pickup, and for a driver with no duty log, a fresh driver is assumed; a team keeps rolling and only stops to swap. One hour of dwell is added at every stop still ahead. Before pickup, the clock starts at the pickup window.
 4. **Carrier ETA first.** If the carrier reported an ETA in the last 12 hours, by status update, API or EDI 214, that ETA wins. When it is more than an hour earlier than the computed one, the reason says so.
 
 Then the status:
@@ -129,6 +129,6 @@ The website draws maps with Leaflet. By default it uses OpenStreetMap's public t
 
 ## Limits
 
-- Distances are estimates, not road routes. Valhalla could supply exact route times later.
+- Valhalla's route times have no live traffic.
 - Hours-of-service is estimated, not read from an ELD.
 - With several API servers, the alert check runs on the one holding the job lock.

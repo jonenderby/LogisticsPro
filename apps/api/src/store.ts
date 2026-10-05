@@ -35,6 +35,15 @@ export interface InboxItem {
   read: boolean;
 }
 
+export interface RouteEstimate {
+  from: { lat: number; lng: number };
+  to: { lat: number; lng: number };
+  miles: number;
+  minutes: number;
+  at: string;
+  source: string;
+}
+
 export interface DriverPosition {
   accountId: string;
   geo: { lat: number; lng: number };
@@ -95,6 +104,8 @@ export class MemoryStore {
   hosSettings = new PersistentMap<{ cycle: HosCycle }>("hosSettings");
   /** Since when a driver's truck has been stopped while driving (automatic duty status). */
   stoppedSince = new PersistentMap<string>("stoppedSince");
+  /** Routed distance and driving time for what is left of a moving load, from the routing server. */
+  routeEstimates = new PersistentMap<RouteEstimate>("routeEstimates");
   /** Arrival alert settings per account. */
   alertPrefs = new PersistentMap<AlertPreferences>("alertPrefs");
   /** Last authenticator step accepted per account; older or equal codes are refused. */

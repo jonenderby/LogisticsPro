@@ -215,3 +215,61 @@ export function isMoving(prev: TrackPoint | undefined, next: TrackPoint): boolea
 
 /** Stopped this long while driving, the driver is switched to on duty (not driving), as an ELD does. */
 export const AUTO_STOP_MINUTES = 5;
+
+/** What a driver has left right now, from hosClock. A fresh driver when absent. */
+export type HosStart = Pick<HosClock, "drivingLeftMin" | "windowLeftMin" | "breakLeftMin" | "cycleLeftMin">;
+
+export const FRESH_DRIVER: HosStart = { drivingLeftMin: HOS.driveMin, windowLeftMin: HOS.windowMin, breakLeftMin: HOS.breakAfterMin, cycleLeftMin: HOS.cycles["70/8"].limitMin };
+
+export interface DriveTimeline {
+  /** Wall-clock minutes to finish the driving, rests included. */
+  elapsedMin: number;
+  breaks: number;
+  /** 10-hour resets. */
+  resets: number;
+  /** 34-hour restarts. */
+  restarts: number;
+}
+
+/**
+ * How long `drivingMin` of driving takes on the clock for a solo driver who
+ * starts with `start` hours left: driving until a limit, then the 30-minute
+ * break, the 10-hour reset or the 34-hour restart the rules require. A team
+ * keeps the truck moving and only stops to swap drivers.
+ */
+export function driveTimeline(drivingMin: number, start: HosStart = FRESH_DRIVER, opts: { team?: boolean } = {}): DriveTimeline {
+  if (opts.team) {
+    const swaps = Math.max(0, Math.ceil(drivingMin / 600) - 1);
+    return { elapsedMin: drivingMin + swaps * 15, breaks: swaps, resets: 0, restarts: 0 };
+  }
+  let { drivingLeftMin: drive, windowLeftMin: window, breakLeftMin: brk, cycleLeftMin: cycle } = start;
+  let remaining = drivingMin;
+  const out: DriveTimeline = { elapsedMin: 0, breaks: 0, resets: 0, restarts: 0 };
+  for (let guard = 0; remaining > 0.01 && guard < 1000; guard++) {
+    const leg = Math.max(0, Math.min(drive, window, brk, cycle, remaining));
+    out.elapsedMin += leg;
+    remaining -= leg;
+    drive -= leg;
+    window -= leg;
+    brk -= leg;
+    cycle -= leg;
+    if (remaining <= 0.01) break;
+    if (cycle <= 0) {
+      out.elapsedMin += HOS.restartMin;
+      out.restarts++;
+      ({ drivingLeftMin: drive, windowLeftMin: window, breakLeftMin: brk, cycleLeftMin: cycle } = { ...FRESH_DRIVER, cycleLeftMin: start.cycleLeftMin > 3600 ? HOS.cycles["70/8"].limitMin : HOS.cycles["60/7"].limitMin });
+    } else if (drive <= 0 || window <= 0) {
+      out.elapsedMin += HOS.resetMin;
+      out.resets++;
+      drive = HOS.driveMin;
+      window = HOS.windowMin;
+      brk = HOS.breakAfterMin;
+    } else {
+      out.elapsedMin += HOS.breakMin;
+      out.breaks++;
+      brk = HOS.breakAfterMin;
+      window -= HOS.breakMin;
+    }
+  }
+  return out;
+}
