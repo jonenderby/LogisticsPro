@@ -98,6 +98,8 @@ export class MemoryStore {
   alertPrefs = new Map<string, AlertPreferences>();
   /** Tender and message notification switches per account. */
   notificationSettings = new Map<string, NotificationSettings>();
+  /** Pushes accepted by Expo whose delivery receipts are still to be checked. */
+  pushTickets: Array<{ id: string; token: string; at: string }> = [];
   /** Phone push tokens per account. */
   pushTokens = new Map<string, PushToken[]>();
   /** In-app alert inbox per account, newest first. */

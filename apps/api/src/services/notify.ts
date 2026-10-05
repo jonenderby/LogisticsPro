@@ -5,6 +5,8 @@ import type { PushMessage } from "./push.js";
 import { lane } from "./tracking.js";
 
 const INBOX_LIMIT = 200;
+const RECEIPT_AFTER_MS = 15 * 60_000;
+const RECEIPT_KEEP_MS = 24 * 3_600_000;
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = { tenders: true, messages: true };
 
 /**
@@ -40,12 +42,44 @@ export class Notifier {
     this.queue = this.queue
       .then(async () => {
         const results = await this.ctx.push.send(messages);
-        const dead = new Set(results.filter((r) => r.unregistered).map((r) => r.token));
-        if (!dead.size) return;
-        for (const [id, tokens] of this.ctx.store.pushTokens) this.ctx.store.pushTokens.set(id, tokens.filter((t) => !dead.has(t.token)));
+        const at = this.ctx.now().toISOString();
+        for (const r of results) if (r.ticketId) this.ctx.store.pushTickets.push({ id: r.ticketId, token: r.token, at });
+        this.forget(new Set(results.filter((r) => r.unregistered).map((r) => r.token)));
       })
       .catch(() => undefined);
     return this.queue;
+  }
+
+  private forget(dead: Set<string>) {
+    if (!dead.size) return;
+    for (const [id, tokens] of this.ctx.store.pushTokens) this.ctx.store.pushTokens.set(id, tokens.filter((t) => !dead.has(t.token)));
+  }
+
+  /**
+   * Check delivery receipts for pushes sent 15 minutes to a day ago, as Expo
+   * recommends, and forget phones whose app is gone. Expo keeps receipts for
+   * a day; older tickets are dropped unchecked.
+   */
+  async checkReceipts(): Promise<{ checked: number; forgotten: number }> {
+    const sender = this.ctx.push;
+    const store = this.ctx.store;
+    const now = this.ctx.now().getTime();
+    const due = store.pushTickets.filter((t) => now - Date.parse(t.at) >= RECEIPT_AFTER_MS && now - Date.parse(t.at) < RECEIPT_KEEP_MS);
+    store.pushTickets = store.pushTickets.filter((t) => now - Date.parse(t.at) < RECEIPT_AFTER_MS);
+    if (!due.length || !sender.receipts) return { checked: 0, forgotten: 0 };
+    let receipts: Awaited<ReturnType<NonNullable<typeof sender.receipts>>>;
+    try {
+      receipts = await sender.receipts(due.map((t) => t.id));
+    } catch {
+      // Try again next time.
+      store.pushTickets.push(...due);
+      return { checked: 0, forgotten: 0 };
+    }
+    // Receipts not ready yet stay for the next check.
+    store.pushTickets.push(...due.filter((t) => !receipts[t.id]));
+    const dead = new Set(due.filter((t) => receipts[t.id]?.unregistered).map((t) => t.token));
+    this.forget(dead);
+    return { checked: due.length, forgotten: dead.size };
   }
 
   /** Wait for queued pushes (tests and shutdown). */

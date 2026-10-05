@@ -26,7 +26,7 @@ describe("hours of service", () => {
     expect(await A.get("/v1/me/hos")).toMatchObject({ status: "OFF_DUTY", drivingLeftMin: 660, windowLeftMin: 840, availableMin: 480, limitedBy: "BREAK", milesThisShift: 0, milesLeft: 400, avgMphSource: "DEFAULT", log: [] });
     const on = await A.post("/v1/me/duty-status", { status: "ON_DUTY", note: "Pre-trip inspection" });
     expect(on).toMatchObject({ status: "ON_DUTY", shiftStart: "2026-10-08T06:00:00.000Z" });
-    expect((await A.get("/v1/me")).hos).toMatchObject({ status: "ON_DUTY" });
+    expect((await A.get("/v1/me")).hos).toMatchObject({ status: "ON_DUTY", teamTruck: false });
     await S.get("/v1/me/hos", 403);
     await S.post("/v1/me/duty-status", { status: "DRIVING" }, 403);
   });
@@ -69,6 +69,8 @@ describe("hours of service", () => {
       await ping(A, i, iso("2026-10-08T06:30:00Z", i * 5));
     }
     expect((await A.get("/v1/me/hos")).status).toBe("OFF_DUTY");
+    // The app offers "I'm the passenger" instead of locking a team driver out.
+    expect((await A.get("/v1/me")).hos).toMatchObject({ teamTruck: true });
   });
 
   it("uses the 60-hour cycle when the driver's carrier runs 7 days", async () => {

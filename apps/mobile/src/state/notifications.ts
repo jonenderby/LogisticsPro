@@ -139,3 +139,15 @@ export const browserNotifications = {
   permission: (): string => (IS_WEB && typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported"),
   request: async (): Promise<string> => (IS_WEB && typeof window !== "undefined" && "Notification" in window ? Notification.requestPermission() : "unsupported"),
 };
+
+/**
+ * Tell the server this device's time zone once per sign-in, so times in
+ * notifications (pickups, ETAs) read in local time on phones and the website.
+ */
+export function useReportTimeZone(signedIn: boolean) {
+  useEffect(() => {
+    if (!signedIn) return;
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (timeZone) void api.put("/v1/me/notification-settings", { timeZone }).catch(() => undefined);
+  }, [signedIn]);
+}

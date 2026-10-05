@@ -108,7 +108,10 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   hosRoutes(app, ctx);
 
   if (cfg.alertIntervalSeconds > 0) {
-    const timer = setInterval(() => void ctx.alerts.tick().catch((e) => app.log.error(e)), cfg.alertIntervalSeconds * 1000);
+    const timer = setInterval(() => {
+      void ctx.alerts.tick().catch((e) => app.log.error(e));
+      void ctx.notifier.checkReceipts().catch((e) => app.log.error(e));
+    }, cfg.alertIntervalSeconds * 1000);
     timer.unref();
     app.addHook("onClose", async () => clearInterval(timer));
   }

@@ -101,7 +101,9 @@ Everyone gets these under **More > Notifications**, on by default, each with its
 - **Tenders**: a carrier's dispatchers hear about a new tender the moment it arrives, whether from a shipper on the platform, an awarded bid, or a shipper's system by API or EDI 204: "New tender LP-100001. Acme Foods: Jackson, MS to Memphis, TN, pickup Mon 1:48 PM, $1,800." The shipper or broker who tendered hears when the carrier accepts or declines.
 - **Messages**: a new message on a load reaches everyone else on it: the drivers, the carrier's dispatchers and the shipper's and broker's staff. Status updates are not pushed as messages. Tapping opens the thread, and reading the thread clears its notifications.
 
-Push permission is asked for when someone turns a switch on or taps "Use this phone". Times in notifications use the phone's time zone.
+Push permission is asked for when someone turns a switch on or taps "Use this phone". Times in notifications use the time zone each phone or browser reports when it signs in.
+
+Expo reports most uninstalled apps in delivery receipts rather than when sending. The server keeps each push's ticket and checks its receipt 15 minutes later, forgetting phones whose app is gone.
 
 <p align="center">
   <img src="screenshots/web-notifications.png" width="560" alt="Notifications settings with tender and message switches and the recent list">

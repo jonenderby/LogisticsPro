@@ -1,7 +1,7 @@
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { DarkTheme, DefaultTheme, NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { type ComponentType, useCallback, useMemo, useRef } from "react";
+import { type ComponentType, useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { useAuth } from "../auth/AuthProvider";
 import { BoardScreen } from "../screens/BoardScreen";
@@ -21,8 +21,9 @@ import { TrackScreen } from "../screens/TrackScreen";
 import { AuthFlow } from "../screens/auth/AuthFlow";
 import { MeProvider, useMe } from "../state/MeProvider";
 import { useLocationSharing } from "../state/useLocationSharing";
-import { type OpenTarget, useBrowserAlerts, usePushNotifications } from "../state/notifications";
+import { type OpenTarget, useBrowserAlerts, usePushNotifications, useReportTimeZone } from "../state/notifications";
 import { AlertsScreen } from "../screens/AlertsScreen";
+import { DrivingLock } from "../ui/DrivingLock";
 import { HoursScreen } from "../screens/HoursScreen";
 import { NotificationsScreen } from "../screens/NotificationsScreen";
 import { Icon } from "../ui/Icon";
@@ -117,7 +118,12 @@ function AppNavigation() {
     if (t.open === "THREAD") navigationRef.navigate(firstTab.current, { screen: "Thread", params: { loadId: t.loadId, title: t.loadNumber ?? "Messages" } });
     else navigationRef.navigate(firstTab.current, { screen: "LoadDetail", params: { id: t.loadId } });
   }, []);
+  const [routeName, setRouteName] = useState<string>();
+  const openNavigation = useCallback((loadId?: string) => {
+    if (navigationRef.isReady()) navigationRef.navigate(firstTab.current, { screen: "Navigate", params: loadId ? { loadId } : undefined });
+  }, []);
   usePushNotifications(!!me, openLoad);
+  useReportTimeZone(!!me);
   useBrowserAlerts(!!me, openLoad);
   const { dark, colors } = useTheme();
   const { wide } = useLayout();
@@ -152,6 +158,7 @@ function AppNavigation() {
       }}
       theme={theme}
       linking={linking}
+      onStateChange={() => setRouteName(navigationRef.getCurrentRoute()?.name)}
       documentTitle={{ formatter: (options, route) => `${options?.title ?? route?.name ?? "Home"} · Logistics Pro` }}>
       <Tabs.Navigator
         key={wide ? "wide" : "narrow"}
@@ -173,6 +180,7 @@ function AppNavigation() {
           />
         ))}
       </Tabs.Navigator>
+      <DrivingLock onNavigate={openNavigation} routeName={routeName} />
     </NavigationContainer>
   );
 }

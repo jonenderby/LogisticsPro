@@ -20,6 +20,8 @@ export interface HosView extends HosClock {
   avgMph: number;
   avgMphSource: "SHIFT" | "DEFAULT";
   log?: DutyEvent[];
+  /** On a team truck the drivers set Driving themselves, so either can be the passenger. */
+  teamTruck?: boolean;
 }
 
 export interface Transmission {

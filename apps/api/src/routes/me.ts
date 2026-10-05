@@ -1,5 +1,5 @@
 import { toPublicAccount } from "@logisticspro/domain";
-import { hosFor } from "../services/hos.js";
+import { hosFor, onTeamTruck } from "../services/hos.js";
 import { buildFeed, buildWorkspace } from "@logisticspro/workspace";
 import type { FastifyInstance } from "fastify";
 import { type AppContext, authenticate, canSeeLoad, capsOf, me } from "../http.js";
@@ -43,7 +43,7 @@ export function meRoutes(app: FastifyInstance, ctx: AppContext) {
       ownerOperator: caps.ownerOperator,
       workspace: buildWorkspace(caps),
       feed: buildFeed(caps, { accountId: account.id, loads, boardLoads, bids, invoices, unreadByLoad, joinRequests, arrivalAlerts, now: ctx.now().toISOString() }),
-      hos: caps.all.has("DRIVE") ? hosFor(ctx.store, account.id, ctx.now()) : undefined,
+      hos: caps.all.has("DRIVE") ? { ...hosFor(ctx.store, account.id, ctx.now()), teamTruck: onTeamTruck(ctx.store, account.id) } : undefined,
     };
   });
 }

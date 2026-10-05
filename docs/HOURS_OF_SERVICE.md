@@ -41,6 +41,21 @@ Not modeled: split sleeper-berth pairings, the adverse driving conditions extens
 - On a **team truck** movement says nothing about who is at the wheel, so team drivers set their status themselves.
 - GPS jumps faster than a truck can go are ignored, both for duty status and for miles.
 
+## Driving lock
+
+Federal rules ban drivers from holding or typing on a phone while driving. While a driver's status is Driving, the phone app covers everything with a glanceable screen:
+
+- Time left to drive and which limit sets it.
+- The next stop and its ETA.
+- Three large single-tap buttons: **Navigation** (turn-by-turn stays usable), **Read it to me** (speaks the hours and next stop), and **I've stopped**, which unlocks only if the phone confirms the truck is not moving.
+- On a team truck, **I'm the passenger** replaces "I've stopped", so the co-driver is not locked out.
+
+Otherwise the app unlocks by itself after 5 minutes stopped. The website is not locked.
+
+<p align="center">
+  <img src="screenshots/driving-lock.png" width="230" alt="Driving lock: 5 h 44 min left until the 30-minute break, next stop Memphis, Navigation, Read it to me and I've stopped buttons">
+</p>
+
 ## It is not an ELD
 
 This is an estimate from the driver's own entries and phone. It is not a registered electronic logging device and does not replace one; the ELD's record is the legal one. Reading hours from the carrier's ELD provider is on the [roadmap](ROADMAP.md).
