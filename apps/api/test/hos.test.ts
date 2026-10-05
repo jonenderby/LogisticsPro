@@ -58,6 +58,18 @@ describe("hours of service", () => {
     expect(fleet.drivers.find((d: { name: string }) => d.name === "Ana").hos).toMatchObject({ status: "ON_DUTY", availableMin: 355, limitedBy: "BREAK" });
   });
 
+  it("takes a batch of fixes collected in the background, in any order", async () => {
+    const { at, A } = await world();
+    const start = "2026-10-08T06:30:00Z";
+    const fixes = Array.from({ length: 25 }, (_, i) => ({ lat: 30 + i * (50 / 12 / 69.05), lng: -95, at: iso(start, i * 5), speedMps: 22.35 })).reverse();
+    at(iso(start, 125));
+    expect(await A.post("/v1/me/locations", { fixes })).toMatchObject({ duty: { status: "DRIVING" } });
+    const hos = await A.get("/v1/me/hos");
+    expect(hos.milesThisShift).toBeCloseTo(100, 0);
+    expect(hos.log.map((e: { status: string; source: string }) => `${e.status}/${e.source}`)).toEqual(["DRIVING/AUTO"]);
+    await A.post("/v1/me/locations", { fixes: [] }, 400);
+  });
+
   it("leaves duty status to the drivers on a team truck", async () => {
     const { at, S, acme, F, fleet, ana, ben, A } = await world();
     const load = await S.post("/v1/loads", loadBody(acme.id, { teamRequired: true }), 201);

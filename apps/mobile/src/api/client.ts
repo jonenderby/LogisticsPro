@@ -60,6 +60,10 @@ export const session = {
   onSignedOut(cb: () => void) {
     onSignedOut = cb;
   },
+  /** Whether this JS runtime already holds a session (false in a background task started with the app closed). */
+  active(): boolean {
+    return !!accessToken;
+  },
 };
 
 async function raw(method: string, path: string, body?: unknown, token?: string) {

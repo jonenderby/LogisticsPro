@@ -113,7 +113,13 @@ API: `GET/PUT /v1/me/notification-settings`, `GET /v1/me/notifications`.
 
 ## Where locations come from
 
-- **Phones**: while a driver has a load assigned, the app sends their position at most once a minute, or after 200 m of movement (`POST /v1/me/location`). The location prompt appears only once a load is underway. This works while the app is open; background location is on the [roadmap](ROADMAP.md).
+- **Phones**: while a driver has a load or is on duty, the app sends their position about once a minute (`POST /v1/me/location`). The location prompt appears only once a load is underway.
+- **With the app closed**: once a load is underway the app explains why and asks for location "all the time". With it, a background task keeps reporting, batching fixes (`POST /v1/me/locations`); Android shows an ongoing "Sharing your trip" notification, and iOS shows the blue location indicator. Tracking stops when the driver goes off duty with no load, or signs out. Without it, tracking runs while the app is open.
+
+### Store review for background location
+
+- **Apple** reviews the "Always" location use. The purpose text in the permission prompt says what it is for, and the app uses it only while the driver is on duty or on a load. Expect to explain this in review notes.
+- **Google Play** requires the in-app explanation shown before the system prompt (built in), a background location declaration in the Play Console, and a short video of the feature in use.
 - **Status updates**: every tap such as Loaded or Arrived carries the phone's position.
 - **Carrier systems**: 214 status messages and API status updates can carry a location and an ETA.
 

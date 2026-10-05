@@ -37,7 +37,7 @@ Not modeled: split sleeper-berth pairings, the adverse driving conditions extens
 ## Where the duty log comes from
 
 - **The driver** sets their status. Changes take effect now; the log is not edited after the fact.
-- **The truck's movement**, as an ELD does it: while the app is open and the driver has a load or is on duty, the phone reports its position about once a minute and checks in every 2 minutes while stopped. Moving over 5 mph switches the driver to **Driving**; 5 minutes stopped switches them back to **On duty**. These entries are marked **Auto**.
+- **The truck's movement**, as an ELD does it: while the driver has a load or is on duty, the phone reports its position about once a minute, including with the app closed if the driver allowed location "all the time". Moving over 5 mph switches the driver to **Driving**; 5 minutes stopped switches them back to **On duty**. These entries are marked **Auto**.
 - On a **team truck** movement says nothing about who is at the wheel, so team drivers set their status themselves.
 - GPS jumps faster than a truck can go are ignored, both for duty status and for miles.
 

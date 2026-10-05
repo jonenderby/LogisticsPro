@@ -1,6 +1,7 @@
 import * as Location from "expo-location";
 import { useEffect, useRef } from "react";
 import { api } from "../api/client";
+import { startBackgroundTracking, stopBackgroundTracking } from "./backgroundLocation";
 import { useMe } from "./MeProvider";
 
 const MIN_INTERVAL_MS = 60_000;
@@ -13,8 +14,9 @@ const HEARTBEAT_MS = 120_000;
  * the server switch the driver to Driving when the truck moves and back to
  * On duty after five minutes stopped.
  *
- * Runs only while the app is open (foreground permission). The permission
- * prompt is shown only once a load is underway or the driver goes on duty.
+ * With "Allow all the time", tracking continues with the app closed through
+ * a background task; otherwise it runs while the app is open. The prompts
+ * are shown only once a load is underway or the driver goes on duty.
  */
 export function useLocationSharing() {
   const { me, has, refresh } = useMe();
@@ -27,7 +29,10 @@ export function useLocationSharing() {
   lastStatus.current = me?.hos?.status;
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      void stopBackgroundTracking();
+      return;
+    }
     let cancelled = false;
     let sub: Location.LocationSubscription | undefined;
     let timer: ReturnType<typeof setInterval> | undefined;
@@ -59,6 +64,9 @@ export function useLocationSharing() {
       let perm = await Location.getForegroundPermissionsAsync();
       if (!perm.granted && perm.canAskAgain && underway) perm = await Location.requestForegroundPermissionsAsync();
       if (!perm.granted || cancelled) return;
+      // The background task also reports while the app is open; don't double up.
+      if (underway && (await startBackgroundTracking().catch(() => false))) return;
+      if (cancelled) return;
       const s = await Location.watchPositionAsync({ accuracy: Location.Accuracy.Balanced, timeInterval: MIN_INTERVAL_MS, distanceInterval: 200 }, (loc) => send(loc));
       if (cancelled) {
         s.remove();

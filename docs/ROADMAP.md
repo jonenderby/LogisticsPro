@@ -18,7 +18,7 @@ What is built and tested is described in the README. This is what remains before
 - Camera document scanning for BOL and POD (today a document is added by link).
 - Push notifications for corridor violations (tenders, messages and arrival alerts already push).
 - Web push for the website while it is closed (needs VAPID keys and a service worker).
-- Background location, so tracking continues with the app closed (today the app shares location while open), and CarPlay / Android Auto.
+- CarPlay and Android Auto.
 - Arrival estimates from Valhalla route times and live traffic instead of road-factor miles.
 - Address type-ahead while typing stops (search exists; the New load form does not use it yet).
 - ELD integration (Motive, Samsara, Geotab and others) for the legal hours-of-service record instead of estimates.

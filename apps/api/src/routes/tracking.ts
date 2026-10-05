@@ -18,23 +18,46 @@ import { MOVING, OFFLINE_AFTER_MS, UNDELIVERED, activeLeg, etaFor, lane, positio
 export function trackingRoutes(app: FastifyInstance, ctx: AppContext) {
   const auth = { preHandler: authenticate(ctx) };
 
-  app.post("/v1/me/location", auth, async (req) => {
-    const account = me(ctx, req);
-    if (!capsOf(ctx, account.id).all.has("DRIVE")) throw new HttpError(403, "FORBIDDEN", "Only drivers share their location");
-    const b = parse(
-      z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180), at: z.string().optional(), speedMps: z.number().min(0).max(80).optional(), headingDeg: z.number().min(0).max(360).optional(), accuracyM: z.number().min(0).optional() }),
-      req.body,
-    );
-    const now = ctx.now();
+  const Fix = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180), at: z.string().optional(), speedMps: z.number().min(0).max(80).optional(), headingDeg: z.number().min(0).max(360).optional(), accuracyM: z.number().min(0).optional() });
+
+  /** Record one location fix: the latest position, the trail for miles, and automatic duty status. */
+  const acceptFix = (accountId: string, b: z.infer<typeof Fix>, now: Date) => {
     const at = b.at ? new Date(b.at) : now;
     if (Number.isNaN(at.getTime()) || at.getTime() > now.getTime() + 5 * 60_000) throw new HttpError(400, "INVALID_REQUEST", "Position time is invalid");
-    const prior = ctx.store.positions.get(account.id);
+    const prior = ctx.store.positions.get(accountId);
     if (!prior || prior.at <= at.toISOString()) {
-      ctx.store.positions.set(account.id, { accountId: account.id, geo: { lat: b.lat, lng: b.lng }, at: at.toISOString(), speedMps: b.speedMps, headingDeg: b.headingDeg, accuracyM: b.accuracyM });
+      ctx.store.positions.set(accountId, { accountId, geo: { lat: b.lat, lng: b.lng }, at: at.toISOString(), speedMps: b.speedMps, headingDeg: b.headingDeg, accuracyM: b.accuracyM });
     }
-    recordFix(ctx.store, account.id, { geo: { lat: b.lat, lng: b.lng }, at: at.toISOString(), speedMps: b.speedMps }, now, { autoDuty: true });
-    const hos = hosFor(ctx.store, account.id, now);
+    recordFix(ctx.store, accountId, { geo: { lat: b.lat, lng: b.lng }, at: at.toISOString(), speedMps: b.speedMps }, now, { autoDuty: true });
+  };
+  const driverOnly = (accountId: string) => {
+    if (!capsOf(ctx, accountId).all.has("DRIVE")) throw new HttpError(403, "FORBIDDEN", "Only drivers share their location");
+  };
+  const duty = (accountId: string, now: Date) => {
+    const hos = hosFor(ctx.store, accountId, now);
     return { ok: true, duty: { status: hos.status, availableMin: hos.availableMin } };
+  };
+
+  app.post("/v1/me/location", auth, async (req) => {
+    const account = me(ctx, req);
+    driverOnly(account.id);
+    const now = ctx.now();
+    acceptFix(account.id, parse(Fix, req.body), now);
+    return duty(account.id, now);
+  });
+
+  /**
+   * Fixes collected while the app was in the background or offline, sent
+   * together. Applied in time order; fixes older than what is already
+   * recorded only fill the trail where they fit.
+   */
+  app.post("/v1/me/locations", auth, async (req) => {
+    const account = me(ctx, req);
+    driverOnly(account.id);
+    const now = ctx.now();
+    const { fixes } = parse(z.object({ fixes: z.array(Fix).min(1).max(500) }), req.body);
+    for (const f of [...fixes].sort((a, b) => (a.at ?? "").localeCompare(b.at ?? ""))) acceptFix(account.id, f, now);
+    return duty(account.id, now);
   });
 
   const shipmentView = (load: Load, viewerIsShipper: boolean) => {

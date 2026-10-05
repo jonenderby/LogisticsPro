@@ -33,7 +33,13 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Logistics Pro uses your location for turn-by-turn and permitted-route navigation and to attach your position to status updates."
+          "locationWhenInUsePermission": "Logistics Pro uses your location for turn-by-turn and permitted-route navigation and to attach your position to status updates.",
+          "locationAlwaysAndWhenInUsePermission": "While you're on duty or on a load, Logistics Pro uses your location in the background to update your carrier and customer and to count your driving hours. It stops when you go off duty.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "locationAlwaysPermission": "While you're on duty or on a load, Logistics Pro uses your location in the background to update your carrier and customer and to count your driving hours. It stops when you go off duty.",
+          "motionUsagePermission": false
         }
       ],
       "expo-secure-store",

@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { stopBackgroundTracking } from "../state/backgroundLocation";
 import { unregisterPush } from "../state/notifications";
 import { publicApi, session } from "../api/client";
 
@@ -88,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       verify,
       finishRecoveryCodes: () => setPhase({ name: "signedIn" }),
       signOut: async () => {
+        await stopBackgroundTracking();
         await unregisterPush();
         await session.clear();
         setPhase({ name: "signedOut" });
