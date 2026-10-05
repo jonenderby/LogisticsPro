@@ -24,6 +24,7 @@ interface Purchase {
   amount?: number;
   vendor?: string;
   vehicle: string;
+  vehicleLabel?: string;
 }
 
 const quarters = (today = new Date()) => {
@@ -47,7 +48,7 @@ const n = (v?: number) => (v === undefined ? "–" : v.toLocaleString(undefined,
  * ready to file, and can export it.
  */
 export function FuelTaxScreen() {
-  const { me, orgsWithRole } = useMe();
+  const { me, orgsWithRole, has } = useMe();
   const carriers = (me?.orgs ?? []).filter((o) => o.kinds.includes("CARRIER"));
   const [orgId, setOrgId] = useState(carriers[0]?.id);
   const office = !!orgId && orgsWithRole("OWNER", "ADMIN", "BILLING").includes(orgId);
@@ -55,11 +56,16 @@ export function FuelTaxScreen() {
   const [report, setReport] = useState<Report>();
   const [fuel, setFuel] = useState<Purchase[]>([]);
   const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), jurisdiction: "", gallons: "", amount: "", vendor: "" });
+  const [trucks, setTrucks] = useState<Array<{ vehicle: string; label: string }>>([]);
+  /** The office picks the truck; a driver's fill-up goes to the truck they are driving unless they pick another. */
+  const [truck, setTruck] = useState<string>();
+  const drives = has("DRIVE");
 
   const load = useCallback(async () => {
     if (!orgId) return;
     setFuel(await api.get<Purchase[]>(`/v1/orgs/${orgId}/fuel-purchases?quarter=${quarter}`).catch(() => []));
     setReport(office ? await api.get<Report>(`/v1/orgs/${orgId}/ifta?quarter=${quarter}`).catch(() => undefined) : undefined);
+    setTrucks(office ? await api.get<Array<{ vehicle: string; label: string }>>(`/v1/orgs/${orgId}/fuel-vehicles`).catch(() => []) : []);
   }, [orgId, quarter, office]);
   useFocusEffect(
     useCallback(() => {
@@ -70,7 +76,7 @@ export function FuelTaxScreen() {
 
   const add = async () => {
     try {
-      await api.post(`/v1/orgs/${orgId}/fuel-purchases`, { date: form.date, jurisdiction: form.jurisdiction.trim().toUpperCase(), gallons: Number(form.gallons), amount: Number(form.amount) || undefined, vendor: form.vendor.trim() || undefined });
+      await api.post(`/v1/orgs/${orgId}/fuel-purchases`, { date: form.date, jurisdiction: form.jurisdiction.trim().toUpperCase(), gallons: Number(form.gallons), amount: Number(form.amount) || undefined, vendor: form.vendor.trim() || undefined, vehicle: truck });
       setForm({ ...form, gallons: "", amount: "", vendor: "" });
       await load();
     } catch (e) {
@@ -115,7 +121,7 @@ export function FuelTaxScreen() {
                 key={r.jurisdiction}
                 title={`${r.name ?? r.jurisdiction}${r.member ? "" : " (not IFTA)"}`}
                 subtitle={`${n(r.miles)} mi · taxable ${n(r.taxableGallons)} gal · paid ${n(r.paidGallons)} gal`}
-                right={r.netGallons === undefined ? undefined : <Chip label={`${r.netGallons >= 0 ? "Owe" : "Credit"} ${n(Math.abs(r.netGallons))} gal`} tone={r.netGallons > 0 ? "warning" : "success"} />}
+                right={r.netGallons === undefined ? undefined : <Chip label={r.netGallons === 0 ? "Even" : `${r.netGallons > 0 ? "Owe" : "Credit"} ${n(Math.abs(r.netGallons))} gal`} tone={r.netGallons > 0 ? "warning" : "success"} />}
               />
             ))}
             {report.rows.length ? (
@@ -151,13 +157,22 @@ export function FuelTaxScreen() {
             </View>
           </View>
           <Field label="Truck stop (optional)" value={form.vendor} onChangeText={(v) => setForm({ ...form, vendor: v })} />
-          <Button title="Add fuel purchase" disabled={!Number(form.gallons) || form.jurisdiction.trim().length !== 2} onPress={add} />
+          {trucks.length ? <Body secondary style={{ marginBottom: 6 }}>Truck</Body> : null}
+          {trucks.length ? (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }} accessibilityLabel="Truck">
+              {drives ? <Chip label="The truck I'm driving" selected={!truck} onPress={() => setTruck(undefined)} /> : null}
+              {trucks.map((t) => (
+                <Chip key={t.vehicle} label={t.label} selected={truck === t.vehicle} onPress={() => setTruck(t.vehicle)} />
+              ))}
+            </View>
+          ) : null}
+          <Button title="Add fuel purchase" disabled={!Number(form.gallons) || form.jurisdiction.trim().length !== 2 || (!drives && !truck)} onPress={add} />
         </Padded>
       </Section>
       <Section title={office ? "Fuel purchases" : "Your fuel purchases"}>
         {fuel.length === 0 ? <Empty title="None this quarter" /> : null}
         {fuel.map((p) => (
-          <Row key={p.id} title={`${n(p.gallons)} gal · ${p.jurisdiction}`} subtitle={`${p.date}${p.vendor ? ` · ${p.vendor}` : ""}${p.amount ? ` · $${p.amount.toFixed(2)}` : ""}`} />
+          <Row key={p.id} title={`${n(p.gallons)} gal · ${p.jurisdiction}`} subtitle={`${p.date}${office && p.vehicleLabel ? ` · ${p.vehicleLabel}` : ""}${p.vendor ? ` · ${p.vendor}` : ""}${p.amount ? ` · $${p.amount.toFixed(2)}` : ""}`} />
         ))}
       </Section>
       {!office ? <Body secondary style={{ margin: 16 }}>Your company's owner or billing team files the quarterly report.</Body> : null}

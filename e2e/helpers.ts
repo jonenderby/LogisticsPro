@@ -71,9 +71,9 @@ export async function world() {
   return { shipper, acme, owner, fleet, driver };
 }
 
-/** A load from Jackson, MS to Memphis, TN, tendered, accepted and assigned to the world's driver. Windows are hours from now. */
-export async function bookedLoad(w: Awaited<ReturnType<typeof world>>, pickup: [number, number] = [-6, -4], delivery: [number, number] = [2, 6]) {
-  const load = await call("POST", "/v1/loads", {
+/** A shipper's load from Jackson, MS to Memphis, TN. Windows are hours from now. */
+export async function newLoad(w: Awaited<ReturnType<typeof world>>, pickup: [number, number], delivery: [number, number]): Promise<{ id: string; loadNumber: string }> {
+  return call("POST", "/v1/loads", {
     shipperOrgId: w.acme.id,
     mode: "FTL",
     equipment: { type: "DRY_VAN", lengthFt: 53 },
@@ -85,10 +85,15 @@ export async function bookedLoad(w: Awaited<ReturnType<typeof world>>, pickup: [
     items: [{ description: "Groceries", pieces: 22, packaging: "PLT", weightLb: 36000 }],
     rate: { amount: 1800, currency: "USD" },
   }, w.shipper.token);
+}
+
+/** A load from Jackson, MS to Memphis, TN, tendered, accepted and assigned to the world's driver. Windows are hours from now. */
+export async function bookedLoad(w: Awaited<ReturnType<typeof world>>, pickup: [number, number] = [-6, -4], delivery: [number, number] = [2, 6]) {
+  const load = await newLoad(w, pickup, delivery);
   await call("POST", `/v1/loads/${load.id}/tender`, { carrierOrgId: w.fleet.id }, w.shipper.token);
   await call("POST", `/v1/loads/${load.id}/tender-response`, { decision: "ACCEPT" }, w.owner.token);
   await call("POST", `/v1/loads/${load.id}/legs/first/assign`, { driverAccountIds: [w.driver.id] }, w.owner.token);
-  return load as { id: string; loadNumber: string };
+  return load;
 }
 
 /** The driver's phone: fixes every 5 minutes north from Jackson at 50 mph from `from` to `to` minutes from now, then stopped for the last 15 minutes. */

@@ -11,6 +11,8 @@ export const FuelPurchase = z.object({
   carrierOrgId: z.string(),
   /** Unit number, or "driver:<accountId>" when the truck has none. */
   vehicle: z.string(),
+  /** How the truck reads in the report ("Unit 112", "Ana's truck"). */
+  vehicleLabel: z.string().max(80).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   /** Two-letter state or province code. */
   jurisdiction: z.string().regex(/^[A-Z]{2}$/),
@@ -93,7 +95,7 @@ export function iftaReport(
   const paid = new Map<string, number>();
   for (const p of purchases.filter((x) => inQ(x.date))) {
     paid.set(p.jurisdiction, (paid.get(p.jurisdiction) ?? 0) + p.gallons);
-    const v = vehicles.get(p.vehicle) ?? { vehicle: p.vehicle, label: p.vehicle, miles: 0, gallons: 0 };
+    const v = vehicles.get(p.vehicle) ?? { vehicle: p.vehicle, label: p.vehicleLabel ?? p.vehicle, miles: 0, gallons: 0 };
     v.gallons += p.gallons;
     vehicles.set(p.vehicle, v);
   }

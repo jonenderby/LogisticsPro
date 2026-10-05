@@ -28,7 +28,7 @@ Alaska, Hawaii, DC, Yukon, Northwest Territories and Nunavut are not IFTA member
 
 ## Fuel purchases
 
-Drivers enter fuel from **More > Fuel tax**: date, state or province, gallons, and optionally the amount and the stop. The office can enter it for any unit. Drivers see their own entries; owners, admins and billing see everyone's.
+Drivers enter fuel from **More > Fuel tax**: date, state or province, gallons, and optionally the amount and the stop. It goes to the truck they are driving. The office picks the truck from the units and drivers it knows. Drivers see their own entries; owners, admins and billing see everyone's.
 
 ## The quarterly report
 
@@ -41,7 +41,7 @@ Owners, admins and billing open **More > Fuel tax** and pick a quarter. Per juri
 
 It also lists each truck's miles and gallons. **Export CSV** downloads the same table for the filing or the accountant. Tax rates change every quarter and are not built in: the report gives gallons, and the filing portal applies the rates.
 
-API: `GET /v1/orgs/:id/ifta?quarter=2026-Q4` (add `&format=csv` for the file), `GET/POST /v1/orgs/:id/fuel-purchases`.
+API: `GET /v1/orgs/:id/ifta?quarter=2026-Q4` (add `&format=csv` for the file), `GET/POST /v1/orgs/:id/fuel-purchases`, `GET /v1/orgs/:id/fuel-vehicles`.
 
 ## Limits
 
