@@ -8,6 +8,8 @@ import { useNav } from "../navigation/types";
 import { useMe } from "../state/MeProvider";
 import { Banner, Body, Button, Chip, Field, Padded, Row, Screen, Section } from "../ui/components";
 import { parseCoords, titleCase } from "../ui/format";
+import { DriverNetworkSection, ReliabilitySections } from "./NetworkScreens";
+import { confirm } from "../ui/dialog";
 
 type Kind = "CARRIER" | "BROKER_3PL" | "SHIPPER";
 const KINDS: Array<{ value: Kind; label: string }> = [
@@ -73,8 +75,12 @@ export function BusinessScreen() {
   const [role, setRole] = useState<"DRIVER" | "DISPATCHER" | "BILLING" | "ADMIN">("DRIVER");
   const [dc, setDc] = useState({ name: "", line1: "", city: "", state: "", postalCode: "", coords: "", zip3: "" });
 
+  const [reliability, setReliability] = useState<Parameters<typeof ReliabilitySections>[0]["profile"]>();
   const refresh = useCallback(async () => {
-    if (orgId) setDetail(await api.get<OrgDetail>(`/v1/orgs/${orgId}`));
+    if (!orgId) return;
+    const d = await api.get<OrgDetail>(`/v1/orgs/${orgId}`);
+    setDetail(d);
+    if (d.org.kinds.includes("CARRIER")) setReliability(await api.get(`/v1/reliability/carriers/${orgId}`));
   }, [orgId]);
   useFocusEffect(
     useCallback(() => {
@@ -121,7 +127,23 @@ export function BusinessScreen() {
           </Section>
           <Section title="People">
             {detail.members.map((m) => (
-              <Row key={m.account.id} title={m.account.name} subtitle={`${m.account.email} · ${m.roles.map(titleCase).join(", ")}`} />
+              <Row
+                key={m.account.id}
+                title={m.account.name}
+                subtitle={`${m.account.email} · ${m.roles.map(titleCase).join(", ")}`}
+                right={
+                  m.roles.includes("OWNER") ? undefined : (
+                    <Button
+                      title="Remove"
+                      variant="plain"
+                      style={{ minHeight: 36 }}
+                      onPress={async () => {
+                        if (await confirm(`Remove ${m.account.name}?`, "They lose access to this company's loads.", "Remove", true)) await act(() => api.post(`/v1/orgs/${orgId}/members/${m.account.id}/remove`))();
+                      }}
+                    />
+                  )
+                }
+              />
             ))}
             <Padded>
               <Field label="Add by email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" hint="They need a Logistics Pro account first." />
@@ -133,6 +155,8 @@ export function BusinessScreen() {
               <Button title="Add person" variant="tonal" disabled={!email} onPress={act(async () => { await api.post(`/v1/orgs/${orgId}/members`, { email, roles: [role] }); setEmail(""); })} />
             </Padded>
           </Section>
+          {isCarrier ? <DriverNetworkSection orgId={orgId} onChange={refresh} /> : null}
+          {isCarrier && reliability ? <ReliabilitySections profile={reliability} subject="carrier" /> : null}
           {isCarrier ? (
             <Section title="Distribution centers" footer="Route LTL shipments through a DC to combine loads headed to the same area.">
               {detail.org.distributionCenters.map((d) => (
@@ -144,11 +168,11 @@ export function BusinessScreen() {
                 <Field label="City" value={dc.city} onChangeText={(t) => setDc({ ...dc, city: t })} />
                 <Field label="State" value={dc.state} maxLength={2} autoCapitalize="characters" onChangeText={(t) => setDc({ ...dc, state: t.toUpperCase() })} />
                 <Field label="ZIP" value={dc.postalCode} keyboardType="number-pad" onChangeText={(t) => setDc({ ...dc, postalCode: t })} />
-                <Field label="Coordinates" value={dc.coords} placeholder="40.7066, -74.1567" onChangeText={(t) => setDc({ ...dc, coords: t })} />
+                <Field label="Coordinates (optional)" value={dc.coords} placeholder="40.7066, -74.1567" hint="Found from the address when left blank" onChangeText={(t) => setDc({ ...dc, coords: t })} />
                 <Button
                   title="Add distribution center"
                   variant="tonal"
-                  disabled={!dc.name || !parseCoords(dc.coords)}
+                  disabled={!dc.name || !dc.city || !dc.state}
                   onPress={act(() => api.post(`/v1/orgs/${orgId}/distribution-centers`, { name: dc.name, address: { name: dc.name, line1: dc.line1 || dc.name, city: dc.city, state: dc.state, postalCode: dc.postalCode, country: "US" }, geo: parseCoords(dc.coords) }))}
                 />
               </Padded>

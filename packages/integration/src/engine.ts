@@ -200,6 +200,7 @@ export class IntegrationEngine {
         contentType: rendered.contentType,
         body: rendered.body,
         filename: `${tx.toLowerCase()}_${record.control ?? base.id}.${ext}`,
+        as2: profile.as2,
       });
       return { ...record, status: result.ok ? "SENT" : "FAILED", response: result, error: result.error };
     } catch (e) {

@@ -20,6 +20,8 @@ export interface FeedData {
   bids?: Bid[];
   invoices?: Invoice[];
   unreadByLoad?: Record<string, number>;
+  /** Pending requests to join carriers this person manages. */
+  joinRequests?: Array<{ id: string; carrierOrgId: string; carrierName?: string; accountName: string }>;
   now?: string;
 }
 
@@ -69,6 +71,17 @@ export function buildFeed(caps: ResolvedCapabilities, data: FeedData): ActionIte
   const shipOrgs = orgsWith("SHIP");
   const now = data.now ?? new Date().toISOString();
   const invoiced = new Set((data.invoices ?? []).map((i) => i.loadId));
+
+  // Every trucker drives for a carrier: their own (self-employed) or one they join.
+  const drivesForCarrier = [...caps.byOrg.values()].some((s) => s.has("DRIVE"));
+  if (has("DRIVE") && !drivesForCarrier) {
+    items.push({ id: "onboard:carrier", hat: "DRIVING", priority: 99, title: "Join your carrier", subtitle: "Enter the join code from your carrier. Self-employed? Register your own trucking company instead.", cta: { label: "Join a carrier", action: "join-carrier" } });
+  }
+  const manageOrgs = new Set([...orgsWith("MANAGE_ORG"), ...dispatchOrgs]);
+  for (const r of data.joinRequests ?? []) {
+    if (!manageOrgs.has(r.carrierOrgId)) continue;
+    items.push({ id: `join:${r.id}`, hat: "DISPATCH", priority: 88, title: `${r.accountName} wants to drive for ${r.carrierName ?? "your company"}`, subtitle: "Requested with your join code", cta: { label: "Review request", action: "join-requests" } });
+  }
 
   for (const load of data.loads) {
     const leg = myLeg(load, data.accountId);

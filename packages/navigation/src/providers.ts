@@ -17,6 +17,14 @@ interface ValhallaResponse {
   trip: { legs: Array<{ shape: string; maneuvers: ValhallaManeuver[] }>; summary: { length: number; time: number } };
 }
 
+/** No legal route exists for this truck (height, weight, length, hazmat or closures). */
+export class NoRouteError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NoRouteError";
+  }
+}
+
 /** Valhalla maneuver type ids -> our maneuver types. */
 function maneuverType(t: number): Maneuver["type"] {
   if ([1, 2, 3].includes(t)) return "depart";
@@ -61,7 +69,12 @@ export class ValhallaProvider implements RoutingProvider {
     };
     const doFetch = this.opts.fetch ?? (globalThis.fetch as unknown as FetchLike);
     const res = await doFetch(`${this.baseUrl.replace(/\/$/, "")}/route`, { method: "POST", headers: { "content-type": "application/json", ...this.opts.headers }, body: JSON.stringify(body) });
-    if (!res.ok) throw new Error(`routing failed: HTTP ${res.status}`);
+    if (!res.ok) {
+      // Valhalla answers 400 with error_code 442 when no legal route exists for this truck.
+      const body = (await res.json().catch(() => ({}))) as { error_code?: number; error?: string };
+      if (body.error_code === 442 || body.error_code === 171) throw new NoRouteError(body.error ?? "No route found");
+      throw new Error(`routing failed: HTTP ${res.status}${body.error ? ` (${body.error})` : ""}`);
+    }
     const data = (await res.json()) as ValhallaResponse;
     const geometry: GeoPoint[] = [];
     const maneuvers: Maneuver[] = [];

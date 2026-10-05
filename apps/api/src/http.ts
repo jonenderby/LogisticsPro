@@ -1,13 +1,14 @@
 import type { Account, Load, Message } from "@logisticspro/domain";
 import { DomainError, loadParties, newId } from "@logisticspro/domain";
-import type { IntegrationEngine } from "@logisticspro/integration";
-import type { RoutingProvider } from "@logisticspro/navigation";
+import type { As2Identity, As2Transport, IntegrationEngine } from "@logisticspro/integration";
+import type { Geocoder, RoutingProvider } from "@logisticspro/navigation";
 import { type Capability, type ResolvedCapabilities, resolveCapabilities } from "@logisticspro/workspace";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { z } from "zod";
 import type { Config } from "./config.js";
 import type { Tokens } from "./security/tokens.js";
 import type { IntegrationHub } from "./services/hub.js";
+import { recordOutcome } from "./services/reliability.js";
 import type { MemoryStore } from "./store.js";
 
 export class HttpError extends Error {
@@ -28,6 +29,11 @@ export interface AppContext {
   engine: IntegrationEngine;
   hub: IntegrationHub;
   routing: RoutingProvider;
+  /** Address search; undefined when no geocoding server is configured. */
+  geocoder?: Geocoder;
+  /** The platform's AS2 station identity and the transport that sends from it. */
+  as2: As2Identity;
+  as2Transport: As2Transport;
   now: () => Date;
 }
 
@@ -99,6 +105,7 @@ export function getLoad(ctx: AppContext, accountId: string, id: string): Load {
 
 export function saveLoad(ctx: AppContext, load: Load): Load {
   ctx.store.loads.set(load.id, load);
+  recordOutcome(ctx.store, load);
   return load;
 }
 

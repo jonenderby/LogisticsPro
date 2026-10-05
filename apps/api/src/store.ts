@@ -1,4 +1,4 @@
-import type { Account, Bid, Invoice, Load, Membership, Message, Organization } from "@logisticspro/domain";
+import type { Account, Bid, Invoice, JoinCode, JoinRequest, Load, LoadException, Membership, Message, Organization, ShipmentOutcome } from "@logisticspro/domain";
 import type { PartnerProfile, Transmission } from "@logisticspro/integration";
 import type { Violation } from "@logisticspro/navigation";
 
@@ -40,6 +40,13 @@ export class MemoryStore {
   violations: NavigationViolationRecord[] = [];
   /** last-read message timestamp per account+thread */
   reads = new Map<string, string>();
+  /** Current join code per carrier org. */
+  joinCodes = new Map<string, JoinCode>();
+  joinRequests = new Map<string, JoinRequest>();
+  /** Over/short/damage reports per load. */
+  exceptions = new Map<string, LoadException[]>();
+  /** Delivered-shipment outcomes used for reliability, keyed by load id. */
+  outcomes = new Map<string, ShipmentOutcome>();
   private loadCounter = 100_000;
 
   nextLoadNumber(): string {
@@ -69,4 +76,9 @@ export class MemoryStore {
   profilesOf(ownerOrgId: string): StoredProfile[] {
     return [...this.profiles.values()].filter((p) => p.ownerOrgId === ownerOrgId);
   }
+}
+
+/** Drivers in a carrier's network (members with the DRIVER role). */
+export function driverCount(store: MemoryStore, carrierOrgId: string): number {
+  return store.memberships.filter((m) => m.orgId === carrierOrgId && m.roles.includes("DRIVER")).length;
 }

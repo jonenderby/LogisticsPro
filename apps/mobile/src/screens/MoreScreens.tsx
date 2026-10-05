@@ -20,6 +20,8 @@ const TARGET: Record<string, keyof StackParams> = {
   "distribution-centers": "Business",
   integrations: "Integrations",
   "register-company": "RegisterCompany",
+  "join-carrier": "JoinCarrier",
+  reliability: "Reliability",
   account: "Security",
   security: "Security",
 };

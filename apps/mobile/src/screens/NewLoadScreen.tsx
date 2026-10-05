@@ -31,7 +31,7 @@ function StopFields({ title, value, onChange }: { title: string; value: StopForm
         <Field label="ZIP" value={value.postalCode} onChangeText={set("postalCode")} keyboardType="number-pad" textContentType="postalCode" />
         <Field label="Window opens" value={value.start} onChangeText={set("start")} placeholder="2026-10-06 08:00" hint="Local time, YYYY-MM-DD HH:MM" />
         <Field label="Window closes" value={value.end} onChangeText={set("end")} placeholder="2026-10-06 12:00" />
-        <Field label="Coordinates (optional)" value={value.coords} onChangeText={set("coords")} placeholder="40.8091, -73.8752" hint="Needed for turn-by-turn navigation and transit estimates" />
+        <Field label="Coordinates (optional)" value={value.coords} onChangeText={set("coords")} placeholder="40.8091, -73.8752" hint="Leave blank: the address is placed on the map automatically" />
       </Padded>
     </Section>
   );
@@ -79,7 +79,8 @@ export function NewLoadScreen() {
         rate: Number(rate) ? { amount: Number(rate), currency: "USD" } : undefined,
         notes: notes || undefined,
       };
-      const load = await api.post<Load>("/v1/loads", body);
+      const load = await api.post<Load & { warnings?: string[] }>("/v1/loads", body);
+      if (load.warnings?.length) notify("Load created", `Check these addresses before dispatch:\n${load.warnings.join("\n")}`);
       nav.goBack();
       nav.navigate("LoadDetail", { id: load.id });
     } catch (e) {

@@ -4,12 +4,13 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
 import { totp } from "../src/security/totp.js";
+import { STATION } from "./helpers.js";
 
 const WEB = { "x-lp-client": "web" };
 
 describe("browser sessions", () => {
   it("keeps the refresh token in an httpOnly cookie that rotates", async () => {
-    const { app } = await buildApp();
+    const { app } = await buildApp({ as2Identity: STATION });
     const reg = (await app.inject({ method: "POST", url: "/v1/auth/register", headers: WEB, payload: { email: "web@example.com", password: "correct horse battery staple", name: "Web", profileType: "BUSINESS" } })).json();
     const act = await app.inject({ method: "POST", url: "/v1/auth/mfa/activate", headers: WEB, payload: { token: reg.enrollToken, code: totp(reg.totpSecret) } });
     expect(act.statusCode).toBe(200);
@@ -35,14 +36,14 @@ describe("browser sessions", () => {
   });
 
   it("marks the cookie Secure when configured", async () => {
-    const { app } = await buildApp({ config: { cookieSecure: true } });
+    const { app } = await buildApp({ config: { cookieSecure: true }, as2Identity: STATION });
     const reg = (await app.inject({ method: "POST", url: "/v1/auth/register", headers: WEB, payload: { email: "s@example.com", password: "correct horse battery staple", name: "S", profileType: "BUSINESS" } })).json();
     const act = await app.inject({ method: "POST", url: "/v1/auth/mfa/activate", headers: WEB, payload: { token: reg.enrollToken, code: totp(reg.totpSecret) } });
     expect(String(act.headers["set-cookie"])).toMatch(/; Secure$/);
   });
 
   it("allows credentialed CORS only from configured web origins", async () => {
-    const { app } = await buildApp({ config: { webOrigins: ["https://app.logisticspro.example"] } });
+    const { app } = await buildApp({ config: { webOrigins: ["https://app.logisticspro.example"] }, as2Identity: STATION });
     const ok = await app.inject({ method: "OPTIONS", url: "/v1/auth/refresh", headers: { origin: "https://app.logisticspro.example", "access-control-request-method": "POST" } });
     expect(ok.headers["access-control-allow-origin"]).toBe("https://app.logisticspro.example");
     expect(ok.headers["access-control-allow-credentials"]).toBe("true");
@@ -57,7 +58,7 @@ describe("serving the website", () => {
     await writeFile(join(dir, "index.html"), "<!doctype html><title>Logistics Pro</title><div id=root></div>");
     await mkdir(join(dir, "_expo"));
     await writeFile(join(dir, "_expo", "app.js"), "console.log(1)");
-    const { app } = await buildApp({ config: { webDir: dir } });
+    const { app } = await buildApp({ config: { webDir: dir }, as2Identity: STATION });
 
     const home = await app.inject({ method: "GET", url: "/", headers: { accept: "text/html" } });
     expect(home.statusCode).toBe(200);

@@ -18,6 +18,8 @@ export type StackParams = {
   PartnerEdit: { orgId: string; key: string };
   RegisterCompany: undefined;
   Security: undefined;
+  JoinCarrier: undefined;
+  Reliability: undefined;
 };
 
 export const useNav = () => useNavigation<NavigationProp<StackParams>>();

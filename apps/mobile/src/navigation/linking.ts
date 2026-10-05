@@ -12,6 +12,8 @@ const SHARED_PATHS: Record<string, string> = {
   PartnerEdit: "integrations/:orgId/:key",
   RegisterCompany: "register-company",
   Security: "security",
+  JoinCarrier: "join-carrier",
+  Reliability: "reliability",
 };
 
 /**

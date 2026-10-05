@@ -1,6 +1,8 @@
 import { Address, GeoPoint, MemberRole, type Organization, OrgKind, newId, toPublicAccount } from "@logisticspro/domain";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { withGeo } from "../services/geocode.js";
+import { driverProfile } from "../services/reliability.js";
 import { type AppContext, HttpError, authenticate, me, parse, requireOrgCap } from "../http.js";
 
 const RegisterOrg = z.object({
@@ -76,18 +78,23 @@ export function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     const account = me(ctx, req);
     const { orgId } = req.params as { orgId: string };
     requireOrgCap(ctx, account.id, orgId, "DISPATCH");
+    // With ?businessOrgId=, include each driver's record with that customer to help pick who runs the load.
+    const { businessOrgId } = req.query as { businessOrgId?: string };
     return ctx.store.memberships
       .filter((m) => m.orgId === orgId && m.roles.includes("DRIVER"))
-      .map((m) => toPublicAccount(ctx.store.accounts.get(m.accountId)!));
+      .map((m) => ({ ...toPublicAccount(ctx.store.accounts.get(m.accountId)!), reliability: driverProfile(ctx.store, m.accountId, businessOrgId) }));
   });
 
   app.post("/v1/orgs/:orgId/distribution-centers", auth, async (req, reply) => {
     const account = me(ctx, req);
     const { orgId } = req.params as { orgId: string };
     requireOrgCap(ctx, account.id, orgId, "MANAGE_FLEET");
-    const body = parse(z.object({ name: z.string().min(1), address: Address, geo: GeoPoint, serviceZip3: z.array(z.string().length(3)).default([]) }), req.body);
+    const body = parse(z.object({ name: z.string().min(1), address: Address, geo: GeoPoint.optional(), serviceZip3: z.array(z.string().length(3)).default([]) }), req.body);
+    const located = body.geo ? { address: body.address } : await withGeo(ctx, body.address, "Distribution center");
+    const geo = body.geo ?? located.address.geo;
+    if (!geo) throw new HttpError(422, "NO_GEO", located.warning ?? "Could not place this address on the map");
     const org = ctx.store.orgs.get(orgId)!;
-    const dc = { id: newId("dc"), ...body };
+    const dc = { id: newId("dc"), ...body, address: { ...located.address, geo }, geo };
     ctx.store.orgs.set(orgId, { ...org, distributionCenters: [...org.distributionCenters, dc] });
     reply.code(201);
     return dc;

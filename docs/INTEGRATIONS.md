@@ -36,9 +36,13 @@ Inbound EDI is answered with a 997 acknowledgment. Each transaction set in an in
 
 Code tables (equipment, status, reason and charge codes) are defaults. Every trading partner publishes its own implementation guide, so each table can be overridden per partner profile, and a partner should be certified with test files before going live.
 
+## Transports
+
+EDI goes out over **AS2** from the platform's central station (default for catalog carriers), or to a **VAN/SFTP** outbox for a gateway. See [EDI_AS2.md](EDI_AS2.md) for how sending and receiving work and how to connect a partner.
+
 ## Inbound endpoints
 
-Issue a token with `POST /v1/orgs/:orgId/partners/:key/inbound-token`, then the partner sends with header `x-lp-inbound-token`:
+AS2 partners send to the central station at `POST /as2`. For HTTPS instead, issue a token with `POST /v1/orgs/:orgId/partners/:key/inbound-token`, then the partner sends with header `x-lp-inbound-token`:
 
 - `POST /v1/inbound/:orgId/:key/edi` with an X12 interchange. The response body is the 997.
 - `POST /v1/inbound/:orgId/:key/:transaction` with JSON or XML (by content type), shaped by that partner's field map.

@@ -21,6 +21,8 @@ import {
 } from "@logisticspro/domain";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { geocodeStops } from "../services/geocode.js";
+import { carrierProfile } from "../services/reliability.js";
 import { type AppContext, HttpError, authenticate, canSeeLoad, capsOf, getLoad, hasOrgCap, isDriverOn, me, parse, postMessage, requireOrgCap, saveLoad } from "../http.js";
 
 const StopInput = z.object({
@@ -85,6 +87,7 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
     }
     const shipper = ctx.store.orgs.get(body.shipperOrgId)!;
     const now = ctx.now().toISOString();
+    const geo = await geocodeStops(ctx, body.stops);
     const load: Load = {
       id: newId("load"),
       loadNumber: ctx.store.nextLoadNumber(),
@@ -93,7 +96,7 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
       ...body,
       teamRequired: body.teamRequired || body.service === "TEAM_EXPEDITED",
       references: { ...body.references },
-      stops: withStopIds(body.stops),
+      stops: withStopIds(geo.stops),
       billTo: body.billTo ?? { orgId: shipper.id, address: shipper.address ?? body.stops[0]!.address },
       legs: [],
       events: [],
@@ -104,7 +107,7 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
     };
     saveLoad(ctx, load);
     reply.code(201);
-    return load;
+    return geo.warnings.length ? { ...load, warnings: geo.warnings } : load;
   });
 
   app.get("/v1/loads", auth, async (req) => {
@@ -135,7 +138,8 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
     const load = getLoad(ctx, account.id, (req.params as { id: string }).id);
     if (!canShip(ctx, account.id, load)) throw new HttpError(403, "FORBIDDEN", "Only the shipper or broker can change this load");
     const body = parse(Refinement, req.body);
-    const { stops, references, ...rest } = body;
+    const { stops: rawStops, references, ...rest } = body;
+    const stops = rawStops ? (await geocodeStops(ctx, rawStops)).stops : undefined;
     const patch = { ...rest, ...(stops ? { stops: withStopIds(stops) } : {}), ...(references ? { references: { ...load.references, ...references } } : {}) };
     const { load: next, changed } = refineLoad(load, patch, ctx.now().toISOString());
     if (changed.length === 0) return { load, changed, transmissions: [] };
@@ -210,7 +214,16 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
     const account = me(ctx, req);
     const load = getLoad(ctx, account.id, (req.params as { id: string }).id);
     const all = [...ctx.store.bids.values()].filter((b) => b.loadId === load.id);
-    if (canShip(ctx, account.id, load)) return all.sort((a, b) => a.amount.amount - b.amount.amount);
+    if (canShip(ctx, account.id, load)) {
+      // Show each bidder's record overall and with this business specifically.
+      const business = load.brokerOrgId ?? load.shipperOrgId;
+      return all
+        .sort((a, b) => a.amount.amount - b.amount.amount)
+        .map((b) => {
+          const p = carrierProfile(ctx.store, b.carrierOrgId, business);
+          return { ...b, carrierName: ctx.store.orgs.get(b.carrierOrgId)?.name, reliability: { overall: p.overall, withYou: p.forBusiness, truckers: p.truckers } };
+        });
+    }
     const mine = new Set(ctx.store.membershipsOf(account.id).map((m) => m.orgId));
     return all.filter((b) => mine.has(b.carrierOrgId));
   });

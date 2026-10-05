@@ -2,12 +2,16 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
-import { IntegrationEngine, HttpTransport, OutboxTransport, envSecrets, type SecretResolver, type Transport } from "@logisticspro/integration";
-import { type RoutingProvider, StaticProvider, ValhallaProvider } from "@logisticspro/navigation";
+import { As2Transport, type As2Identity, IntegrationEngine, HttpTransport, OutboxTransport, envSecrets, type SecretResolver, type Transport } from "@logisticspro/integration";
+import { type Geocoder, NominatimGeocoder, PeliasGeocoder, type RoutingProvider, StaticProvider, ValhallaProvider } from "@logisticspro/navigation";
 import Fastify, { type FastifyInstance } from "fastify";
 import { type Config, loadConfig } from "./config.js";
 import { type AppContext, toHttpError } from "./http.js";
+import { as2Routes } from "./routes/as2.js";
 import { authRoutes } from "./routes/auth.js";
+import { networkRoutes } from "./routes/network.js";
+import { reliabilityRoutes } from "./routes/reliability.js";
+import { loadAs2Identity } from "./services/as2station.js";
 import { integrationRoutes } from "./routes/integrations.js";
 import { loadRoutes } from "./routes/loads.js";
 import { meRoutes } from "./routes/me.js";
@@ -23,6 +27,10 @@ export interface AppOptions {
   transports?: Partial<Record<"HTTPS" | "AS2" | "SFTP" | "VAN", Transport>>;
   secrets?: SecretResolver;
   routing?: RoutingProvider;
+  geocoder?: Geocoder;
+  as2Identity?: As2Identity;
+  /** fetch used by the AS2 transport (tests point it at another station). */
+  as2Fetch?: NonNullable<ConstructorParameters<typeof As2Transport>[1]>["fetch"];
   now?: () => Date;
   logger?: boolean;
 }
@@ -32,8 +40,10 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   const now = opts.now ?? (() => new Date());
   const store = opts.store ?? new MemoryStore();
   const outbox = new OutboxTransport(cfg.ediOutboxDir);
+  const station = opts.as2Identity ?? loadAs2Identity(cfg, (m) => console.warn(m));
+  const as2Transport = new As2Transport(() => station, { fetch: opts.as2Fetch, receiptUrl: `${cfg.publicUrl}/as2` });
   const engine = new IntegrationEngine({
-    transports: { HTTPS: new HttpTransport(), AS2: outbox, SFTP: outbox, VAN: outbox, ...opts.transports },
+    transports: { HTTPS: new HttpTransport(), AS2: as2Transport, SFTP: outbox, VAN: outbox, ...opts.transports },
     secrets: opts.secrets ?? envSecrets,
     now,
   });
@@ -44,6 +54,9 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
     engine,
     hub: new IntegrationHub(store, engine, cfg, now),
     routing: opts.routing ?? (cfg.valhallaUrl ? new ValhallaProvider(cfg.valhallaUrl) : new StaticProvider()),
+    geocoder: opts.geocoder ?? (cfg.geocoder ? (cfg.geocoder.kind === "nominatim" ? new NominatimGeocoder(cfg.geocoder.url) : new PeliasGeocoder(cfg.geocoder.url, { apiKey: cfg.geocoder.apiKey })) : undefined),
+    as2: station,
+    as2Transport,
     now,
   };
 
@@ -53,6 +66,8 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   for (const type of ["application/edi-x12", "application/edifact", "text/plain", "application/xml", "text/xml"]) {
     app.addContentTypeParser(type, { parseAs: "string" }, (_req, body, done) => done(null, body));
   }
+  // AS2 bodies are binary (encrypted or signed MIME).
+  app.addContentTypeParser(["application/pkcs7-mime", "application/x-pkcs7-mime", "multipart/signed"], { parseAs: "buffer" }, (_req, body, done) => done(null, body));
 
   app.setErrorHandler((err, _req, reply) => {
     const http = toHttpError(err);
@@ -71,6 +86,9 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   loadRoutes(app, ctx);
   operationsRoutes(app, ctx);
   integrationRoutes(app, ctx);
+  as2Routes(app, ctx);
+  networkRoutes(app, ctx);
+  reliabilityRoutes(app, ctx);
   return { app, ctx };
 }
 
@@ -90,7 +108,7 @@ async function serveWeb(app: FastifyInstance, dir: string) {
     },
   });
   app.addHook("onSend", async (req, reply, payload) => {
-    if (!req.url.startsWith("/v1/")) {
+    if (!req.url.startsWith("/v1/") && !req.url.startsWith("/as2")) {
       reply.header("x-content-type-options", "nosniff");
       reply.header("x-frame-options", "DENY");
       reply.header("referrer-policy", "strict-origin-when-cross-origin");
@@ -98,7 +116,7 @@ async function serveWeb(app: FastifyInstance, dir: string) {
     return payload;
   });
   app.setNotFoundHandler((req, reply) => {
-    const wantsPage = req.method === "GET" && !req.url.startsWith("/v1/") && !req.url.startsWith("/health") && String(req.headers.accept ?? "").includes("text/html");
+    const wantsPage = req.method === "GET" && !req.url.startsWith("/v1/") && !req.url.startsWith("/health") && !req.url.startsWith("/as2") && String(req.headers.accept ?? "").includes("text/html");
     if (wantsPage) return reply.header("cache-control", "no-cache").sendFile("index.html");
     return reply.code(404).send({ error: { code: "NOT_FOUND", message: "Not found" } });
   });

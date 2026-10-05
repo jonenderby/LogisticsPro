@@ -1,0 +1,49 @@
+# Logistics Pro with its own truck routing (Valhalla) and address search (Nominatim).
+#
+#   cd deploy && LP_JWT_SECRET=$(openssl rand -hex 32) docker compose up -d
+#
+# First start downloads map data and builds indexes. With the Delaware extract
+# below that takes minutes; for the whole United States see docs/NAVIGATION.md
+# (hours, and a machine with 32-64 GB RAM and several hundred GB of disk).
+services:
+  api:
+    build: ..
+    ports: ["8080:8080"]
+    environment:
+      LP_JWT_SECRET: ${LP_JWT_SECRET:?set LP_JWT_SECRET}
+      LP_PUBLIC_URL: ${LP_PUBLIC_URL:-http://localhost:8080}
+      LP_VALHALLA_URL: http://valhalla:8002
+      LP_GEOCODER: nominatim
+      LP_GEOCODER_URL: http://nominatim:8080
+      LP_AS2_ID: ${LP_AS2_ID:-LOGISTICSPRO}
+    volumes:
+      - lp-data:/data   # keeps the AS2 station certificate across restarts
+    depends_on: [valhalla, nominatim]
+
+  valhalla:
+    image: ghcr.io/valhalla/valhalla-scripted:latest
+    ports: ["8002:8002"]
+    environment:
+      # One or more space-separated PBF extracts. For the US use
+      # https://download.geofabrik.de/north-america/us-latest.osm.pbf
+      tile_urls: ${MAP_PBF_URL:-https://download.geofabrik.de/north-america/us/delaware-latest.osm.pbf}
+      serve_tiles: "True"
+      build_admins: "True"
+      build_time_zones: "True"
+    volumes:
+      - valhalla-files:/custom_files
+
+  nominatim:
+    image: mediagis/nominatim:5.3
+    shm_size: 1g
+    environment:
+      PBF_URL: ${MAP_PBF_URL:-https://download.geofabrik.de/north-america/us/delaware-latest.osm.pbf}
+      REPLICATION_URL: ${MAP_UPDATES_URL:-https://download.geofabrik.de/north-america/us/delaware-updates/}
+      NOMINATIM_PASSWORD: ${NOMINATIM_PASSWORD:-change-me}
+    volumes:
+      - nominatim-data:/var/lib/postgresql/16/main
+
+volumes:
+  lp-data:
+  valhalla-files:
+  nominatim-data:

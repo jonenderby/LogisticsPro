@@ -28,7 +28,7 @@ describe("capabilities and layout", () => {
     expect(caps.all.has("DISPATCH")).toBe(false);
     const ws = buildWorkspace(caps);
     expect(ws.tabs.map((t) => t.id)).toEqual(["today", "loads", "navigate", "messages", "more"]);
-    expect(ws.more.map((m) => m.id)).toEqual(["money", "register-company", "account", "security"]);
+    expect(ws.more.map((m) => m.id)).toEqual(["money", "reliability", "join-carrier", "register-company", "account", "security"]);
   });
 
   it("puts the load board up front for a broker", () => {

@@ -142,7 +142,7 @@ export function invoiceDoc(inv: Invoice, paymentTerms: FreightInvoice["paymentTe
 export function profileFromCatalog(entry: CarrierCatalogEntry, ownerOrgId: string, overrides: Partial<Record<TransactionType, Partial<Channel>>> = {}): PartnerProfile {
   const channels: PartnerProfile["channels"] = {};
   for (const [tx, method] of Object.entries(defaultMethods(entry)) as Array<[TransactionType, Channel["method"]]>) {
-    channels[tx] = { method, enabled: true, transport: method === "EDI_X12" ? "VAN" : "HTTPS", ...overrides[tx] } as Channel;
+    channels[tx] = { method, enabled: true, transport: method === "EDI_X12" ? "AS2" : "HTTPS", ...overrides[tx] } as Channel;
   }
   return { key: entry.code, ownerOrgId, name: entry.name, kind: "CARRIER", scac: entry.scac[0], catalogCode: entry.code, channels };
 }

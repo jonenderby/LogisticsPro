@@ -1,4 +1,5 @@
 import {
+  As2PartnerSettings,
   CARRIER_CATALOG,
   Channel,
   EdiSettings,
@@ -22,6 +23,7 @@ import { z } from "zod";
 import { type AppContext, HttpError, authenticate, getLoad, me, parse, requireOrgCap } from "../http.js";
 import { newOpaqueToken, sha256 } from "../security/tokens.js";
 import { RECEIVING } from "../services/hub.js";
+import { applyEdi, recordInbound } from "../services/inbound.js";
 import type { StoredProfile } from "../store.js";
 
 const ProfileInput = z.object({
@@ -31,6 +33,7 @@ const ProfileInput = z.object({
   catalogCode: z.string().optional(),
   channels: z.partialRecord(TransactionType, Channel),
   edi: EdiSettings.partial({ senderId: true }).optional(),
+  as2: As2PartnerSettings.optional(),
 });
 
 function redact(p: StoredProfile) {
@@ -175,26 +178,13 @@ export function integrationRoutes(app: FastifyInstance, ctx: AppContext) {
     return profile;
   };
 
-  const recordInbound = (p: StoredProfile, tx: z.infer<typeof TransactionType>, method: IntegrationMethod, payload: string, status: "RECEIVED" | "REJECTED", error?: string, refs: Record<string, string> = {}) =>
-    ctx.store.transmissions.push({ id: `rx_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`, partnerKey: p.key, ownerOrgId: p.ownerOrgId, transaction: tx, method, transport: "HTTPS", direction: "INBOUND", status, contentType: method === "EDI_X12" ? "application/edi-x12" : method === "API_XML" ? "application/xml" : "application/json", payload, error, refs, createdAt: ctx.now().toISOString() });
-
   /** Raw X12 in, 997 out. Each transaction set is applied independently. */
   app.post("/v1/inbound/:orgId/:key/edi", async (req, reply) => {
     const profile = inboundProfile(req);
     const raw = typeof req.body === "string" ? req.body : "";
     const result = ctx.engine.parseEdi(raw, (profile.edi?.codeOverrides ?? {}) as never);
-    const applied = [];
-    for (const d of result.documents) {
-      try {
-        const r = await ctx.hub.applyInbound(profile.ownerOrgId, profile.key, d.transaction, d.doc, "EDI");
-        recordInbound(profile, d.transaction, "EDI_X12", raw, "RECEIVED", undefined, { ...(r.loadId ? { loadId: r.loadId } : {}), control: d.setControl });
-        applied.push({ set: d.setControl, transaction: d.transaction, ...r });
-      } catch (e) {
-        recordInbound(profile, d.transaction, "EDI_X12", raw, "REJECTED", (e as Error).message);
-        applied.push({ set: d.setControl, transaction: d.transaction, error: (e as Error).message });
-      }
-    }
-    for (const err of result.errors) recordInbound(profile, "LOAD_TENDER", "EDI_X12", raw, "REJECTED", `set ${err.setControl} (${err.setId}): ${err.message}`);
+    const applied = await applyEdi(ctx, raw, result, () => profile, "HTTPS");
+    for (const err of result.errors) recordInbound(ctx, profile, "LOAD_TENDER", "EDI_X12", "HTTPS", raw, "REJECTED", `set ${err.setControl} (${err.setId}): ${err.message}`);
     reply.header("x-lp-results", JSON.stringify(applied).slice(0, 2000));
     if (result.ack997) {
       reply.type("application/edi-x12");
@@ -214,11 +204,11 @@ export function integrationRoutes(app: FastifyInstance, ctx: AppContext) {
     try {
       doc = ctx.engine.parseApi(tx, method, raw, profile.channels[tx]);
     } catch (e) {
-      recordInbound(profile, tx, method, raw, "REJECTED", (e as Error).message);
+      recordInbound(ctx, profile, tx, method, "HTTPS", raw, "REJECTED", (e as Error).message);
       throw new HttpError(422, "INVALID_DOCUMENT", (e as Error).message);
     }
     const r = await ctx.hub.applyInbound(profile.ownerOrgId, profile.key, tx, doc, "API");
-    recordInbound(profile, tx, method, raw, "RECEIVED", undefined, r.loadId ? { loadId: r.loadId } : {});
+    recordInbound(ctx, profile, tx, method, "HTTPS", raw, "RECEIVED", undefined, r.loadId ? { loadId: r.loadId } : {});
     reply.code(202);
     return r;
   });

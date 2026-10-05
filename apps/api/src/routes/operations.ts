@@ -18,7 +18,8 @@ import {
   transition,
 } from "@logisticspro/domain";
 import { ChargeCode } from "@logisticspro/domain";
-import { LEGAL_TRUCK, type Restriction, checkOversizeTrip } from "@logisticspro/navigation";
+import { LEGAL_TRUCK, NoRouteError, type Restriction, checkOversizeTrip } from "@logisticspro/navigation";
+import { withGeo } from "../services/geocode.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { type AppContext, HttpError, authenticate, getLoad, hasOrgCap, isDriverOn, me, parse, postMessage, requireOrgCap, saveLoad } from "../http.js";
@@ -54,7 +55,9 @@ export function operationsRoutes(app: FastifyInstance, ctx: AppContext) {
     const account = me(ctx, req);
     const load = getLoad(ctx, account.id, param(req));
     requireOrgCap(ctx, account.id, load.carrierOrgId, "DISPATCH");
-    const { points } = parse(z.object({ points: z.array(RelayPoint).min(1).max(5) }), req.body);
+    const { points: raw } = parse(z.object({ points: z.array(RelayPoint).min(1).max(5) }), req.body);
+    const points = [];
+    for (const p of raw) points.push({ ...p, address: (await withGeo(ctx, p.address, "Relay point")).address });
     const next = saveLoad(ctx, planRelay(load, points, ctx.now().toISOString()));
     postMessage(ctx, next, { senderAccountId: account.id, kind: "SYSTEM", body: `Dispatch planned ${next.legs.length} relay legs (${points.map((p) => p.address.city).join(", ")})` });
     return next;
@@ -251,10 +254,52 @@ export function operationsRoutes(app: FastifyInstance, ctx: AppContext) {
     const segment = leg ? stops.slice(stops.findIndex((s) => s.id === leg.fromStopId), stops.findIndex((s) => s.id === leg.toStopId) + 1) : stops;
     const waypoints = segment.map((s) => s.address.geo).filter((g): g is NonNullable<typeof g> => !!g);
     if (body.from) waypoints.unshift(body.from);
-    if (waypoints.length < 2) throw new HttpError(400, "NO_GEO", "Stops need coordinates to route");
+    if (waypoints.length < 2) throw new HttpError(400, "NO_GEO", "These stops have no map location yet. Check the addresses, or ask your admin to turn on address search.");
     const hazmat = load.items.some((i) => i.hazmat);
-    const route = await ctx.routing.route(waypoints, { ...LEGAL_TRUCK, hazmat });
-    return { mode: "STANDARD", route };
+    try {
+      const route = await ctx.routing.route(waypoints, { ...LEGAL_TRUCK, hazmat });
+      return { mode: "STANDARD", route };
+    } catch (e) {
+      if (e instanceof NoRouteError) throw new HttpError(422, "NO_TRUCK_ROUTE", "No truck-legal route between these stops for this vehicle");
+      throw e;
+    }
+  });
+
+  /** Address search for the app (stop entry, "navigate to an address"). */
+  app.get("/v1/geocode", auth, async (req) => {
+    me(ctx, req);
+    const q = req.query as { q?: string; lat?: string; lng?: string; limit?: string };
+    if (!q.q || q.q.trim().length < 3) throw new HttpError(400, "INVALID_REQUEST", "Type at least 3 characters");
+    if (!ctx.geocoder) throw new HttpError(503, "GEOCODER_UNAVAILABLE", "Address search is not configured on this server (set LP_GEOCODER_URL)");
+    const near = q.lat && q.lng ? { lat: Number(q.lat), lng: Number(q.lng) } : undefined;
+    return ctx.geocoder.search(q.q.trim(), { limit: Math.min(10, Number(q.limit ?? 5)), near });
+  });
+
+  /**
+   * Route to any address (fuel, parking, a shop). Oversize loads are refused:
+   * they stay on their permitted route.
+   */
+  app.post("/v1/navigation/route", auth, async (req) => {
+    const account = me(ctx, req);
+    const body = parse(z.object({ from: GeoPoint, to: z.object({ query: z.string().min(3).optional(), geo: GeoPoint.optional() }).refine((t) => t.query || t.geo, "Give an address or coordinates"), loadId: z.string().optional() }), req.body);
+    const load = body.loadId ? getLoad(ctx, account.id, body.loadId) : undefined;
+    if (load?.oversize) throw new HttpError(409, "OVERSIZE_STRICT", "Oversize loads must stay on the permitted route; ask dispatch to amend the permit");
+    let destination: { label: string; geo: { lat: number; lng: number } };
+    if (body.to.geo) destination = { label: body.to.query ?? "Destination", geo: body.to.geo };
+    else {
+      if (!ctx.geocoder) throw new HttpError(503, "GEOCODER_UNAVAILABLE", "Address search is not configured on this server (set LP_GEOCODER_URL)");
+      const [hit] = await ctx.geocoder.search(body.to.query!, { limit: 1, near: body.from });
+      if (!hit) throw new HttpError(404, "NOT_FOUND", "No address matched");
+      destination = { label: hit.label, geo: hit.geo };
+    }
+    const hazmat = !!load?.items.some((i) => i.hazmat);
+    try {
+      const route = await ctx.routing.route([body.from, destination.geo], { ...LEGAL_TRUCK, hazmat });
+      return { mode: "STANDARD", destination, route };
+    } catch (e) {
+      if (e instanceof NoRouteError) throw new HttpError(422, "NO_TRUCK_ROUTE", "No truck-legal route to that address");
+      throw e;
+    }
   });
 
   /** The app reports corridor violations so dispatch (and compliance) see them. */

@@ -8,6 +8,7 @@
   "dependencies": {
     "@logisticspro/domain": "*",
     "fast-xml-parser": "^5.11.2",
+    "node-forge": "^1.4.0",
     "zod": "^4.6.5"
   }
 }

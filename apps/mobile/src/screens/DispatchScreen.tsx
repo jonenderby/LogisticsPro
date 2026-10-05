@@ -11,6 +11,7 @@ import { parseCoords, titleCase } from "../ui/format";
 interface Driver {
   id: string;
   name: string;
+  reliability?: { overall: { score: number | null }; forBusiness?: { score: number | null; shipments: number } };
 }
 interface Transit {
   miles: number;
@@ -31,7 +32,7 @@ export function DispatchScreen() {
     const l = await api.get<LoadDetail>(`/v1/loads/${loadId}`);
     setLoad(l);
     setPicked(Object.fromEntries(l.legs.map((leg) => [leg.id, leg.driverAccountIds])));
-    if (l.carrierOrgId) setDrivers(await api.get<Driver[]>(`/v1/orgs/${l.carrierOrgId}/drivers`));
+    if (l.carrierOrgId) setDrivers(await api.get<Driver[]>(`/v1/orgs/${l.carrierOrgId}/drivers?businessOrgId=${l.brokerOrgId ?? l.shipperOrgId}`));
     setTransit(await api.get<Transit>(`/v1/loads/${loadId}/transit`).catch(() => undefined));
   }, [loadId]);
   useFocusEffect(
@@ -76,11 +77,12 @@ export function DispatchScreen() {
           <Section key={leg.id} title={`Leg ${leg.sequence}: ${from} → ${to}`} footer={titleCase(leg.status)}>
             <Padded>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {drivers.map((d) => (
-                  <Chip key={d.id} label={d.name} selected={sel.includes(d.id)} onPress={() => toggle(leg.id, d.id)} />
-                ))}
+                {drivers.map((d) => {
+                  const s = d.reliability?.forBusiness?.shipments ? d.reliability.forBusiness.score : d.reliability?.overall.score;
+                  return <Chip key={d.id} label={`${d.name}${s !== null && s !== undefined ? ` · ${s}%` : ""}`} selected={sel.includes(d.id)} onPress={() => toggle(leg.id, d.id)} />;
+                })}
               </View>
-              {drivers.length === 0 ? <Body secondary>No drivers yet. Add drivers under Business.</Body> : null}
+              {drivers.length === 0 ? <Body secondary>No drivers yet. Share your join code under Business.</Body> : <Body secondary>Scores show each driver's record with this customer (or overall if they have not run for them yet).</Body>}
               <Button title={sel.length === 2 ? "Assign team" : "Assign driver"} disabled={sel.length === 0 || leg.status === "COMPLETED"} onPress={act(() => api.post(`/v1/loads/${load.id}/legs/${leg.id}/assign`, { driverAccountIds: sel }))} />
             </Padded>
           </Section>

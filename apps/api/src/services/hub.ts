@@ -18,6 +18,7 @@ import {
 import type { Config } from "../config.js";
 import { HttpError } from "../http.js";
 import type { MemoryStore, StoredProfile } from "../store.js";
+import { recordOutcome } from "./reliability.js";
 
 export const RECEIVING = "receiving";
 
@@ -281,6 +282,7 @@ export class IntegrationHub {
         });
         if (s.references.pro && !updated.references.pro) updated.references = { ...updated.references, pro: s.references.pro };
         this.store.loads.set(load.id, updated);
+        recordOutcome(this.store, updated);
         this.store.messages.push({
           id: newId("msg"),
           threadId: `load:${load.id}`,

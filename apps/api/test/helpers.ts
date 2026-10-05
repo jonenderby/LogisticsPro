@@ -1,4 +1,4 @@
-import { MemoryTransport, type OutboundMessage } from "@logisticspro/integration";
+import { MemoryTransport, type OutboundMessage, as2 } from "@logisticspro/integration";
 import type { FastifyInstance } from "fastify";
 import { expect } from "vitest";
 import { buildApp } from "../src/app.js";
@@ -12,10 +12,13 @@ export interface Harness {
   sent: () => OutboundMessage[];
 }
 
-export async function harness(): Promise<Harness> {
+/** One station identity for all tests (RSA key generation is slow). */
+export const STATION = as2.generateAs2Identity("LOGISTICSPRO");
+
+export async function harness(opts: Parameters<typeof buildApp>[0] = {}): Promise<Harness> {
   const https = new MemoryTransport();
   const van = new MemoryTransport();
-  const { app, ctx } = await buildApp({ transports: { HTTPS: https, VAN: van, AS2: van, SFTP: van }, secrets: (ref) => `secret-for-${ref}` });
+  const { app, ctx } = await buildApp({ transports: { HTTPS: https, VAN: van, SFTP: van }, secrets: (ref) => `secret-for-${ref}`, as2Identity: STATION, ...opts });
   return { app, ctx, https, van, sent: () => [...https.sent, ...van.sent] };
 }
 
@@ -35,7 +38,7 @@ export async function signUp(h: Harness, profileType: "TRUCKER" | "CARRIER" | "B
   expect(reg.statusCode, reg.body).toBe(201);
   const r = reg.json();
   expect(r.status).toBe("MFA_ENROLLMENT_REQUIRED");
-  const act = await h.app.inject({ method: "POST", url: "/v1/auth/mfa/activate", payload: { token: r.enrollToken, code: totp(r.totpSecret) } });
+  const act = await h.app.inject({ method: "POST", url: "/v1/auth/mfa/activate", payload: { token: r.enrollToken, code: totp(r.totpSecret, h.ctx.now().getTime()) } });
   expect(act.statusCode, act.body).toBe(200);
   const a = act.json();
   return { token: a.accessToken, accountId: a.account.id, email, totpSecret: r.totpSecret, recoveryCodes: a.recoveryCodes, refreshToken: a.refreshToken };

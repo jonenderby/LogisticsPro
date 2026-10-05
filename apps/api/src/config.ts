@@ -19,6 +19,18 @@ export interface Config {
   webOrigins: string[];
   /** Mark the session cookie Secure (HTTPS only). On by default in production. */
   cookieSecure: boolean;
+  /** Public base URL of this server, used to tell partners where to send AS2 (e.g. https://api.example.com). */
+  publicUrl: string;
+  /** The platform's single AS2 station identity. */
+  as2Id: string;
+  /** PEM key/certificate for the AS2 station. Without them a certificate is generated and saved in as2Dir. */
+  as2KeyPem?: string;
+  as2CertPem?: string;
+  as2Dir: string;
+  /** Address search: "pelias" or "nominatim", with its base URL. */
+  geocoder?: { kind: "pelias" | "nominatim"; url: string; apiKey?: string };
+  /** How long a carrier's join code stays valid before it rotates. */
+  joinCodeTtlHours: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -37,5 +49,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     webDir: env.LP_WEB_DIR,
     webOrigins: (env.LP_WEB_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean),
     cookieSecure: env.LP_COOKIE_SECURE ? env.LP_COOKIE_SECURE === "true" : env.NODE_ENV === "production",
+    publicUrl: (env.LP_PUBLIC_URL ?? `http://localhost:${env.PORT ?? 8080}`).replace(/\/$/, ""),
+    as2Id: env.LP_AS2_ID ?? "LOGISTICSPRO",
+    as2KeyPem: env.LP_AS2_KEY_PEM,
+    as2CertPem: env.LP_AS2_CERT_PEM,
+    as2Dir: env.LP_AS2_DIR ?? "./var/as2",
+    geocoder: env.LP_GEOCODER_URL ? { kind: env.LP_GEOCODER === "nominatim" ? "nominatim" : "pelias", url: env.LP_GEOCODER_URL, apiKey: env.LP_GEOCODER_KEY } : undefined,
+    joinCodeTtlHours: Number(env.LP_JOIN_CODE_TTL_HOURS ?? 24 * 7),
   };
 }

@@ -23,13 +23,17 @@ export function meRoutes(app: FastifyInstance, ctx: AppContext) {
       const n = ctx.store.messages.filter((m) => m.loadId === l.id && m.senderAccountId !== account.id && m.createdAt > lastRead).length;
       if (n) unreadByLoad[l.id] = n;
     }
+    const managed = new Set([...caps.byOrg].filter(([, s]) => s.has("DISPATCH") || s.has("MANAGE_ORG")).map(([id]) => id));
+    const joinRequests = [...ctx.store.joinRequests.values()]
+      .filter((r) => r.status === "PENDING" && managed.has(r.carrierOrgId))
+      .map((r) => ({ id: r.id, carrierOrgId: r.carrierOrgId, carrierName: ctx.store.orgs.get(r.carrierOrgId)?.name, accountName: ctx.store.accounts.get(r.accountId)?.name ?? "A driver" }));
     return {
       account: toPublicAccount(account),
       orgs: ctx.store.orgsOf(account.id).map((o) => ({ ...o, roles: ctx.store.membershipsOf(account.id).find((m) => m.orgId === o.id)!.roles })),
       capabilities: [...caps.all].sort(),
       ownerOperator: caps.ownerOperator,
       workspace: buildWorkspace(caps),
-      feed: buildFeed(caps, { accountId: account.id, loads, boardLoads, bids, invoices, unreadByLoad, now: ctx.now().toISOString() }),
+      feed: buildFeed(caps, { accountId: account.id, loads, boardLoads, bids, invoices, unreadByLoad, joinRequests, now: ctx.now().toISOString() }),
     };
   });
 }

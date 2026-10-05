@@ -7,7 +7,7 @@ import { Text, Vibration, View } from "react-native";
 import { api, errorMessage } from "../api/client";
 import type { Load } from "../api/types";
 import { useNav, useParams } from "../navigation/types";
-import { Banner, Button, Empty, Screen } from "../ui/components";
+import { Banner, Button, Empty, Field, Screen } from "../ui/components";
 import { miles } from "../ui/format";
 import { useTheme } from "../ui/theme";
 import { MapPanel } from "./nav/MapPanel";
@@ -39,6 +39,11 @@ export function NavigateScreen() {
   const [alerts, setAlerts] = useState<string[]>([]);
   const [error, setError] = useState<string>();
   const [tracking, setTracking] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<Array<{ label: string; geo: { lat: number; lng: number } }>>([]);
+  const [destination, setDestination] = useState<string>();
+  /** Set while navigating to a searched address instead of the load's stops. */
+  const adHoc = useRef<{ label: string; geo: { lat: number; lng: number } } | undefined>(undefined);
   const session = useRef<Session | undefined>(undefined);
   const watch = useRef<Location.LocationSubscription | undefined>(undefined);
   const replanning = useRef(false);
@@ -67,6 +72,8 @@ export function NavigateScreen() {
     setError(undefined);
     try {
       const from = await position();
+      adHoc.current = undefined;
+      setDestination(undefined);
       const p = await api.post<Plan>(`/v1/loads/${load.id}/navigation/plan`, load.oversize ? { departAt: new Date().toISOString() } : { from });
       setPlan(p);
     } catch (e) {
@@ -74,7 +81,48 @@ export function NavigateScreen() {
     }
   };
 
-  const report = (body: object) => api.post(`/v1/loads/${load!.id}/navigation/violations`, body).catch(() => undefined);
+  /** Search for any address (fuel, parking, a shop) near the truck. */
+  const search = async () => {
+    setError(undefined);
+    try {
+      const here = await position().catch(() => undefined);
+      setResults(await api.get(`/v1/geocode?q=${encodeURIComponent(query)}${here ? `&lat=${here.lat}&lng=${here.lng}` : ""}`));
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+  const goTo = async (dest: { label: string; geo: { lat: number; lng: number } }) => {
+    setError(undefined);
+    try {
+      const from = await position();
+      const r = await api.post<{ route: Route; destination: { label: string } }>("/v1/navigation/route", { from, to: { geo: dest.geo, query: dest.label }, loadId: load?.id });
+      adHoc.current = dest;
+      setDestination(r.destination.label);
+      setPlan({ mode: "STANDARD", route: r.route });
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
+  const addressSearch = (
+    <>
+      <View style={{ marginHorizontal: 16, marginTop: 16 }}>
+        <Field label="Go to an address" value={query} onChangeText={setQuery} placeholder="Truck stop, shop or street address" returnKeyType="search" onSubmitEditing={search} />
+        <Button title="Search" variant="tonal" disabled={query.trim().length < 3} onPress={search} />
+      </View>
+      {results.length ? (
+        <View style={{ marginTop: 8 }}>
+          {results.map((r, i) => (
+            <View key={i} style={{ marginHorizontal: 16, marginTop: 8 }}>
+              <Button title={r.label} variant="plain" onPress={() => goTo(r)} />
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </>
+  );
+
+  const report = (body: object) => (load ? api.post(`/v1/loads/${load.id}/navigation/violations`, body).catch(() => undefined) : undefined);
 
   const handle = async (events: NavEvent[], fix: GpsFix) => {
     const s = session.current!;
@@ -83,7 +131,9 @@ export function NavigateScreen() {
         case "REROUTE_REQUIRED":
           if (s instanceof StandardNavigationSession && !replanning.current) {
             replanning.current = true;
-            const p = await api.post<Plan>(`/v1/loads/${load!.id}/navigation/plan`, { from: e.from }).catch(() => undefined);
+            const p = adHoc.current
+              ? await api.post<Plan>("/v1/navigation/route", { from: e.from, to: { geo: adHoc.current.geo, query: adHoc.current.label }, loadId: load?.id }).catch(() => undefined)
+              : await api.post<Plan>(`/v1/loads/${load!.id}/navigation/plan`, { from: e.from }).catch(() => undefined);
             if (p?.mode === "STANDARD") {
               s.replaceRoute(p.route);
               setPlan(p);
@@ -127,11 +177,11 @@ export function NavigateScreen() {
   };
 
   const start = async () => {
-    if (!plan || !load) return;
+    if (!plan) return;
     session.current =
       plan.mode === "STANDARD"
         ? new StandardNavigationSession(plan.route)
-        : new OversizeNavigationSession(load.oversize!.permits, plan.truck, { corridorHalfWidthM: 30, escorts: plan.escortsRequired });
+        : new OversizeNavigationSession(load!.oversize!.permits, plan.truck, { corridorHalfWidthM: 30, escorts: plan.escortsRequired });
     setAlerts([]);
     setTracking(true);
     watch.current = await Location.watchPositionAsync({ accuracy: Location.Accuracy.BestForNavigation, distanceInterval: 10, timeInterval: 2000 }, (loc) => {
@@ -147,9 +197,17 @@ export function NavigateScreen() {
     setTracking(false);
   };
 
-  if (!load) return <Screen><Empty title="No load to navigate" message="Loads assigned to you appear here when they are dispatched." action={<Button title="View loads" variant="tonal" onPress={() => nav.navigate("Loads", { filter: "driving" })} />} /></Screen>;
+  if (!load && !plan) {
+    return (
+      <Screen>
+        <Empty title="No load to navigate" message="Loads assigned to you appear here when they are dispatched." action={<Button title="View loads" variant="tonal" onPress={() => nav.navigate("Loads", { filter: "driving" })} />} />
+        {error ? <Banner tone="danger" title="Couldn't plan the trip" message={error} /> : null}
+        {addressSearch}
+      </Screen>
+    );
+  }
 
-  if (!plan) {
+  if (!plan && load) {
     return (
       <Screen>
         <Banner tone={load.oversize ? "warning" : "info"} title={load.oversize ? "Oversize load: strict permitted-route navigation" : `Navigate ${load.loadNumber}`} message={load.oversize ? "You will be held to the state permit route. Rerouting is disabled and leaving the route alerts dispatch." : "Truck-legal routing that respects height, weight and hazmat restrictions."} />
@@ -157,9 +215,11 @@ export function NavigateScreen() {
         <View style={{ margin: 16 }}>
           <Button title={load.oversize ? "Check permits and route" : "Plan route"} onPress={prepare} />
         </View>
+        {load.oversize ? null : addressSearch}
       </Screen>
     );
   }
+  if (!plan) return null;
 
   const line = plan.mode === "STANDARD" ? plan.route.geometry : plan.corridor;
   const blocked = plan.mode === "OVERSIZE" && plan.conflicts.length > 0;
@@ -179,7 +239,7 @@ export function NavigateScreen() {
             {miles(state.distanceToManeuverM ?? 0)} · {state.nextManeuver.instruction}
           </Text>
         ) : (
-          <Text style={{ color: plan.mode === "OVERSIZE" ? colors.warning : colors.onPrimary, fontSize: 20, fontWeight: "700" }}>{plan.mode === "OVERSIZE" ? "Permitted route only · rerouting disabled" : load.loadNumber}</Text>
+          <Text style={{ color: plan.mode === "OVERSIZE" ? colors.warning : colors.onPrimary, fontSize: 20, fontWeight: "700" }}>{plan.mode === "OVERSIZE" ? "Permitted route only · rerouting disabled" : destination ?? load?.loadNumber}</Text>
         )}
         {state?.status === "DRIFTING" ? <Text style={{ color: colors.warning, fontWeight: "600" }}>Drifting toward the edge of the permitted corridor</Text> : null}
       </View>

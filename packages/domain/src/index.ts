@@ -8,3 +8,5 @@ export * from "./dispatch.js";
 export * from "./bid.js";
 export * from "./invoice.js";
 export * from "./message.js";
+export * from "./reliability.js";
+export * from "./network.js";

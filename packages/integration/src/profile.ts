@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { As2PartnerSettings } from "./as2/as2.js";
 import { fieldMapCoverage } from "./mapping.js";
 import { TRANSACTIONS, TransactionType } from "./transactions.js";
 
@@ -75,6 +76,8 @@ export const PartnerProfile = z.object({
   catalogCode: z.string().optional(),
   channels: z.partialRecord(TransactionType, Channel),
   edi: EdiSettings.optional(),
+  /** AS2 connection details, used by channels whose transport is AS2. */
+  as2: As2PartnerSettings.optional(),
 });
 export type PartnerProfile = z.infer<typeof PartnerProfile>;
 
@@ -89,6 +92,7 @@ export function validateProfile(p: PartnerProfile): ProfileIssue[] {
     if (!ch.enabled) continue;
     if (!methodSupports(ch.method, tx)) issues.push({ transaction: tx, message: `${tx} has no X12 transaction set; use API_JSON or API_XML` });
     if (ch.method === "EDI_X12" && !p.edi) issues.push({ transaction: tx, message: "EDI channel needs interchange settings (sender/receiver ids)" });
+    if (ch.transport === "AS2" && !p.as2) issues.push({ transaction: tx, message: "AS2 channel needs the partner's AS2 id, URL and certificate" });
     if (ch.method !== "EDI_X12" && ch.transport !== "HTTPS") issues.push({ transaction: tx, message: "API channels use HTTPS" });
     if (ch.transport === "HTTPS" && !ch.endpoint) issues.push({ transaction: tx, message: "HTTPS channel needs an endpoint URL" });
     if (ch.method === "EDI_X12" && ch.fieldMap && Object.keys(ch.fieldMap).length) issues.push({ transaction: tx, message: "Field maps apply to API channels; EDI uses code overrides" });

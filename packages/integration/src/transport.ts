@@ -12,6 +12,8 @@ export interface OutboundMessage {
   body: string;
   /** Suggested file name for file-based transports. */
   filename: string;
+  /** Partner AS2 settings when the transport is AS2. */
+  as2?: import("./as2/as2.js").As2PartnerSettings;
 }
 
 export interface TransportResult {

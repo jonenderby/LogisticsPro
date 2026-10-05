@@ -7,3 +7,5 @@ export * from "./engine.js";
 export * from "./fromDomain.js";
 export * from "./catalog/carriers.js";
 export * as x12 from "./x12/index.js";
+export * as as2 from "./as2/index.js";
+export { As2PartnerSettings, As2Transport, type As2Identity } from "./as2/index.js";

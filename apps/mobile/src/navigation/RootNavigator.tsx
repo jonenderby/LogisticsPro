@@ -14,6 +14,7 @@ import { MessagesScreen, ThreadScreen } from "../screens/MessagesScreens";
 import { MoneyScreen, SendInvoiceScreen } from "../screens/MoneyScreens";
 import { MoreScreen, SecurityScreen } from "../screens/MoreScreens";
 import { NavigateScreen } from "../screens/NavigateScreen";
+import { JoinCarrierScreen, ReliabilityScreen } from "../screens/NetworkScreens";
 import { NewLoadScreen } from "../screens/NewLoadScreen";
 import { TodayScreen } from "../screens/TodayScreen";
 import { AuthFlow } from "../screens/auth/AuthFlow";
@@ -51,6 +52,8 @@ const SHARED: Array<{ name: keyof StackParams; component: ComponentType; title: 
   { name: "PartnerEdit", component: PartnerEditScreen, title: "Partner" },
   { name: "RegisterCompany", component: RegisterCompanyScreen, title: "Register company" },
   { name: "Security", component: SecurityScreen, title: "Sign-in & security" },
+  { name: "JoinCarrier", component: JoinCarrierScreen, title: "Join a carrier" },
+  { name: "Reliability", component: ReliabilityScreen, title: "My reliability" },
 ];
 
 function stackFor(root: TabRoot) {

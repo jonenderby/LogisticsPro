@@ -1,5 +1,6 @@
 import { useFocusEffect } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
+import * as Linking from "expo-linking";
 import { useCallback, useState } from "react";
 import { View } from "react-native";
 import { api, errorMessage } from "../api/client";
@@ -12,6 +13,12 @@ import { API_URL } from "../config";
 
 type Method = "API_JSON" | "API_XML" | "EDI_X12";
 type Tx = "LOAD_TENDER" | "TENDER_RESPONSE" | "SHIPMENT_STATUS" | "FREIGHT_INVOICE" | "RATE_QUOTE" | "PICKUP_REQUEST";
+type EdiTransport = "AS2" | "VAN" | "SFTP";
+interface As2In {
+  as2Id: string;
+  url: string;
+  certificatePem: string;
+}
 interface ChannelIn {
   method: Method;
   transport?: string;
@@ -25,6 +32,7 @@ interface Profile {
   catalogCode?: string;
   channels: Partial<Record<Tx, ChannelIn>>;
   edi?: { receiverQualifier?: string; receiverId?: string; usage?: string };
+  as2?: As2In;
   issues: Array<{ transaction?: string; message: string }>;
   inboundEnabled: boolean;
 }
@@ -53,12 +61,13 @@ interface Draft {
   method: Method | "OFF";
   url: string;
   secretRef: string;
+  transport: EdiTransport;
 }
 
 function draftsFrom(p: Profile | undefined, txs: Tx[]): Record<Tx, Draft> {
   return Object.fromEntries(txs.map((tx) => {
     const ch = p?.channels[tx];
-    return [tx, { method: ch?.method ?? "OFF", url: ch?.endpoint?.url ?? "", secretRef: ch?.endpoint?.auth?.secretRef ?? "" }];
+    return [tx, { method: ch?.method ?? "OFF", url: ch?.endpoint?.url ?? "", secretRef: ch?.endpoint?.auth?.secretRef ?? "", transport: (ch?.method === "EDI_X12" && ch.transport !== "HTTPS" ? ch.transport : "AS2") as EdiTransport }];
   })) as Record<Tx, Draft>;
 }
 
@@ -66,7 +75,7 @@ function toChannels(drafts: Record<Tx, Draft>) {
   const out: Partial<Record<Tx, ChannelIn>> = {};
   for (const [tx, d] of Object.entries(drafts) as Array<[Tx, Draft]>) {
     if (d.method === "OFF") continue;
-    out[tx] = d.method === "EDI_X12" ? { method: d.method, transport: "VAN" } : { method: d.method, transport: "HTTPS", endpoint: { url: d.url, auth: d.secretRef ? { type: "bearer", secretRef: d.secretRef } : { type: "none" } } };
+    out[tx] = d.method === "EDI_X12" ? { method: d.method, transport: d.transport } : { method: d.method, transport: "HTTPS", endpoint: { url: d.url, auth: d.secretRef ? { type: "bearer", secretRef: d.secretRef } : { type: "none" } } };
   }
   return out;
 }
@@ -82,6 +91,17 @@ function ChannelEditor({ txs, drafts, setDrafts, supported }: { txs: Tx[]; draft
           <Section key={tx} title={TX_LABEL[tx]}>
             <Padded>
               <Segmented options={[{ value: "OFF", label: "Off" }, ...methods.map((m) => ({ value: m, label: METHOD_LABEL[m] }))]} value={d.method} onChange={(m) => setDrafts({ ...drafts, [tx]: { ...d, method: m as Draft["method"] } })} />
+              {d.method === "EDI_X12" ? (
+                <Segmented
+                  options={[
+                    { value: "AS2", label: "AS2 (direct)" },
+                    { value: "VAN", label: "VAN" },
+                    { value: "SFTP", label: "SFTP" },
+                  ]}
+                  value={d.transport}
+                  onChange={(t) => setDrafts({ ...drafts, [tx]: { ...d, transport: t as EdiTransport } })}
+                />
+              ) : null}
               {d.method === "API_JSON" || d.method === "API_XML" ? (
                 <>
                   <Field label="Endpoint URL" value={d.url} onChangeText={(url) => setDrafts({ ...drafts, [tx]: { ...d, url } })} autoCapitalize="none" keyboardType="url" />
@@ -96,6 +116,51 @@ function ChannelEditor({ txs, drafts, setDrafts, supported }: { txs: Tx[]; draft
   );
 }
 
+const usesAs2 = (drafts: Record<string, Draft>) => Object.values(drafts).some((d) => d.method === "EDI_X12" && d.transport === "AS2");
+
+/** The partner's side of an AS2 connection: their AS2 id, URL and public certificate. */
+function As2Fields({ value, onChange }: { value: As2In; onChange: (v: As2In) => void }) {
+  return (
+    <Section title="Partner AS2 connection" footer="Ask the partner for these three values. They need ours in return (shown under Our AS2 station).">
+      <Padded>
+        <Field label="Partner AS2 id" value={value.as2Id} onChangeText={(t) => onChange({ ...value, as2Id: t.trim() })} autoCapitalize="characters" autoCorrect={false} />
+        <Field label="Partner AS2 URL" value={value.url} onChangeText={(t) => onChange({ ...value, url: t.trim() })} autoCapitalize="none" keyboardType="url" />
+        <Field label="Partner certificate (PEM)" value={value.certificatePem} onChangeText={(t) => onChange({ ...value, certificatePem: t })} multiline autoCapitalize="none" autoCorrect={false} placeholder="-----BEGIN CERTIFICATE-----" />
+      </Padded>
+    </Section>
+  );
+}
+
+interface Station {
+  as2Id: string;
+  url: string;
+  certificateUrl: string;
+  certificatePem: string;
+  fingerprintSha256: string;
+}
+
+/** What every partner needs to connect to Logistics Pro by AS2. One connection serves every business here. */
+function StationSection() {
+  const [station, setStation] = useState<Station>();
+  useFocusEffect(
+    useCallback(() => {
+      void api.get<Station>("/v1/integrations/as2").then(setStation).catch(() => undefined);
+    }, []),
+  );
+  if (!station) return null;
+  return (
+    <Section title="Our AS2 station" footer="Partners set up one AS2 connection to Logistics Pro using these details, then reach every business here. Messages are signed and encrypted, and receipts (MDNs) are returned immediately.">
+      <Row title="AS2 id" value={station.as2Id} onPress={() => Clipboard.setStringAsync(station.as2Id)} chevron={false} />
+      <Row title="AS2 URL" subtitle={station.url} onPress={() => Clipboard.setStringAsync(station.url)} chevron={false} />
+      <Row title="Certificate" subtitle={`SHA-256 ${station.fingerprintSha256.slice(0, 23)}…`} value="Copy" onPress={() => Clipboard.setStringAsync(station.certificatePem)} chevron={false} />
+      <Row title="Download certificate" subtitle={station.certificateUrl} onPress={() => Linking.openURL(station.certificateUrl)} />
+    </Section>
+  );
+}
+
+const emptyAs2: As2In = { as2Id: "", url: "", certificatePem: "" };
+const as2Payload = (a: As2In) => (a.as2Id && a.url && a.certificatePem ? a : undefined);
+
 export function IntegrationsScreen() {
   const { me, orgsWithRole } = useMe();
   const nav = useNav();
@@ -106,6 +171,7 @@ export function IntegrationsScreen() {
   const [drafts, setDrafts] = useState<Record<Tx, Draft>>(draftsFrom(undefined, EDI_TX));
   const [ediId, setEdiId] = useState("");
   const [ediQual, setEdiQual] = useState("ZZ");
+  const [as2In, setAs2In] = useState<As2In>(emptyAs2);
 
   const refresh = useCallback(async () => {
     if (!orgId) return;
@@ -116,6 +182,7 @@ export function IntegrationsScreen() {
     setDrafts(draftsFrom(receiving, EDI_TX));
     setEdiId(receiving?.edi?.receiverId ?? "");
     setEdiQual(receiving?.edi?.receiverQualifier ?? "ZZ");
+    setAs2In(receiving?.as2 ?? emptyAs2);
   }, [orgId]);
   useFocusEffect(
     useCallback(() => {
@@ -136,6 +203,7 @@ export function IntegrationsScreen() {
           ))}
         </View>
       ) : null}
+      <StationSection />
       <Banner tone="info" title="How your systems receive data" message="Anyone on Logistics Pro who works with you sends through these settings. Your partners need no setup of their own." />
       <ChannelEditor txs={EDI_TX} drafts={drafts} setDrafts={setDrafts} />
       {usesEdi ? (
@@ -146,12 +214,13 @@ export function IntegrationsScreen() {
           </Padded>
         </Section>
       ) : null}
+      {usesAs2(drafts) ? <As2Fields value={as2In} onChange={setAs2In} /> : null}
       <View style={{ margin: 16 }}>
         <Button
           title="Save receiving preferences"
           onPress={async () => {
             try {
-              await api.put(`/v1/orgs/${orgId}/receiving`, { channels: toChannels(drafts), edi: usesEdi ? { receiverQualifier: ediQual, receiverId: ediId } : undefined });
+              await api.put(`/v1/orgs/${orgId}/receiving`, { channels: toChannels(drafts), edi: usesEdi ? { receiverQualifier: ediQual, receiverId: ediId } : undefined, as2: usesAs2(drafts) ? as2Payload(as2In) : undefined });
               await refresh();
               notify("Saved");
             } catch (e) {
@@ -195,6 +264,7 @@ export function PartnerEditScreen() {
   const [ediQual, setEdiQual] = useState("02");
   const [scac, setScac] = useState("");
   const [token, setToken] = useState<string>();
+  const [as2In, setAs2In] = useState<As2In>(emptyAs2);
 
   const refresh = useCallback(async () => {
     const [ps, cat] = await Promise.all([api.get<Profile[]>(`/v1/orgs/${orgId}/partners`), api.get<CatalogEntry[]>("/v1/integrations/catalog")]);
@@ -207,6 +277,7 @@ export function PartnerEditScreen() {
     setEdiId(p?.edi?.receiverId ?? p?.scac ?? "");
     setEdiQual(p?.edi?.receiverQualifier ?? "02");
     setScac(p?.scac ?? "");
+    setAs2In(p?.as2 ?? emptyAs2);
     nav.setOptions({ title: p?.name ?? key });
   }, [orgId, key, nav]);
   useFocusEffect(
@@ -235,12 +306,13 @@ export function PartnerEditScreen() {
           </Padded>
         </Section>
       ) : null}
+      {usesAs2(drafts) ? <As2Fields value={as2In} onChange={setAs2In} /> : null}
       <View style={{ margin: 16, gap: 10 }}>
         <Button
           title="Save partner"
           onPress={async () => {
             try {
-              await api.put(`/v1/orgs/${orgId}/partners/${key}`, { name: profile.name, kind: profile.kind, scac: scac || undefined, catalogCode: profile.catalogCode, channels: toChannels(drafts), edi: usesEdi ? { receiverQualifier: ediQual, receiverId: ediId } : undefined });
+              await api.put(`/v1/orgs/${orgId}/partners/${key}`, { name: profile.name, kind: profile.kind, scac: scac || undefined, catalogCode: profile.catalogCode, channels: toChannels(drafts), edi: usesEdi ? { receiverQualifier: ediQual, receiverId: ediId } : undefined, as2: usesAs2(drafts) ? as2Payload(as2In) : undefined });
               await refresh();
             } catch (e) {
               notify("Couldn't save", errorMessage(e));

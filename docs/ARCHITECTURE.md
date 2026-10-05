@@ -31,12 +31,16 @@ Plain TypeScript plus zod, with no Node-only imports, so it runs on the server a
 - **Canonical transactions**: `LOAD_TENDER`, `TENDER_RESPONSE`, `SHIPMENT_STATUS`, `FREIGHT_INVOICE`, `RATE_QUOTE`, `PICKUP_REQUEST`. One zod schema each. Required fields are listed by `fieldPaths()` and served at `GET /v1/integrations/transactions`.
 - **Renderers**: JSON (with optional per-partner field map), XML (same field map, schema-guided parsing), X12 4010 (204, 990, 214, 210, and 997 acknowledgments). Every method parses back to the identical canonical document; the tests prove it for all four EDI-capable transactions.
 - **Profiles**: a `PartnerProfile` belongs to one business and says, per transaction, which method, endpoint, auth (secret *references*, never secrets) and transport to use. A business's own `receiving` profile tells everyone on the platform how it wants to receive data.
-- **Transports**: HTTPS with retry and OAuth client-credentials, an outbox for AS2/SFTP/VAN gateways, and an in-memory transport for development.
+- **Transports**: HTTPS with retry and OAuth client-credentials; **AS2** (`src/as2`: S/MIME signing and encryption with node-forge, signature verification with Node's crypto, MDNs and MIC checks); an outbox for SFTP/VAN gateways; and an in-memory transport for development. See [EDI_AS2.md](EDI_AS2.md).
+
+- **Reliability**: `shipmentOutcome` scores each delivered shipment (on-time pickup, on-time delivery, damage-free); `driverReliability` and `carrierReliability` roll them over windows that scale with the carrier's trucker count. See [NETWORK_AND_RELIABILITY.md](NETWORK_AND_RELIABILITY.md).
+- **Network**: join-code format and join requests.
 
 ### `packages/navigation`
 - `ValhallaProvider` asks a Valhalla server for a truck route that respects height, width, length, weight and hazmat. `StaticProvider` draws straight lines for demos.
 - `StandardNavigationSession` snaps GPS fixes to the route, announces maneuvers, and requests a reroute after three off-route fixes.
 - `OversizeNavigationSession` treats the permit route as the only route. It warns when the truck drifts toward the corridor edge, logs a violation and notifies dispatch (and escorts) when it leaves, guides the driver back to the route ahead, detects wrong-way travel, announces restrictions the load cannot clear, and flags travel outside the daylight window. It never reroutes.
+- `PeliasGeocoder` / `NominatimGeocoder` turn addresses into coordinates. See [NAVIGATION.md](NAVIGATION.md).
 - `checkOversizeTrip` is the pre-trip gate: permits valid at departure, no gaps between state permits, no blocking restriction on the corridor, daylight and weekend rules.
 
 ### `packages/workspace`

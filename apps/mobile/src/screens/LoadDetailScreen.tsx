@@ -8,8 +8,19 @@ import type { Bid, LoadDetail } from "../api/types";
 import { confirm, notify } from "../ui/dialog";
 import { useNav, useParams } from "../navigation/types";
 import { useMe } from "../state/MeProvider";
-import { Banner, Body, Button, Field, Padded, Row, Screen, Section, Segmented, StatusPill } from "../ui/components";
+import { Banner, Body, Button, Chip, Field, Padded, Row, Screen, Section, Segmented, StatusPill } from "../ui/components";
 import { money, titleCase, when } from "../ui/format";
+import { type Score, ScoreChip } from "../ui/Reliability";
+
+type BidView = Bid & { carrierName?: string; reliability?: { overall: Score; withYou?: Score; truckers: number } };
+interface LoadExceptionView {
+  id: string;
+  type: string;
+  note: string;
+  pieces?: number;
+  at: string;
+}
+const EXCEPTION_TYPES = ["DAMAGE", "SHORTAGE", "OVERAGE", "REFUSED", "OTHER"] as const;
 
 const MODE: Record<string, string> = { FTL: "Full truckload", LTL: "LTL", PARTIAL: "Partial" };
 
@@ -18,7 +29,10 @@ export function LoadDetailScreen() {
   const nav = useNav();
   const { me, refresh: refreshMe, relation } = useMe();
   const [load, setLoad] = useState<LoadDetail>();
-  const [bids, setBids] = useState<Bid[]>([]);
+  const [bids, setBids] = useState<BidView[]>([]);
+  const [exceptions, setExceptions] = useState<LoadExceptionView[]>([]);
+  const [excType, setExcType] = useState<(typeof EXCEPTION_TYPES)[number]>("DAMAGE");
+  const [excNote, setExcNote] = useState("");
   const [notes, setNotes] = useState("");
   const [bidAmount, setBidAmount] = useState("");
   const [bidPlan, setBidPlan] = useState<"SOLO" | "TEAM" | "RELAY" | "CONSOLIDATED">("SOLO");
@@ -33,7 +47,8 @@ export function LoadDetailScreen() {
     setLoad(l);
     setNotes(l.notes ?? "");
     nav.setOptions({ title: l.loadNumber });
-    if (l.status === "POSTED") setBids(await api.get<Bid[]>(`/v1/loads/${id}/bids`).catch(() => []));
+    if (l.status === "POSTED") setBids(await api.get<BidView[]>(`/v1/loads/${id}/bids`).catch(() => []));
+    if (l.pickedUpAt) setExceptions(await api.get<LoadExceptionView[]>(`/v1/loads/${id}/exceptions`).catch(() => []));
   }, [id, nav]);
   useFocusEffect(
     useCallback(() => {
@@ -158,7 +173,17 @@ export function LoadDetailScreen() {
             {!load.pickedUpAt && load.status !== "CANCELLED" ? <Button title="Cancel load" variant="destructive" onPress={async () => { if (await confirm("Cancel this load?", "The carrier is notified and the load cannot be reopened.", "Cancel load", true)) await run(() => api.post(`/v1/loads/${load.id}/cancel`))(); }} /> : null}
           </Padded>
           {load.status === "POSTED"
-            ? bids.map((b) => <Row key={b.id} title={`${money(b.amount.amount)} · ${titleCase(b.plan)}`} subtitle={`${b.transitHours ? `${b.transitHours} h transit · ` : ""}${b.notes ?? ""}`} right={<Button title="Award" variant="tonal" onPress={run(() => api.post(`/v1/loads/${load.id}/bids/${b.id}/award`), "Awarded")} style={{ minHeight: 36 }} />} />)
+            ? bids.map((b) => (
+                <View key={b.id}>
+                  <Row title={`${money(b.amount.amount)} · ${b.carrierName ?? "Carrier"}`} subtitle={`${titleCase(b.plan)}${b.transitHours ? ` · ${b.transitHours} h transit` : ""}${b.notes ? ` · ${b.notes}` : ""}`} right={<Button title="Award" variant="tonal" onPress={run(() => api.post(`/v1/loads/${load.id}/bids/${b.id}/award`), "Awarded")} style={{ minHeight: 36 }} />} />
+                  {b.reliability ? (
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, paddingHorizontal: 16, paddingBottom: 12 }}>
+                      <ScoreChip label="With you" score={b.reliability.withYou} />
+                      <ScoreChip label="Overall" score={b.reliability.overall} />
+                    </View>
+                  ) : null}
+                </View>
+              ))
             : null}
         </Section>
       ) : null}
@@ -177,6 +202,31 @@ export function LoadDetailScreen() {
         <Section title="Billing">
           <Padded>
             <Button title="Send invoice" onPress={() => nav.navigate("SendInvoice", { loadId: load.id })} />
+          </Padded>
+        </Section>
+      ) : null}
+
+      {load.pickedUpAt && (rel.shipper || rel.driver || rel.dispatcher) ? (
+        <Section title="Exceptions" footer="Damage reports count against the carrier's and drivers' damage-free rate with this customer.">
+          {exceptions.map((x) => (
+            <Row key={x.id} title={`${titleCase(x.type)}${x.pieces ? ` · ${x.pieces} pcs` : ""}`} subtitle={`${x.note}\n${when(x.at)}`} />
+          ))}
+          <Padded>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {EXCEPTION_TYPES.map((t) => (
+                <Chip key={t} label={titleCase(t)} selected={excType === t} onPress={() => setExcType(t)} />
+              ))}
+            </View>
+            <Field label="What happened" value={excNote} onChangeText={setExcNote} multiline />
+            <Button
+              title="Report exception"
+              variant="tonal"
+              disabled={!excNote.trim()}
+              onPress={run(async () => {
+                await api.post(`/v1/loads/${load.id}/exceptions`, { type: excType, note: excNote.trim() });
+                setExcNote("");
+              }, "Exception reported")}
+            />
           </Padded>
         </Section>
       ) : null}
