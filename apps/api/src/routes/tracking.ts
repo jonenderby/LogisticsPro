@@ -4,6 +4,7 @@ import { z } from "zod";
 import { type AppContext, HttpError, authenticate, capsOf, getLoad, hasOrgCap, isDriverOn, me, parse } from "../http.js";
 import { hosFor, recordFix } from "../services/hos.js";
 import { recordStopVisits } from "../services/stops.js";
+import { recordMiles } from "../services/ifta.js";
 import { MOVING, OFFLINE_AFTER_MS, UNDELIVERED, activeLeg, etaFor, lane, positionForLoad } from "../services/tracking.js";
 
 /**
@@ -29,7 +30,10 @@ export function trackingRoutes(app: FastifyInstance, ctx: AppContext) {
     if (!prior || prior.at <= at.toISOString()) {
       ctx.store.positions.set(accountId, { accountId, geo: { lat: b.lat, lng: b.lng }, at: at.toISOString(), speedMps: b.speedMps, headingDeg: b.headingDeg, accuracyM: b.accuracyM });
     }
-    recordFix(ctx.store, accountId, { geo: { lat: b.lat, lng: b.lng }, at: at.toISOString(), speedMps: b.speedMps }, now, { autoDuty: true });
+    const prev = ctx.store.tracks.get(accountId)?.at(-1);
+    const point = { geo: { lat: b.lat, lng: b.lng }, at: at.toISOString(), speedMps: b.speedMps };
+    recordFix(ctx.store, accountId, point, now, { autoDuty: true });
+    recordMiles(ctx, accountId, prev, point);
     recordStopVisits(ctx, accountId, { geo: { lat: b.lat, lng: b.lng }, at: at.toISOString() });
   };
   const driverOnly = (accountId: string) => {

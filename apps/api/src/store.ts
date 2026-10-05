@@ -1,4 +1,4 @@
-import type { Account, AlertPreferences, AppointmentMiss, ArrivalStatus, Bid, DutyEvent, HosCycle, TrackPoint, Invoice, JoinCode, JoinRequest, Load, LoadException, Membership, Message, Organization, ShipmentOutcome } from "@logisticspro/domain";
+import type { Account, AlertPreferences, AppointmentMiss, ArrivalStatus, Bid, DailyMiles, DutyEvent, FuelPurchase, HosCycle, TrackPoint, Invoice, JoinCode, JoinRequest, Load, LoadException, Membership, Message, Organization, ShipmentOutcome } from "@logisticspro/domain";
 import type { PartnerProfile, Transmission } from "@logisticspro/integration";
 import type { Violation } from "@logisticspro/navigation";
 import { AppendLog, type ChangeSink, type Persisted, PersistentList, PersistentMap } from "./persistence/collections.js";
@@ -108,6 +108,10 @@ export class MemoryStore {
   stoppedSince = new PersistentMap<string>("stoppedSince");
   /** Routed distance and driving time for what is left of a moving load, from the routing server. */
   routeEstimates = new PersistentMap<RouteEstimate>("routeEstimates");
+  /** Miles per jurisdiction per truck per day, "<carrierOrgId>|<vehicle>|<date>" (fuel tax). */
+  jurisdictionMiles = new PersistentMap<DailyMiles>("jurisdictionMiles");
+  /** Fuel purchases entered by drivers and the office, by id. */
+  fuelPurchases = new PersistentMap<FuelPurchase>("fuelPurchases");
   /** Arrival alert settings per account. */
   alertPrefs = new PersistentMap<AlertPreferences>("alertPrefs");
   /** Last authenticator step accepted per account; older or equal codes are refused. */

@@ -25,6 +25,7 @@ const TARGET: Record<string, keyof StackParams> = {
   reliability: "Reliability",
   alerts: "Alerts",
   hours: "Hours",
+  "fuel-tax": "FuelTax",
   notifications: "Notifications",
   account: "Security",
   security: "Security",

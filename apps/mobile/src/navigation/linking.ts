@@ -16,6 +16,7 @@ const SHARED_PATHS: Record<string, string> = {
   Reliability: "reliability",
   Alerts: "alerts",
   Hours: "hours",
+  FuelTax: "fuel-tax",
   Notifications: "notifications",
 };
 

@@ -28,6 +28,7 @@ import { IntegrationHub } from "./services/hub.js";
 import { ExpoPushSender, NoPushSender, type PushSender } from "./services/push.js";
 import { alertRoutes } from "./routes/alerts.js";
 import { hosRoutes } from "./routes/hos.js";
+import { iftaRoutes } from "./routes/ifta.js";
 import { MemoryStore } from "./store.js";
 
 export interface AppOptions {
@@ -121,6 +122,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   trackingRoutes(app, ctx);
   alertRoutes(app, ctx);
   hosRoutes(app, ctx);
+  iftaRoutes(app, ctx);
 
   if (cfg.alertIntervalSeconds > 0) {
     const timer = setInterval(() => {

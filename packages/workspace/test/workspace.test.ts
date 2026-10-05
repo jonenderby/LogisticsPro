@@ -18,7 +18,7 @@ describe("capabilities and layout", () => {
     for (const c of ["DRIVE", "DISPATCH", "BID", "MANAGE_FLEET", "INVOICE", "MANAGE_INTEGRATIONS"] as const) expect(caps.all.has(c)).toBe(true);
     const ws = buildWorkspace(caps);
     expect(ws.tabs.map((t) => t.id)).toEqual(["today", "loads", "navigate", "messages", "more"]);
-    expect(ws.more.map((m) => m.id)).toEqual(expect.arrayContaining(["board", "money", "business", "integrations", "fleet", "hours", "notifications", "security"]));
+    expect(ws.more.map((m) => m.id)).toEqual(expect.arrayContaining(["board", "money", "business", "integrations", "fleet", "hours", "fuel-tax", "notifications", "security"]));
     expect(ws.loadFilters.map((f) => f.id)).toEqual(["driving", "dispatch"]);
     expect(ws.quickActions.map((q) => q.id)).toEqual(["update-status", "add-document", "find-loads", "new-invoice"]);
   });
@@ -28,7 +28,7 @@ describe("capabilities and layout", () => {
     expect(caps.all.has("DISPATCH")).toBe(false);
     const ws = buildWorkspace(caps);
     expect(ws.tabs.map((t) => t.id)).toEqual(["today", "loads", "navigate", "messages", "more"]);
-    expect(ws.more.map((m) => m.id)).toEqual(["money", "hours", "notifications", "reliability", "join-carrier", "register-company", "account", "security"]);
+    expect(ws.more.map((m) => m.id)).toEqual(["money", "hours", "fuel-tax", "notifications", "reliability", "join-carrier", "register-company", "account", "security"]);
   });
 
   it("puts the load board up front for a broker", () => {

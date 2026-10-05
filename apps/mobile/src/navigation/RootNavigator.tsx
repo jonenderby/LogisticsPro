@@ -25,6 +25,7 @@ import { type OpenTarget, useBrowserAlerts, usePushNotifications, useReportTimeZ
 import { AlertsScreen } from "../screens/AlertsScreen";
 import { DrivingLock } from "../ui/DrivingLock";
 import { HoursScreen } from "../screens/HoursScreen";
+import { FuelTaxScreen } from "../screens/FuelTaxScreen";
 import { NotificationsScreen } from "../screens/NotificationsScreen";
 import { Icon } from "../ui/Icon";
 import { useLayout } from "../ui/responsive";
@@ -64,6 +65,7 @@ const SHARED: Array<{ name: keyof StackParams; component: ComponentType; title: 
   { name: "Reliability", component: ReliabilityScreen, title: "My reliability" },
   { name: "Alerts", component: AlertsScreen, title: "Arrival alerts" },
   { name: "Hours", component: HoursScreen, title: "Hours of service" },
+  { name: "FuelTax", component: FuelTaxScreen, title: "Fuel tax (IFTA)" },
   { name: "Notifications", component: NotificationsScreen, title: "Notifications" },
 ];
 

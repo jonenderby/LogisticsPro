@@ -23,6 +23,7 @@ export type StackParams = {
   Reliability: undefined;
   Alerts: undefined;
   Hours: undefined;
+  FuelTax: undefined;
   Notifications: undefined;
 };
 
