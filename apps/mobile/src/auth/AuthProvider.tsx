@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { unregisterPush } from "../state/notifications";
 import { publicApi, session } from "../api/client";
 
 type Phase =
@@ -87,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       verify,
       finishRecoveryCodes: () => setPhase({ name: "signedIn" }),
       signOut: async () => {
+        await unregisterPush();
         await session.clear();
         setPhase({ name: "signedOut" });
       },

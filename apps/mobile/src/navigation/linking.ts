@@ -14,6 +14,7 @@ const SHARED_PATHS: Record<string, string> = {
   Security: "security",
   JoinCarrier: "join-carrier",
   Reliability: "reliability",
+  Alerts: "alerts",
 };
 
 /**

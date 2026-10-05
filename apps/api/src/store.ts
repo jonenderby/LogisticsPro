@@ -1,4 +1,4 @@
-import type { Account, AppointmentMiss, Bid, Invoice, JoinCode, JoinRequest, Load, LoadException, Membership, Message, Organization, ShipmentOutcome } from "@logisticspro/domain";
+import type { Account, AlertPreferences, AppointmentMiss, ArrivalStatus, Bid, Invoice, JoinCode, JoinRequest, Load, LoadException, Membership, Message, Organization, ShipmentOutcome } from "@logisticspro/domain";
 import type { PartnerProfile, Transmission } from "@logisticspro/integration";
 import type { Violation } from "@logisticspro/navigation";
 
@@ -6,6 +6,23 @@ export interface StoredProfile extends PartnerProfile {
   /** sha256 of the token partners send on inbound requests. */
   inboundTokenHash?: string;
   updatedAt: string;
+}
+
+export interface PushToken {
+  token: string;
+  platform: "ios" | "android";
+  createdAt: string;
+}
+
+export interface InboxItem {
+  id: string;
+  kind: "ARRIVAL" | "SUMMARY" | "TEST";
+  title: string;
+  body: string;
+  loadId?: string;
+  status?: string;
+  at: string;
+  read: boolean;
 }
 
 export interface DriverPosition {
@@ -54,13 +71,24 @@ export class MemoryStore {
   joinRequests = new Map<string, JoinRequest>();
   /** Over/short/damage reports per load. */
   exceptions = new Map<string, LoadException[]>();
-  /** Delivered-shipment outcomes used for reliability, keyed by load id. */
-  /** Keyed by load id, plus "<loadId>#<carrierKey>" for carriers that missed an appointment and did not deliver. */
+  /** Delivered-shipment outcomes used for reliability. Keyed by load id, plus "<loadId>#<carrierKey>" for carriers that missed an appointment and did not deliver. */
   outcomes = new Map<string, ShipmentOutcome>();
   /** Missed appointments reported by businesses, by load id. */
   appointmentMisses = new Map<string, AppointmentMiss[]>();
   /** Latest reported position per driver account. */
   positions = new Map<string, DriverPosition>();
+  /** Arrival alert settings per account. */
+  alertPrefs = new Map<string, AlertPreferences>();
+  /** Phone push tokens per account. */
+  pushTokens = new Map<string, PushToken[]>();
+  /** In-app alert inbox per account, newest first. */
+  notifications = new Map<string, InboxItem[]>();
+  /** Last arrival status the alert engine saw per load. */
+  arrivalSeen = new Map<string, ArrivalStatus>();
+  /** Last instant alert per "<accountId>:<loadId>", to suppress flip-flops. */
+  alertSent = new Map<string, { status: string; at: string }>();
+  /** Scheduled summary slots already sent, "<accountId>:<slot>" to when it was sent. */
+  digestsSent = new Map<string, string>();
   private loadCounter = 100_000;
 
   nextLoadNumber(): string {

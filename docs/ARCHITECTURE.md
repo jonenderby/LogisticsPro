@@ -56,6 +56,7 @@ Fastify. Notable rules:
 - **Visibility**: a load is visible to members of its shipper, broker and carrier orgs, to drivers assigned to any leg, and to carriers while it is posted on the board.
 - **Integration hub** (`services/hub.ts`): decides who receives each event and in which format. Inbound partner traffic is authenticated with a per-partner token, and a partner can only touch loads it carries or tendered.
 - **Tracking** (`routes/tracking.ts`): drivers' phones report positions; carriers get a fleet view of every driver, shippers and 3PLs get every undelivered shipment with its arrival status. Truck positions are shown to a shipper only while that truck is moving their freight.
+- **Arrival alerts** (`services/alerts.ts`): a once-a-minute check that pushes when a shipment becomes late, at risk, early or on time, and sends scheduled summaries, to people who asked. Pushes go through Expo's push service (`services/push.ts`); everything also lands in an in-app inbox.
 - **Persistence**: `MemoryStore` is a set of maps behind one class, so a database-backed store can replace it without touching routes.
 
 ## Website

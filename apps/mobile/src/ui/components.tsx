@@ -140,7 +140,8 @@ function toneColors(tone: Tone, c: ReturnType<typeof useTheme>["colors"]) {
 
 export function Chip({ label, tone = "neutral", selected, onPress }: { label: string; tone?: Tone; selected?: boolean; onPress?: () => void }) {
   const { colors, metrics } = useTheme();
-  const t = toneColors(selected ? "info" : tone, colors);
+  // A selected chip takes the selection color unless it carries its own meaning (a status tone).
+  const t = toneColors(selected && tone === "neutral" ? "info" : tone, colors);
   return (
     <Pressable disabled={!onPress} onPress={onPress} accessibilityRole={onPress ? "button" : "text"} accessibilityState={{ selected }} style={{ backgroundColor: t.bg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: onPress ? 8 : 3, alignSelf: "flex-start", minHeight: onPress ? 32 : undefined, justifyContent: "center" }}>
       <Text style={{ color: t.fg, fontSize: metrics.caption, fontWeight: "600" }}>{label}</Text>

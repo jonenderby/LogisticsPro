@@ -2,6 +2,7 @@ import { MemoryTransport, type OutboundMessage, as2 } from "@logisticspro/integr
 import type { FastifyInstance } from "fastify";
 import { expect } from "vitest";
 import { buildApp } from "../src/app.js";
+import { MemoryPushSender } from "../src/services/push.js";
 import { totp } from "../src/security/totp.js";
 
 export interface Harness {
@@ -18,7 +19,7 @@ export const STATION = as2.generateAs2Identity("LOGISTICSPRO");
 export async function harness(opts: Parameters<typeof buildApp>[0] = {}): Promise<Harness> {
   const https = new MemoryTransport();
   const van = new MemoryTransport();
-  const { app, ctx } = await buildApp({ transports: { HTTPS: https, VAN: van, SFTP: van }, secrets: (ref) => `secret-for-${ref}`, as2Identity: STATION, ...opts });
+  const { app, ctx } = await buildApp({ transports: { HTTPS: https, VAN: van, SFTP: van }, secrets: (ref) => `secret-for-${ref}`, as2Identity: STATION, push: new MemoryPushSender(), ...opts, config: { alertIntervalSeconds: 0, ...opts.config } });
   return { app, ctx, https, van, sent: () => [...https.sent, ...van.sent] };
 }
 

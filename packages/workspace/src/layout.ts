@@ -10,7 +10,7 @@ export interface TabSpec {
 }
 
 export interface MoreEntry {
-  id: TabId | "account" | "security" | "register-company" | "join-carrier" | "reliability" | "integrations" | "fleet" | "distribution-centers";
+  id: TabId | "account" | "security" | "register-company" | "join-carrier" | "reliability" | "alerts" | "integrations" | "fleet" | "distribution-centers";
   title: string;
 }
 
@@ -63,6 +63,7 @@ export function buildWorkspace(caps: ResolvedCapabilities): Workspace {
   const more: MoreEntry[] = overflow.map((c) => ({ id: c.id, title: TABS[c.id].title }));
   if (has("MANAGE_FLEET")) more.push({ id: "fleet", title: "Drivers & equipment" }, { id: "distribution-centers", title: "Distribution centers" });
   if (has("MANAGE_INTEGRATIONS")) more.push({ id: "integrations", title: "Integrations (API & EDI)" });
+  if (has("DISPATCH") || has("SHIP") || has("BROKER")) more.push({ id: "alerts", title: "Arrival alerts" });
   if (has("DRIVE")) more.push({ id: "reliability", title: "My reliability" }, { id: "join-carrier", title: "Join a carrier" });
   if (has("REGISTER_COMPANY") || (has("DRIVE") && !has("DISPATCH"))) more.push({ id: "register-company", title: "Register your company" });
   more.push({ id: "account", title: "Profile" }, { id: "security", title: "Sign-in & two-factor" });

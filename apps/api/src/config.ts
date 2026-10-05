@@ -31,6 +31,12 @@ export interface Config {
   geocoder?: { kind: "pelias" | "nominatim"; url: string; apiKey?: string };
   /** How long a carrier's join code stays valid before it rotates. */
   joinCodeTtlHours: number;
+  /** Phone push: "expo" sends through Expo's push service, "off" keeps alerts in the in-app inbox only. */
+  push: "expo" | "off";
+  /** Optional Expo access token when the Expo project requires authenticated sends. */
+  expoAccessToken?: string;
+  /** How often arrival alerts are checked, in seconds. 0 turns the checker off. */
+  alertIntervalSeconds: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -56,5 +62,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     as2Dir: env.LP_AS2_DIR ?? "./var/as2",
     geocoder: env.LP_GEOCODER_URL ? { kind: env.LP_GEOCODER === "nominatim" ? "nominatim" : "pelias", url: env.LP_GEOCODER_URL, apiKey: env.LP_GEOCODER_KEY } : undefined,
     joinCodeTtlHours: Number(env.LP_JOIN_CODE_TTL_HOURS ?? 24 * 7),
+    push: env.LP_PUSH === "off" ? "off" : "expo",
+    expoAccessToken: env.LP_EXPO_ACCESS_TOKEN,
+    alertIntervalSeconds: Number(env.LP_ALERT_INTERVAL_SECONDS ?? 60),
   };
 }

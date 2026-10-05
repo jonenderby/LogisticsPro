@@ -51,6 +51,49 @@ Then the status:
 | Early | The ETA is before the delivery window opens |
 | No ETA | There is not enough information to estimate |
 
+## Arrival alerts
+
+Anyone who tracks shipments (shipping staff, 3PLs and carrier dispatchers) can turn on alerts under **More > Arrival alerts**.
+
+<p align="center">
+  <img src="screenshots/arrival-alerts.png" width="230" alt="Arrival alert settings on a phone: statuses, right away, schedule and days">
+  <img src="screenshots/web-arrival-alerts.png" width="560" alt="The website's alert settings with an at-risk alert in Recent alerts">
+</p>
+
+- **What to hear about**: any combination of **Late**, **At risk**, **Early** and **On time**. Late and at risk are preselected.
+- **Right away**: a push the moment the app decides a shipment has *become* one of those statuses, for example "LP-100003 is at risk of arriving late" or "LP-100003 will be late". Tapping it opens the load.
+- **On a schedule**: a summary at chosen local times on chosen days, for example 07:00 and 15:30 on weekdays: "Shipments: 2 late, 1 at risk", with the most urgent listed first. Empty summaries are skipped unless you ask for them.
+- **Both** can be on at once. Times are in the person's own time zone, which the app fills in from the device.
+
+### How the app decides
+
+The server checks every watched shipment, tendered through at-delivery, once a minute (`LP_ALERT_INTERVAL_SECONDS`) using the same estimate as the tracking screens.
+
+| Rule | Why |
+|---|---|
+| Alert only on a change of status | "Now at risk", not "still at risk" every minute |
+| The first status seen for a shipment alerts only if it is late or at risk | Otherwise every new load would announce itself as on time |
+| The same load and status is not pushed to the same person again within 4 hours | A shipment hovering around a threshold does not flip-flop your phone |
+| A scheduled summary goes out once per slot, up to 30 minutes late after downtime | No duplicates and no stale summaries |
+| Drivers are not alerted about their own loads | They already know |
+
+Who hears about a load: members of the shipper with the ship capability, of the broker with the broker capability, and of the carrier with dispatch. Each sees only loads they are party to.
+
+### Delivery
+
+- **Phones** get push through Expo's push service, which relays to Apple (APNs) and Google (FCM). The app asks for notification permission only when the person turns alerts on, never at launch. Android alerts use an "Arrival alerts" channel with high importance. Signing out removes that phone. A phone that has uninstalled the app is forgotten automatically.
+- **The website** cannot receive push while closed. While it is open, new alerts pop up as browser notifications, and every alert is kept in **Recent alerts** on the same screen.
+- **Send a test alert** checks that a phone is set up.
+
+### Setting up push for production
+
+1. Create the app in EAS (`npx eas-cli@latest init`), which sets `extra.eas.projectId`. Without it, phones cannot get a push token and alerts stay in the inbox.
+2. Upload Apple push credentials and a Firebase (FCM v1) service account to the Expo project (`npx eas-cli@latest credentials`).
+3. Build with EAS. Push does not work in Expo Go or simulators.
+4. Optionally turn on enhanced push security in Expo and set `LP_EXPO_ACCESS_TOKEN` on the API. `LP_PUSH=off` keeps alerts in the inbox only.
+
+API: `GET/PUT/DELETE /v1/me/alert-preferences`, `POST /v1/me/alert-preferences/test`, `POST /v1/me/push-tokens`, `POST /v1/me/push-tokens/remove`, `GET /v1/me/notifications`, `POST /v1/me/notifications/read`.
+
 ## Where locations come from
 
 - **Phones**: while a driver has a load assigned, the app sends their position at most once a minute, or after 200 m of movement (`POST /v1/me/location`). The location prompt appears only once a load is underway. This works while the app is open; background location is on the [roadmap](ROADMAP.md).
@@ -65,4 +108,5 @@ The website draws maps with Leaflet. By default it uses OpenStreetMap's public t
 
 - Distances are estimates, not road routes. Valhalla could supply exact route times later.
 - Hours-of-service is estimated, not read from an ELD.
-- Positions are kept in memory with the rest of the store.
+- Positions, alert settings and alert history are kept in memory with the rest of the store.
+- The alert check runs in the API process. With several API servers, run it on one of them only.

@@ -18,7 +18,7 @@ describe("capabilities and layout", () => {
     for (const c of ["DRIVE", "DISPATCH", "BID", "MANAGE_FLEET", "INVOICE", "MANAGE_INTEGRATIONS"] as const) expect(caps.all.has(c)).toBe(true);
     const ws = buildWorkspace(caps);
     expect(ws.tabs.map((t) => t.id)).toEqual(["today", "loads", "navigate", "messages", "more"]);
-    expect(ws.more.map((m) => m.id)).toEqual(expect.arrayContaining(["board", "money", "business", "integrations", "fleet", "security"]));
+    expect(ws.more.map((m) => m.id)).toEqual(expect.arrayContaining(["board", "money", "business", "integrations", "fleet", "alerts", "security"]));
     expect(ws.loadFilters.map((f) => f.id)).toEqual(["driving", "dispatch"]);
     expect(ws.quickActions.map((q) => q.id)).toEqual(["update-status", "add-document", "find-loads", "new-invoice"]);
   });

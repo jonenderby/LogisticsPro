@@ -7,7 +7,9 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import type { z } from "zod";
 import type { Config } from "./config.js";
 import type { Tokens } from "./security/tokens.js";
+import type { AlertEngine } from "./services/alerts.js";
 import type { IntegrationHub } from "./services/hub.js";
+import type { PushSender } from "./services/push.js";
 import { recordOutcome } from "./services/reliability.js";
 import type { MemoryStore } from "./store.js";
 
@@ -34,6 +36,9 @@ export interface AppContext {
   /** The platform's AS2 station identity and the transport that sends from it. */
   as2: As2Identity;
   as2Transport: As2Transport;
+  /** Phone push delivery (Expo), and the engine that decides what to alert. */
+  push: PushSender;
+  alerts: AlertEngine;
   now: () => Date;
 }
 

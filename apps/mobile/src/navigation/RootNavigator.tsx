@@ -1,7 +1,7 @@
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { DarkTheme, DefaultTheme, NavigationContainer } from "@react-navigation/native";
+import { DarkTheme, DefaultTheme, NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { type ComponentType, useMemo } from "react";
+import { type ComponentType, useCallback, useMemo, useRef } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { useAuth } from "../auth/AuthProvider";
 import { BoardScreen } from "../screens/BoardScreen";
@@ -21,6 +21,8 @@ import { TrackScreen } from "../screens/TrackScreen";
 import { AuthFlow } from "../screens/auth/AuthFlow";
 import { MeProvider, useMe } from "../state/MeProvider";
 import { useLocationSharing } from "../state/useLocationSharing";
+import { useBrowserAlerts, usePushNotifications } from "../state/notifications";
+import { AlertsScreen } from "../screens/AlertsScreen";
 import { Icon } from "../ui/Icon";
 import { useLayout } from "../ui/responsive";
 import { isIOS, useTheme } from "../ui/theme";
@@ -57,6 +59,7 @@ const SHARED: Array<{ name: keyof StackParams; component: ComponentType; title: 
   { name: "Security", component: SecurityScreen, title: "Sign-in & security" },
   { name: "JoinCarrier", component: JoinCarrierScreen, title: "Join a carrier" },
   { name: "Reliability", component: ReliabilityScreen, title: "My reliability" },
+  { name: "Alerts", component: AlertsScreen, title: "Arrival alerts" },
 ];
 
 function stackFor(root: TabRoot) {
@@ -94,9 +97,23 @@ const EXTRA_ICONS: Record<string, { ios: string; android: string }> = {
  * Phones: up to four tabs plus More along the bottom (HIG / Material 3).
  * Wide screens (desktop web, tablets): a sidebar with every destination.
  */
+const navigationRef = createNavigationContainerRef<Record<string, object | undefined>>();
+
 function AppNavigation() {
   const { me } = useMe();
   useLocationSharing();
+  // A tapped alert opens its load; one that launched the app waits until navigation is ready.
+  const pendingLoad = useRef<string | undefined>(undefined);
+  const firstTab = useRef("TodayTab");
+  const openLoad = useCallback((id: string) => {
+    if (!navigationRef.isReady()) {
+      pendingLoad.current = id;
+      return;
+    }
+    navigationRef.navigate(firstTab.current, { screen: "LoadDetail", params: { id } });
+  }, []);
+  usePushNotifications(!!me, openLoad);
+  useBrowserAlerts(!!me, openLoad);
   const { dark, colors } = useTheme();
   const { wide } = useLayout();
   const tabs = useMemo(() => {
@@ -109,6 +126,7 @@ function AppNavigation() {
     return [...primary, ...extra, more].map((t) => ({ ...t, root: ROOTS[t.id]!.name }));
   }, [me, wide]);
   const linking = useMemo(() => buildLinking(tabs, Object.values(ROOTS).map((r) => r.name)), [tabs]);
+  if (tabs[0]) firstTab.current = `${tabs[0].root}Tab`;
 
   if (!me) {
     return (
@@ -120,7 +138,16 @@ function AppNavigation() {
   const base = dark ? DarkTheme : DefaultTheme;
   const theme = { ...base, colors: { ...base.colors, primary: colors.primary, background: colors.background, card: colors.surface, text: colors.text, border: colors.separator } };
   return (
-    <NavigationContainer theme={theme} linking={linking} documentTitle={{ formatter: (options, route) => `${options?.title ?? route?.name ?? "Home"} · Logistics Pro` }}>
+    <NavigationContainer
+      ref={navigationRef}
+      onReady={() => {
+        const id = pendingLoad.current;
+        pendingLoad.current = undefined;
+        if (id) openLoad(id);
+      }}
+      theme={theme}
+      linking={linking}
+      documentTitle={{ formatter: (options, route) => `${options?.title ?? route?.name ?? "Home"} · Logistics Pro` }}>
       <Tabs.Navigator
         key={wide ? "wide" : "narrow"}
         screenOptions={{
