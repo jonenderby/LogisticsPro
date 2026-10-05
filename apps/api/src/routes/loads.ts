@@ -18,6 +18,9 @@ import {
   refinementLock,
   shipConfirm,
   transition,
+  hosClock,
+  matchLoad,
+  rankMatches,
 } from "@logisticspro/domain";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -213,6 +216,47 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
       .filter((l) => !q.destinationState || l.stops[l.stops.length - 1]!.address.state === q.destinationState)
       .filter((l) => !q.equipment || l.equipment.type === q.equipment)
       .filter((l) => q.team === undefined || (q.team === "true") === (l.service === "TEAM_EXPEDITED" || l.teamRequired));
+  });
+
+  /**
+   * Board loads a driver can legally take from where they are, on the hours
+   * they have left: reach the pickup in its window and deliver in the
+   * delivery window. Best paying per mile, empty miles included, first.
+   */
+  app.get("/v1/board/suggestions", auth, async (req) => {
+    const account = me(ctx, req);
+    const caps = capsOf(ctx, account.id);
+    if (!caps.all.has("BID")) throw new HttpError(403, "FORBIDDEN", "Register a carrier company to see the load board");
+    const q = req.query as { driverAccountId?: string; lat?: string; lng?: string; team?: string };
+    const driverId = q.driverAccountId ?? account.id;
+    if (driverId === account.id) {
+      if (!caps.all.has("DRIVE")) throw new HttpError(400, "INVALID_REQUEST", "Choose a driver");
+    } else {
+      const theirCarriers = ctx.store.memberships.filter((m) => m.accountId === driverId && m.roles.includes("DRIVER")).map((m) => m.orgId);
+      if (!theirCarriers.some((c) => hasOrgCap(ctx, account.id, c, "DISPATCH"))) throw new HttpError(403, "FORBIDDEN", "Not one of your drivers");
+    }
+    const driver = ctx.store.accounts.get(driverId);
+    if (!driver) throw new HttpError(404, "NOT_FOUND", "Driver not found");
+    const now = ctx.now();
+    const position = ctx.store.positions.get(driverId);
+    const from = q.lat && q.lng ? { geo: { lat: Number(q.lat), lng: Number(q.lng) }, at: now.toISOString(), source: "CHOSEN" as const } : position ? { geo: position.geo, at: position.at, source: "PHONE" as const } : undefined;
+    if (!from || Number.isNaN(from.geo.lat) || Number.isNaN(from.geo.lng)) throw new HttpError(409, "NO_LOCATION", "No location for this driver yet. Pick a starting point.");
+    const log = ctx.store.dutyLogs.get(driverId);
+    const hos = log?.length ? hosClock(log, now.toISOString(), ctx.store.hosSettings.get(driverId)?.cycle ?? "70/8") : undefined;
+    const mine = new Set(ctx.store.membershipsOf(account.id).map((m) => m.orgId));
+    const board = [...ctx.store.loads.values()].filter((l) => l.status === "POSTED" && !mine.has(l.board!.postedByOrgId));
+    const matches = rankMatches(board.map((l) => matchLoad(l, { now: now.toISOString(), from: from.geo, hos, team: q.team === "true" })).filter((m): m is NonNullable<typeof m> => !!m));
+    return {
+      driver: { accountId: driver.id, name: driver.name },
+      from,
+      hours: hos ? { availableMin: hos.availableMin, limitedBy: hos.limitedBy, drivingLeftMin: hos.drivingLeftMin } : undefined,
+      suggestions: matches.slice(0, 30).map((m) => {
+        const l = ctx.store.loads.get(m.loadId)!;
+        const pu = l.stops.find((s) => s.type === "PICKUP")!.address;
+        const del = [...l.stops].sort((a, b) => a.sequence - b.sequence).at(-1)!.address;
+        return { ...m, loadNumber: l.loadNumber, origin: `${pu.city}, ${pu.state}`, destination: `${del.city}, ${del.state}`, rate: l.rate, equipment: l.equipment.type, team: l.teamRequired || l.service === "TEAM_EXPEDITED" };
+      }),
+    };
   });
 
   app.post("/v1/loads/:id/bids", auth, async (req, reply) => {

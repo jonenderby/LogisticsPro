@@ -229,6 +229,8 @@ export interface DriveTimeline {
   resets: number;
   /** 34-hour restarts. */
   restarts: number;
+  /** Hours left when the driving is done. */
+  end: HosStart;
 }
 
 /**
@@ -240,11 +242,11 @@ export interface DriveTimeline {
 export function driveTimeline(drivingMin: number, start: HosStart = FRESH_DRIVER, opts: { team?: boolean } = {}): DriveTimeline {
   if (opts.team) {
     const swaps = Math.max(0, Math.ceil(drivingMin / 600) - 1);
-    return { elapsedMin: drivingMin + swaps * 15, breaks: swaps, resets: 0, restarts: 0 };
+    return { elapsedMin: drivingMin + swaps * 15, breaks: swaps, resets: 0, restarts: 0, end: start };
   }
   let { drivingLeftMin: drive, windowLeftMin: window, breakLeftMin: brk, cycleLeftMin: cycle } = start;
   let remaining = drivingMin;
-  const out: DriveTimeline = { elapsedMin: 0, breaks: 0, resets: 0, restarts: 0 };
+  const out: DriveTimeline = { elapsedMin: 0, breaks: 0, resets: 0, restarts: 0, end: start };
   for (let guard = 0; remaining > 0.01 && guard < 1000; guard++) {
     const leg = Math.max(0, Math.min(drive, window, brk, cycle, remaining));
     out.elapsedMin += leg;
@@ -271,5 +273,21 @@ export function driveTimeline(drivingMin: number, start: HosStart = FRESH_DRIVER
       window -= HOS.breakMin;
     }
   }
+  out.end = { drivingLeftMin: Math.max(0, drive), windowLeftMin: Math.max(0, window), breakLeftMin: Math.max(0, brk), cycleLeftMin: Math.max(0, cycle) };
   return out;
+}
+
+/**
+ * The clock after `minutes` not driving (waiting, loading): 10 hours resets
+ * the shift, 30 minutes resets the break, and the 14-hour window keeps
+ * running either way.
+ */
+export function afterRest(start: HosStart, minutes: number): HosStart {
+  if (minutes >= HOS.resetMin) return { ...FRESH_DRIVER, cycleLeftMin: start.cycleLeftMin };
+  return {
+    drivingLeftMin: start.drivingLeftMin,
+    windowLeftMin: Math.max(0, start.windowLeftMin - minutes),
+    breakLeftMin: minutes >= HOS.breakMin ? HOS.breakAfterMin : start.breakLeftMin,
+    cycleLeftMin: start.cycleLeftMin,
+  };
 }

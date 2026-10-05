@@ -83,12 +83,12 @@ describe("miles from the phone's trail", () => {
 describe("driving time on the clock", () => {
   it("adds the break, the 10-hour reset and the 34-hour restart where the rules require", () => {
     // Fresh: 8 h, a 30-minute break, 3 h, then 10 h off, then the last 1 h.
-    expect(driveTimeline(12 * 60)).toEqual({ elapsedMin: 8 * 60 + 30 + 3 * 60 + 600 + 60, breaks: 1, resets: 1, restarts: 0 });
+    expect(driveTimeline(12 * 60)).toMatchObject({ elapsedMin: 8 * 60 + 30 + 3 * 60 + 600 + 60, breaks: 1, resets: 1, restarts: 0, end: { drivingLeftMin: 600 } });
     // Only 2 h left today: 2 h, 10 h off, then the remaining 3 h.
     expect(driveTimeline(5 * 60, { drivingLeftMin: 120, windowLeftMin: 300, breakLeftMin: 400, cycleLeftMin: 3000 }).elapsedMin).toBe(120 + 600 + 180);
     // Out of weekly hours after 1 h: 34 h restart.
     expect(driveTimeline(3 * 60, { drivingLeftMin: 600, windowLeftMin: 800, breakLeftMin: 480, cycleLeftMin: 60 })).toMatchObject({ elapsedMin: 60 + 34 * 60 + 120, restarts: 1 });
     // A team only swaps drivers.
-    expect(driveTimeline(20 * 60, undefined, { team: true })).toEqual({ elapsedMin: 20 * 60 + 15, breaks: 1, resets: 0, restarts: 0 });
+    expect(driveTimeline(20 * 60, undefined, { team: true })).toMatchObject({ elapsedMin: 20 * 60 + 15, breaks: 1, resets: 0, restarts: 0 });
   });
 });
