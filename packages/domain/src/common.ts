@@ -1,9 +1,16 @@
 import { z } from "zod";
-import { randomUUID } from "node:crypto";
-
-/** Prefixed, sortable-enough identifiers (e.g. `load_3f2c...`). */
+/**
+ * Prefixed identifiers (e.g. `load_3f2c...`). Uses Web Crypto, which exists
+ * in Node 19+, browsers and Hermes with expo-crypto; this package therefore
+ * runs unchanged on the server and inside the mobile app.
+ */
 export function newId(prefix: string): string {
-  return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 20)}`;
+  const c = (globalThis as { crypto?: { randomUUID?: () => string; getRandomValues?: (a: Uint8Array) => Uint8Array } }).crypto;
+  let hex: string;
+  if (c?.randomUUID) hex = c.randomUUID().replace(/-/g, "");
+  else if (c?.getRandomValues) hex = Array.from(c.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+  else throw new Error("No secure random source available for id generation");
+  return `${prefix}_${hex.slice(0, 20)}`;
 }
 
 export const GeoPoint = z.object({

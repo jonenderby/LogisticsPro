@@ -20,7 +20,7 @@ describe("capabilities and layout", () => {
     expect(ws.tabs.map((t) => t.id)).toEqual(["today", "loads", "navigate", "messages", "more"]);
     expect(ws.more.map((m) => m.id)).toEqual(expect.arrayContaining(["board", "money", "business", "integrations", "fleet", "security"]));
     expect(ws.loadFilters.map((f) => f.id)).toEqual(["driving", "dispatch"]);
-    expect(ws.quickActions.map((q) => q.id)).toEqual(["update-status", "scan-document", "find-loads", "new-invoice"]);
+    expect(ws.quickActions.map((q) => q.id)).toEqual(["update-status", "add-document", "find-loads", "new-invoice"]);
   });
 
   it("keeps a company driver focused on driving and offers company registration", () => {

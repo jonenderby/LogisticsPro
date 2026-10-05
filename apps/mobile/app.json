@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "Logistics Pro",
+    "slug": "logistics-pro",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.logisticspro.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.logisticspro.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Logistics Pro uses your location for turn-by-turn and permitted-route navigation and to attach your position to status updates."
+        }
+      ],
+      "expo-secure-store",
+      [
+        "react-native-maps",
+        {
+          "androidGoogleMapsApiKey": "${GOOGLE_MAPS_ANDROID_API_KEY}"
+        }
+      ]
+    ],
+    "scheme": "logisticspro"
+  }
+}

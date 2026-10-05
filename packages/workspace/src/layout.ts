@@ -70,7 +70,7 @@ export function buildWorkspace(caps: ResolvedCapabilities): Workspace {
   if (has("BROKER")) loadFilters.push({ id: "brokered", title: "Brokered" });
 
   const quickActions: Workspace["quickActions"] = [];
-  if (has("DRIVE")) quickActions.push({ id: "update-status", title: "Update status" }, { id: "scan-document", title: "Scan BOL / POD" });
+  if (has("DRIVE")) quickActions.push({ id: "update-status", title: "Update status" }, { id: "add-document", title: "Add BOL / POD" });
   if (has("SHIP") || has("BROKER")) quickActions.push({ id: "new-load", title: "New load" });
   if (has("BID")) quickActions.push({ id: "find-loads", title: "Find loads" });
   if (has("INVOICE")) quickActions.push({ id: "new-invoice", title: "Send invoice" });
