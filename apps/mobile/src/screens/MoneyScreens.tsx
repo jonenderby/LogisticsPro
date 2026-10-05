@@ -1,5 +1,6 @@
 import { useFocusEffect } from "@react-navigation/native";
-import { useCallback, useState } from "react";
+import { type DetentionView, visitLine } from "../ui/detention";
+import { useCallback, useEffect, useState } from "react";
 import { View } from "react-native";
 import { api, errorMessage } from "../api/client";
 import type { Invoice, Load, Transmission } from "../api/types";
@@ -92,6 +93,10 @@ export function SendInvoiceScreen() {
   const [code, setCode] = useState<(typeof ACCESSORIALS)[number]["value"]>("DETENTION");
   const [qty, setQty] = useState("1");
   const [rate, setRate] = useState("");
+  const [owed, setOwed] = useState<DetentionView>();
+  useEffect(() => {
+    void api.get<DetentionView>(`/v1/loads/${loadId}/detention`).then(setOwed).catch(() => undefined);
+  }, [loadId]);
 
   const send = async () => {
     try {
@@ -136,6 +141,15 @@ export function SendInvoiceScreen() {
           />
         </Padded>
       </Section>
+      {owed?.total && !extras.some((x) => x.code === "DETENTION") ? (
+        <Section title="Detention" footer="Added to the invoice from the stop times. Add a Detention charge above to replace it.">
+          {owed.stops
+            .filter((s) => s.billableMinutes > 0 && !s.atStop)
+            .map((s) => (
+              <Row key={s.stopId} title={`${s.name}, ${s.city}`} subtitle={visitLine(s)} value={money(s.amount)} />
+            ))}
+        </Section>
+      ) : null}
       <Section>
         <Padded>
           <Button title="Send invoice" onPress={send} />

@@ -159,6 +159,15 @@ export type LoadDocument = z.infer<typeof LoadDocument>;
 
 export const PaymentTerms = z.enum(["PREPAID", "COLLECT", "THIRD_PARTY"]);
 
+// Kept here (not imported from detention.ts) so load.ts has no cycle.
+const StopVisitSchema = z.object({
+  stopId: z.string(),
+  arrivedAt: z.string(),
+  departedAt: z.string().optional(),
+  source: z.enum(["GEOFENCE", "STATUS"]),
+  detentionNotifiedAt: z.string().optional(),
+});
+
 export const Load = z.object({
   id: z.string(),
   loadNumber: z.string(),
@@ -195,6 +204,8 @@ export const Load = z.object({
   shipConfirmedAt: z.string().optional(),
   pickedUpAt: z.string().optional(),
   deliveredAt: z.string().optional(),
+  /** Arrival and departure at stops, from the truck's location (see detention.ts). */
+  visits: z.array(StopVisitSchema).optional(),
   /** When the current carrier was given the load. A carrier is never charged for an appointment missed before this. */
   carrierSince: z.string().optional(),
   legs: z.array(Leg).default([]),

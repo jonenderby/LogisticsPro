@@ -22,6 +22,7 @@ import { Tokens } from "./security/tokens.js";
 import { AlertEngine } from "./services/alerts.js";
 import { Notifier } from "./services/notify.js";
 import { refreshRoutes } from "./services/routes.js";
+import { checkDetention } from "./services/stops.js";
 import { PgPersistence } from "./persistence/postgres.js";
 import { IntegrationHub } from "./services/hub.js";
 import { ExpoPushSender, NoPushSender, type PushSender } from "./services/push.js";
@@ -128,6 +129,11 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
       void ctx.alerts.tick().catch((e) => app.log.error(e));
       void ctx.notifier.checkReceipts().catch((e) => app.log.error(e));
       void refreshRoutes(ctx).catch((e) => app.log.error(e));
+      try {
+        checkDetention(ctx);
+      } catch (e) {
+        app.log.error(e);
+      }
     }, cfg.alertIntervalSeconds * 1000);
     timer.unref();
     app.addHook("onClose", async () => clearInterval(timer));

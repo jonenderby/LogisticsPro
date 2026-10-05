@@ -22,7 +22,7 @@ interface Prefs {
 }
 interface InboxItem {
   id: string;
-  kind: "ARRIVAL" | "SUMMARY" | "TEST" | "TENDER" | "MESSAGE";
+  kind: "ARRIVAL" | "SUMMARY" | "TEST" | "TENDER" | "MESSAGE" | "STOP" | "DETENTION";
   title: string;
   body: string;
   loadId?: string;

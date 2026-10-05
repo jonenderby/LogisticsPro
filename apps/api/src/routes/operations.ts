@@ -1,4 +1,5 @@
 import { recordFix } from "../services/hos.js";
+import { detentionTerms } from "../services/stops.js";
 import {
   DocumentKind,
   GeoPoint,
@@ -18,7 +19,7 @@ import {
   statusText,
   transition,
 } from "@logisticspro/domain";
-import { ChargeCode } from "@logisticspro/domain";
+import { ChargeCode, detention, detentionLines, loadParties } from "@logisticspro/domain";
 import { LEGAL_TRUCK, NoRouteError, type Restriction, checkOversizeTrip } from "@logisticspro/navigation";
 import { withGeo } from "../services/geocode.js";
 import type { FastifyInstance } from "fastify";
@@ -218,7 +219,10 @@ export function operationsRoutes(app: FastifyInstance, ctx: AppContext) {
       req.body ?? {},
     );
     const carrier = ctx.store.orgs.get(carrierId!)!;
-    const inv = buildInvoice(load, { orgId: carrier.id, scac: carrier.scac }, account.id, body, ctx.now().toISOString());
+    // Detention owed at any stop goes on the invoice unless the biller entered it by hand.
+    const terms = detentionTerms(ctx, load);
+    const owed = body.lines?.some((l) => l.code === "DETENTION") ? [] : detentionLines(detention(load, terms, ctx.now().toISOString()), terms);
+    const inv = buildInvoice(load, { orgId: carrier.id, scac: carrier.scac }, account.id, { ...body, lines: body.lines || owed.length ? [...(body.lines ?? []), ...owed] : undefined }, ctx.now().toISOString());
     const transmissions = await ctx.hub.invoice(inv, load);
     const delivered = transmissions.some((t) => t.status === "SENT") || (!!inv.billTo.orgId && ctx.store.orgs.has(inv.billTo.orgId));
     const saved = { ...inv, status: delivered ? ("SENT" as const) : ("DRAFT" as const) };
@@ -226,6 +230,17 @@ export function operationsRoutes(app: FastifyInstance, ctx: AppContext) {
     if (delivered) saveLoad(ctx, transition(load, "INVOICED", ctx.now().toISOString()));
     reply.code(201);
     return { invoice: saved, transmissions };
+  });
+
+  /** Arrival, departure and detention at each stop, for everyone on the load. */
+  app.get("/v1/loads/:id/detention", auth, async (req) => {
+    const account = me(ctx, req);
+    const load = getLoad(ctx, account.id, param(req));
+    const myOrgs = new Set(ctx.store.membershipsOf(account.id).map((m) => m.orgId));
+    if (!isDriverOn(load, account.id) && !loadParties(load).some((o) => myOrgs.has(o))) throw new HttpError(404, "NOT_FOUND", "Load not found");
+    const terms = detentionTerms(ctx, load);
+    const stops = detention(load, terms, ctx.now().toISOString());
+    return { terms, stops, total: Math.round(stops.reduce((s, r) => s + r.amount, 0) * 100) / 100 };
   });
 
   app.get("/v1/invoices", auth, async (req) => {

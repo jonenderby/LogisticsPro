@@ -14,6 +14,7 @@ import { money, titleCase, when } from "../ui/format";
 import { type Score, ScoreChip } from "../ui/Reliability";
 import { ArrivalChip, type Eta, ago, time } from "../ui/arrival";
 import { MissRow, type MissView } from "../ui/Appointments";
+import { type DetentionView, visitLine } from "../ui/detention";
 
 type BidView = Bid & { carrierName?: string; reliability?: { overall: Score; withYou?: Score; truckers: number } };
 interface Tracking {
@@ -45,6 +46,7 @@ export function LoadDetailScreen() {
   const [bids, setBids] = useState<BidView[]>([]);
   const [exceptions, setExceptions] = useState<LoadExceptionView[]>([]);
   const [tracking, setTracking] = useState<Tracking>();
+  const [stopTimes, setStopTimes] = useState<DetentionView>();
   const [misses, setMisses] = useState<MissView[]>([]);
   const [carrierScore, setCarrierScore] = useState<CarrierScore>();
   const [missStop, setMissStop] = useState("");
@@ -69,6 +71,7 @@ export function LoadDetailScreen() {
     nav.setOptions({ title: l.loadNumber });
     if (l.status === "POSTED") setBids(await api.get<BidView[]>(`/v1/loads/${id}/bids`).catch(() => []));
     setTracking(TRACKED.includes(l.status) ? await api.get<Tracking>(`/v1/loads/${id}/tracking`).catch(() => undefined) : undefined);
+    setStopTimes(["DISPATCHED", "AT_PICKUP", "IN_TRANSIT", "AT_DELIVERY", "DELIVERED", "INVOICED"].includes(l.status) ? await api.get<DetentionView>(`/v1/loads/${id}/detention`).catch(() => undefined) : undefined);
     const hasCarrier = !!(l.carrierOrgId || l.externalCarrierKey);
     const myBusiness = [l.brokerOrgId, l.shipperOrgId].find((o) => !!o && me?.orgs.some((x) => x.id === o));
     setMisses(hasCarrier || l.status === "CANCELLED" || l.status === "DRAFT" ? await api.get<MissView[]>(`/v1/loads/${id}/appointment-misses`).catch(() => []) : []);
@@ -202,9 +205,9 @@ export function LoadDetailScreen() {
         </Section>
       ) : null}
 
-      <Section title="Stops">
+      <Section title="Stops" footer={stopTimes?.total ? `Detention so far: $${stopTimes.total.toFixed(2)} at $${stopTimes.terms.ratePerHour}/h after ${stopTimes.terms.freeHours} h free. It is added to the invoice.` : undefined}>
         {[...load.stops].sort((a, b) => a.sequence - b.sequence).map((s) => (
-          <Row key={s.id} title={`${titleCase(s.type)} · ${s.address.name}`} subtitle={`${s.address.line1}, ${s.address.city}, ${s.address.state} ${s.address.postalCode}\n${when(s.window.start)} – ${when(s.window.end)}${s.appointmentRef ? ` · appt ${s.appointmentRef}` : ""}${s.instructions ? `\n${s.instructions}` : ""}`} />
+          <Row key={s.id} title={`${titleCase(s.type)} · ${s.address.name}`} subtitle={`${s.address.line1}, ${s.address.city}, ${s.address.state} ${s.address.postalCode}\n${when(s.window.start)} – ${when(s.window.end)}${s.appointmentRef ? ` · appt ${s.appointmentRef}` : ""}${s.instructions ? `\n${s.instructions}` : ""}${visitLine(stopTimes?.stops.find((d) => d.stopId === s.id)) ? `\n${visitLine(stopTimes?.stops.find((d) => d.stopId === s.id))}` : ""}`} />
         ))}
       </Section>
 

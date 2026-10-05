@@ -69,7 +69,7 @@ export function alertRoutes(app: FastifyInstance, ctx: AppContext) {
 
   app.put("/v1/me/notification-settings", auth, async (req) => {
     const account = me(ctx, req);
-    const body = parse(z.object({ tenders: z.boolean().optional(), messages: z.boolean().optional(), timeZone: z.string().refine(isTimeZone, "Unknown time zone").optional() }), req.body);
+    const body = parse(z.object({ tenders: z.boolean().optional(), messages: z.boolean().optional(), detention: z.boolean().optional(), timeZone: z.string().refine(isTimeZone, "Unknown time zone").optional() }), req.body);
     const next = { ...DEFAULT_NOTIFICATION_SETTINGS, ...ctx.store.notificationSettings.get(account.id), ...Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined)) };
     ctx.store.notificationSettings.set(account.id, next);
     return next;

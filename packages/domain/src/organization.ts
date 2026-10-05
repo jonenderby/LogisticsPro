@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DetentionTerms } from "./detention.js";
 import { Address, GeoPoint } from "./common.js";
 
 /**
@@ -27,6 +28,8 @@ export const Organization = z.object({
   dotNumber: z.string().optional(),
   address: Address.optional(),
   distributionCenters: z.array(DistributionCenter).default([]),
+  /** A carrier's detention terms; the platform default applies when unset. */
+  detention: DetentionTerms.optional(),
   createdAt: z.string(),
 });
 export type Organization = z.infer<typeof Organization>;

@@ -111,6 +111,24 @@ Expo reports most uninstalled apps in delivery receipts rather than when sending
 
 API: `GET/PUT /v1/me/notification-settings`, `GET /v1/me/notifications`.
 
+## Arrival, departure and detention
+
+The truck's location records when it reached and left each stop: within 800 m is arrived, beyond 1,600 m is gone, so GPS jitter at the dock does not flap. Where there is no location, the driver's taps fill in (Arrived, Loaded, Delivered). On arrival the driver gets a push, "You're at Acme DC. Tap to mark arrived", if they have not reported it.
+
+Detention, per stop:
+
+| Rule | |
+|---|---|
+| Clock starts | At the appointment (window start), or at arrival if later |
+| Free time | The carrier's free hours, 2 by default |
+| Rate | The carrier's hourly rate, $75 by default, billed in 15-minute steps |
+| Clock stops | When the truck leaves |
+| Late trucks | A truck that arrived after its appointment window does not earn detention |
+
+Carriers set free hours and the rate under Business > Detention. When free time runs out, the shipper or broker and the carrier's dispatch get one push ("Detention started"), with a switch under Notifications. The load page shows arrival, departure and detention for each stop, and the invoice adds a Detention line per stop on its own unless the biller enters one by hand.
+
+API: `GET /v1/loads/:id/detention`, `PUT /v1/orgs/:id/detention`.
+
 ## Where locations come from
 
 - **Phones**: while a driver has a load or is on duty, the app sends their position about once a minute (`POST /v1/me/location`). The location prompt appears only once a load is underway.

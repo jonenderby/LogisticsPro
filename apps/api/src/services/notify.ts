@@ -137,6 +137,35 @@ export class Notifier {
     void this.send(pushes);
   }
 
+  /** The truck reached a stop: ask the driver to confirm with one tap. */
+  atStop(driverIds: string[], load: Load, stopName: string, kind: "PICKUP" | "DELIVERY"): void {
+    const pushes: PushMessage[] = [];
+    for (const id of driverIds)
+      pushes.push(...this.deliver(id, { kind: "STOP", target: "LOAD", loadId: load.id, title: `You're at ${stopName}`, body: `Tap to mark ${kind === "PICKUP" ? "arrived at pickup" : "arrived at delivery"} for ${load.loadNumber}.` }));
+    void this.send(pushes);
+  }
+
+  /** Free time is over at a stop: tell the shipper or broker and the carrier's dispatch. */
+  detentionStarted(load: Load, stop: { name: string; city: string; arrivedAt?: string; clockStartAt?: string }, ratePerHour: number): void {
+    const to = new Set([...this.holders(load.shipperOrgId, "SHIP"), ...this.holders(load.brokerOrgId, "BROKER"), ...this.holders(load.carrierOrgId, "DISPATCH")]);
+    const pushes: PushMessage[] = [];
+    for (const id of to) {
+      if (this.settings(id).detention === false) continue;
+      const tz = this.timeZone(id);
+      const clock = (iso?: string) => (iso ? new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(iso)) : "unknown");
+      pushes.push(
+        ...this.deliver(id, {
+          kind: "DETENTION",
+          target: "LOAD",
+          loadId: load.id,
+          title: `Detention started: ${load.loadNumber}`,
+          body: `At ${stop.name}, ${stop.city} since ${clock(stop.arrivedAt)}. Free time is over; $${ratePerHour}/h applies from now.`,
+        }),
+      );
+    }
+    void this.send(pushes);
+  }
+
   /** A person's message to everyone else on the load: drivers, dispatch, shipping staff. */
   messagePosted(msg: Message, load: Load): void {
     if (msg.kind !== "TEXT") return;

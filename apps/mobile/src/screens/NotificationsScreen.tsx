@@ -12,12 +12,13 @@ import { when } from "../ui/format";
 interface Settings {
   tenders: boolean;
   messages: boolean;
+  detention?: boolean;
   tendersApply: boolean;
   devices: number;
 }
 interface Item {
   id: string;
-  kind: "ARRIVAL" | "SUMMARY" | "TEST" | "TENDER" | "MESSAGE";
+  kind: "ARRIVAL" | "SUMMARY" | "TEST" | "TENDER" | "MESSAGE" | "STOP" | "DETENTION";
   target?: "LOAD" | "THREAD";
   title: string;
   body: string;
@@ -32,6 +33,8 @@ const KIND: Record<Item["kind"], { label: string; tone: Tone }> = {
   ARRIVAL: { label: "Arrival", tone: "danger" },
   SUMMARY: { label: "Summary", tone: "neutral" },
   TEST: { label: "Test", tone: "neutral" },
+  STOP: { label: "At stop", tone: "info" },
+  DETENTION: { label: "Detention", tone: "warning" },
 };
 
 /**
@@ -68,7 +71,7 @@ export function NotificationsScreen() {
     const r = await registerForPush(true);
     if (!r.ok) notify("Push is not available", r.reason);
   };
-  const change = async (patch: Partial<Pick<Settings, "tenders" | "messages">>) => {
+  const change = async (patch: Partial<Pick<Settings, "tenders" | "messages" | "detention">>) => {
     try {
       setSettings({ ...settings, ...(await api.put<Settings>("/v1/me/notification-settings", patch)) });
       if (Object.values(patch).some(Boolean)) await ensurePermission();
@@ -84,6 +87,7 @@ export function NotificationsScreen() {
       <Section title="Notify me about">
         {settings.tendersApply ? <ToggleRow title="Tenders" subtitle="New tenders for your company, and carriers accepting or declining yours" value={settings.tenders} onChange={(v) => change({ tenders: v })} /> : null}
         <ToggleRow title="Messages" subtitle="New messages on your loads" value={settings.messages} onChange={(v) => change({ messages: v })} />
+        {settings.tendersApply ? <ToggleRow title="Detention" subtitle="When free time runs out at a pickup or delivery" value={settings.detention !== false} onChange={(v) => change({ detention: v })} /> : null}
         {tracks ? <Row title="Arrival alerts" subtitle="Late, at risk, early or on time, right away or on a schedule" onPress={() => nav.navigate("Alerts")} /> : null}
       </Section>
 

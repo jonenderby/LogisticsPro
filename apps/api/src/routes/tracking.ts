@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { type AppContext, HttpError, authenticate, capsOf, getLoad, hasOrgCap, isDriverOn, me, parse } from "../http.js";
 import { hosFor, recordFix } from "../services/hos.js";
+import { recordStopVisits } from "../services/stops.js";
 import { MOVING, OFFLINE_AFTER_MS, UNDELIVERED, activeLeg, etaFor, lane, positionForLoad } from "../services/tracking.js";
 
 /**
@@ -29,6 +30,7 @@ export function trackingRoutes(app: FastifyInstance, ctx: AppContext) {
       ctx.store.positions.set(accountId, { accountId, geo: { lat: b.lat, lng: b.lng }, at: at.toISOString(), speedMps: b.speedMps, headingDeg: b.headingDeg, accuracyM: b.accuracyM });
     }
     recordFix(ctx.store, accountId, { geo: { lat: b.lat, lng: b.lng }, at: at.toISOString(), speedMps: b.speedMps }, now, { autoDuty: true });
+    recordStopVisits(ctx, accountId, { geo: { lat: b.lat, lng: b.lng }, at: at.toISOString() });
   };
   const driverOnly = (accountId: string) => {
     if (!capsOf(ctx, accountId).all.has("DRIVE")) throw new HttpError(403, "FORBIDDEN", "Only drivers share their location");

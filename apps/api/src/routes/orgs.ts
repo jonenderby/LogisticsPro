@@ -1,4 +1,4 @@
-import { Address, GeoPoint, MemberRole, type Organization, OrgKind, newId, toPublicAccount } from "@logisticspro/domain";
+import { Address, DetentionTerms, GeoPoint, MemberRole, type Organization, OrgKind, newId, toPublicAccount } from "@logisticspro/domain";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { withGeo } from "../services/geocode.js";
@@ -86,6 +86,18 @@ export function orgRoutes(app: FastifyInstance, ctx: AppContext) {
     return ctx.store.memberships
       .filter((m) => m.orgId === orgId && m.roles.includes("DRIVER"))
       .map((m) => ({ ...toPublicAccount(ctx.store.accounts.get(m.accountId)!), reliability: driverProfile(ctx.store, m.accountId, businessOrgId, orgId) }));
+  });
+
+  /** A carrier's detention terms: free hours at each stop, then an hourly rate. */
+  app.put("/v1/orgs/:orgId/detention", auth, async (req) => {
+    const account = me(ctx, req);
+    const { orgId } = req.params as { orgId: string };
+    requireOrgCap(ctx, account.id, orgId, "MANAGE_ORG");
+    const org = ctx.store.orgs.get(orgId)!;
+    if (!org.kinds.includes("CARRIER")) throw new HttpError(400, "INVALID_REQUEST", "Detention terms are for carriers");
+    const terms = parse(DetentionTerms, req.body);
+    ctx.store.orgs.set(orgId, { ...org, detention: terms });
+    return terms;
   });
 
   app.post("/v1/orgs/:orgId/distribution-centers", auth, async (req, reply) => {

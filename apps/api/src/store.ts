@@ -18,13 +18,15 @@ export interface PushToken {
 export interface NotificationSettings {
   tenders: boolean;
   messages: boolean;
+  /** Detention starting at a stop (shippers and dispatch). */
+  detention?: boolean;
   /** From the phone or browser, for times in notification text. */
   timeZone?: string;
 }
 
 export interface InboxItem {
   id: string;
-  kind: "ARRIVAL" | "SUMMARY" | "TEST" | "TENDER" | "MESSAGE";
+  kind: "ARRIVAL" | "SUMMARY" | "TEST" | "TENDER" | "MESSAGE" | "STOP" | "DETENTION";
   /** What a tap opens. */
   target?: "LOAD" | "THREAD";
   title: string;

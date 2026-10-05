@@ -61,8 +61,42 @@ export function RegisterCompanyScreen() {
 }
 
 interface OrgDetail {
-  org: { id: string; name: string; kinds: Kind[]; scac?: string; mcNumber?: string; dotNumber?: string; distributionCenters: Array<{ id: string; name: string; address: { city: string; state: string } }> };
+  org: { id: string; name: string; kinds: Kind[]; scac?: string; mcNumber?: string; dotNumber?: string; detention?: { freeHours: number; ratePerHour: number }; distributionCenters: Array<{ id: string; name: string; address: { city: string; state: string } }> };
   members: Array<{ roles: string[]; account: { id: string; name: string; email: string } }>;
+}
+
+/** Free time at each stop, then an hourly rate; used for detention on every load and invoice. */
+function DetentionTermsSection({ orgId, terms, onSaved }: { orgId: string; terms?: { freeHours: number; ratePerHour: number }; onSaved: () => unknown }) {
+  const [free, setFree] = useState(String(terms?.freeHours ?? 2));
+  const [rate, setRate] = useState(String(terms?.ratePerHour ?? 75));
+  const dirty = Number(free) !== (terms?.freeHours ?? 2) || Number(rate) !== (terms?.ratePerHour ?? 75);
+  return (
+    <Section title="Detention" footer="The clock starts at the appointment, or at arrival if later, and runs until the truck leaves. A truck that arrives after its appointment does not earn detention. Stop times come from the truck's location and the driver's taps.">
+      <Padded>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <View style={{ flex: 1 }}>
+            <Field label="Free hours" value={free} onChangeText={setFree} keyboardType="decimal-pad" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Field label="Rate per hour (USD)" value={rate} onChangeText={setRate} keyboardType="decimal-pad" />
+          </View>
+        </View>
+        <Button
+          title="Save detention terms"
+          variant="tonal"
+          disabled={!dirty || Number.isNaN(Number(free)) || !Number(rate)}
+          onPress={async () => {
+            try {
+              await api.put(`/v1/orgs/${orgId}/detention`, { freeHours: Number(free), ratePerHour: Number(rate) });
+              await onSaved();
+            } catch (e) {
+              notify("Couldn't save", errorMessage(e));
+            }
+          }}
+        />
+      </Padded>
+    </Section>
+  );
 }
 
 export function BusinessScreen() {
@@ -157,6 +191,7 @@ export function BusinessScreen() {
           </Section>
           {isCarrier ? <DriverNetworkSection orgId={orgId} onChange={refresh} /> : null}
           {isCarrier && reliability ? <ReliabilitySections profile={reliability} subject="carrier" canDispute={orgsWithRole("OWNER", "ADMIN", "DISPATCHER").includes(orgId)} onChanged={refresh} /> : null}
+          {isCarrier ? <DetentionTermsSection orgId={orgId} terms={detail.org.detention} onSaved={refresh} /> : null}
           {isCarrier ? (
             <Section title="Distribution centers" footer="Route LTL shipments through a DC to combine loads headed to the same area.">
               {detail.org.distributionCenters.map((d) => (
