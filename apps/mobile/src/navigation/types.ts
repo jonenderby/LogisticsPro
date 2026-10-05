@@ -27,6 +27,8 @@ export type StackParams = {
   Notifications: undefined;
   RateConfirmation: { loadId: string };
   InvoiceDetail: { id: string };
+  CarrierCheck: { orgId: string; payerOrgId?: string };
+  Signature: { loadId: string };
 };
 
 export const useNav = () => useNavigation<NavigationProp<StackParams>>();

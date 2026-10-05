@@ -25,6 +25,9 @@ import { refreshRoutes } from "./services/routes.js";
 import { rateConOnSave } from "./services/rateconfirmations.js";
 import { rateConRoutes } from "./routes/rateconfirmations.js";
 import { paymentRoutes } from "./routes/payments.js";
+import { vettingRoutes } from "./routes/vetting.js";
+import { documentRoutes } from "./routes/documents.js";
+import { recheckCarriers } from "./services/vetting.js";
 import { checkDetention } from "./services/stops.js";
 import { PgPersistence } from "./persistence/postgres.js";
 import { IntegrationHub } from "./services/hub.js";
@@ -33,6 +36,8 @@ import { alertRoutes } from "./routes/alerts.js";
 import { hosRoutes } from "./routes/hos.js";
 import { iftaRoutes } from "./routes/ifta.js";
 import { MemoryStore } from "./store.js";
+import { type FmcsaClient, QcMobileFmcsa, StaticFmcsa } from "./services/fmcsa.js";
+import { DiskFileBytes, MemoryFileBytes, PgFileBytes } from "./services/files.js";
 
 export interface AppOptions {
   config?: Partial<Config>;
@@ -48,6 +53,8 @@ export interface AppOptions {
   logger?: boolean;
   /** Phone push delivery; defaults to Expo's push service (or none with LP_PUSH=off). */
   push?: PushSender;
+  /** FMCSA lookups; defaults to QCMobile when LP_FMCSA_WEBKEY is set. */
+  fmcsa?: FmcsaClient;
 }
 
 export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyInstance; ctx: AppContext }> {
@@ -78,6 +85,8 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
     notifier: undefined as unknown as Notifier,
     alerts: undefined as unknown as AlertEngine,
     persistence,
+    files: persistence ? new PgFileBytes(persistence) : cfg.filesDir ? new DiskFileBytes(cfg.filesDir) : new MemoryFileBytes(),
+    fmcsa: opts.fmcsa ?? (cfg.fmcsaWebKey ? new QcMobileFmcsa(cfg.fmcsaWebKey, fetch, now) : cfg.fmcsaFixtures ? StaticFmcsa.fromFile(cfg.fmcsaFixtures) : undefined),
     now,
   };
   ctx.notifier = new Notifier(ctx);
@@ -131,6 +140,8 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   iftaRoutes(app, ctx);
   rateConRoutes(app, ctx);
   paymentRoutes(app, ctx);
+  vettingRoutes(app, ctx);
+  documentRoutes(app, ctx);
 
   if (cfg.alertIntervalSeconds > 0) {
     const timer = setInterval(() => {
@@ -139,6 +150,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
       void ctx.alerts.tick().catch((e) => app.log.error(e));
       void ctx.notifier.checkReceipts().catch((e) => app.log.error(e));
       void refreshRoutes(ctx).catch((e) => app.log.error(e));
+      void recheckCarriers(ctx).catch((e) => app.log.error(e));
       try {
         checkDetention(ctx);
       } catch (e) {

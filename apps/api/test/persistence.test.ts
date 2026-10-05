@@ -112,5 +112,13 @@ describe.skipIf(!url)("Postgres persistence", () => {
     // Location trails replicate point by point.
     await api(a, d).post("/v1/me/location", { lat: 33, lng: -90, speedMps: 20 });
     await until(() => (b.ctx.store.tracks.get(d.accountId)?.length ?? 0) === 1);
+
+    // A document uploaded through one server is served by the other.
+    const pdf = Buffer.from("%PDF-1.4\nshared across servers\n");
+    const doc = await SA.post(`/v1/loads/${onA.id}/documents/upload`, { kind: "BOL", name: "BOL", contentType: "application/pdf", data: pdf.toString("base64") }, 201);
+    await until(() => b.ctx.store.files.has(doc.fileId));
+    const res = await b.app.inject({ method: "GET", url: doc.viewUrl });
+    expect(res.statusCode).toBe(200);
+    expect(res.rawPayload.equals(pdf)).toBe(true);
   });
 });

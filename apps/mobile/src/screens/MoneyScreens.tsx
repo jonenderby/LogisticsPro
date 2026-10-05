@@ -9,6 +9,7 @@ import { useNav, useParams } from "../navigation/types";
 import { useMe } from "../state/MeProvider";
 import { Banner, Body, Button, Chip, Empty, Field, Padded, Row, Screen, Section, Segmented } from "../ui/components";
 import { money, titleCase, when } from "../ui/format";
+import { type DocView, DocumentRows } from "../ui/Documents";
 
 const METHOD_LABEL: Record<string, string> = { API_JSON: "JSON API", API_XML: "XML API", EDI_X12: "EDI 210" };
 
@@ -22,7 +23,7 @@ export interface InvoiceView extends Invoice {
   bucket?: string;
   carrierName?: string;
   billToName?: string;
-  documents: Array<{ id: string; kind: string; name: string; url: string }>;
+  documents: DocView[];
 }
 interface InvoiceDetail extends InvoiceView {
   canPay: boolean;
@@ -196,9 +197,7 @@ export function InvoiceDetailScreen() {
       </Section>
       {inv.documents.length ? (
         <Section title="Paperwork">
-          {inv.documents.map((d) => (
-            <Row key={d.id} title={d.name} subtitle={titleCase(d.kind)} />
-          ))}
+          <DocumentRows docs={inv.documents} />
         </Section>
       ) : null}
 

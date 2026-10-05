@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { DetentionTerms } from "./detention.js";
 import { Factoring, PayerTerms } from "./payments.js";
+import { VettingPolicy } from "./vetting.js";
 import { Address, GeoPoint } from "./common.js";
 
 /**
@@ -35,6 +36,8 @@ export const Organization = z.object({
   payerTerms: PayerTerms.optional(),
   /** A carrier's factoring company; invoices are paid to it. */
   factoring: Factoring.optional(),
+  /** A shipper's or broker's carrier vetting rules; the defaults apply when unset. */
+  vetting: VettingPolicy.optional(),
   createdAt: z.string(),
 });
 export type Organization = z.infer<typeof Organization>;

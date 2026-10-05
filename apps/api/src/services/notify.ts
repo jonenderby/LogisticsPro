@@ -88,6 +88,14 @@ export class Notifier {
   }
 
   /** Members of an org who hold a capability there. */
+  /** A problem with the carrier on a load, for the shipper or broker. */
+  carrierAlert(load: Load, title: string, body: string): void {
+    const to = new Set([...this.holders(load.shipperOrgId, "SHIP"), ...this.holders(load.brokerOrgId, "BROKER")]);
+    const pushes: PushMessage[] = [];
+    for (const id of to) pushes.push(...this.deliver(id, { kind: "VETTING", target: "LOAD", loadId: load.id, title, body }));
+    void this.send(pushes);
+  }
+
   /** Invoice and payment news, to the people who handle money at an organization and anyone else named. */
   payment(orgId: string | undefined, also: Array<string | undefined>, item: { title: string; body: string; loadId?: string; invoiceId?: string }): void {
     const to = new Set([...this.holders(orgId, "PAY"), ...also.filter((x): x is string => !!x)]);

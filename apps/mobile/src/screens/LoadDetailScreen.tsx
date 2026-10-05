@@ -1,6 +1,8 @@
 import { ON_TIME_GRACE_MINUTES, carrierKeyOf } from "@logisticspro/domain";
 import { nextDriverAction } from "@logisticspro/workspace";
 import { RATE_CON_STATUS } from "./RateConfirmationScreen";
+import { type DocView, DocumentsSection } from "../ui/Documents";
+import { type Verdict, VettingChip } from "./CarrierCheckScreen";
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useState } from "react";
 import { View } from "react-native";
@@ -17,7 +19,11 @@ import { ArrivalChip, type Eta, ago, time } from "../ui/arrival";
 import { MissRow, type MissView } from "../ui/Appointments";
 import { type DetentionView, visitLine } from "../ui/detention";
 
-type BidView = Bid & { carrierName?: string; reliability?: { overall: Score; withYou?: Score; truckers: number } };
+type BidView = Bid & { carrierName?: string; reliability?: { overall: Score; withYou?: Score; truckers: number }; vetting?: { verdict: Verdict; approved: boolean } };
+interface CarrierCheck {
+  carrier?: { id: string; name?: string; verdict: Verdict; approved: boolean };
+  pickup?: { status: "VERIFIED" | "UNVERIFIED" | "PENDING"; detail: string };
+}
 interface Tracking {
   eta: Eta;
   truck?: { geo: { lat: number; lng: number }; at: string; stale: boolean };
@@ -62,8 +68,7 @@ export function LoadDetailScreen() {
   const [tenderTo, setTenderTo] = useState("");
   const [tenderKind, setTenderKind] = useState<"carrier" | "partner">("carrier");
   const [pro, setPro] = useState("");
-  const [docName, setDocName] = useState("");
-  const [docUrl, setDocUrl] = useState("");
+  const [carrierCheck, setCarrierCheck] = useState<CarrierCheck>();
   const [rateCon, setRateCon] = useState<{ version: number; status: keyof typeof RATE_CON_STATUS }>();
 
   const fetchLoad = useCallback(async () => {
@@ -86,6 +91,7 @@ export function LoadDetailScreen() {
     );
     const rc = hasCarrier && !["DRAFT", "POSTED", "TENDERED"].includes(l.status) ? await api.get<{ current?: { version: number; status: keyof typeof RATE_CON_STATUS } }>(`/v1/loads/${id}/rate-confirmation`).catch(() => undefined) : undefined;
     setRateCon(rc?.current);
+    setCarrierCheck(l.carrierOrgId && myBusiness ? await api.get<CarrierCheck>(`/v1/loads/${id}/carrier-check`).catch(() => undefined) : undefined);
     if (l.pickedUpAt) setExceptions(await api.get<LoadExceptionView[]>(`/v1/loads/${id}/exceptions`).catch(() => []));
   }, [id, nav, me]);
   useFocusEffect(
@@ -142,6 +148,8 @@ export function LoadDetailScreen() {
         <Row title="Service" value={`${MODE[load.mode]} · ${titleCase(load.service)}${load.teamRequired && load.service !== "TEAM_EXPEDITED" ? " · team" : ""}`} />
         <Row title="Equipment" value={`${titleCase(load.equipment.type)} ${load.equipment.lengthFt}'`} />
         {load.rate ? <Row title="Rate" value={money(load.rate.amount, load.rate.currency)} /> : null}
+        {carrierCheck?.carrier && carrierCheck.carrier.verdict !== "NOT_CHECKED" ? <Row title="Carrier check" right={<VettingChip verdict={carrierCheck.carrier.verdict} approved={carrierCheck.carrier.approved} />} onPress={() => nav.navigate("CarrierCheck", { orgId: carrierCheck.carrier!.id, payerOrgId: load.brokerOrgId ?? load.shipperOrgId })} /> : null}
+        {carrierCheck?.pickup && carrierCheck.pickup.status !== "PENDING" ? <Row title={carrierCheck.pickup.status === "VERIFIED" ? "Pickup verified by tracking" : "Pickup not verified"} subtitle={carrierCheck.pickup.detail} right={<Chip label={carrierCheck.pickup.status === "VERIFIED" ? "Verified" : "Check"} tone={carrierCheck.pickup.status === "VERIFIED" ? "success" : "warning"} />} /> : null}
         {rateCon ? <Row title="Rate confirmation" subtitle={`Version ${rateCon.version}`} right={<Chip label={RATE_CON_STATUS[rateCon.status].label} tone={RATE_CON_STATUS[rateCon.status].tone} />} onPress={() => nav.navigate("RateConfirmation", { loadId: load.id })} /> : null}
         {load.references.bol ? <Row title="BOL" value={load.references.bol} /> : null}
         {load.references.pro ? <Row title="PRO" value={load.references.pro} /> : null}
@@ -291,10 +299,11 @@ export function LoadDetailScreen() {
             ? bids.map((b) => (
                 <View key={b.id}>
                   <Row title={`${money(b.amount.amount)} · ${b.carrierName ?? "Carrier"}`} subtitle={`${titleCase(b.plan)}${b.transitHours ? ` · ${b.transitHours} h transit` : ""}${b.notes ? ` · ${b.notes}` : ""}`} right={<Button title="Award" variant="tonal" onPress={run(() => api.post(`/v1/loads/${load.id}/bids/${b.id}/award`), "Awarded")} style={{ minHeight: 36 }} />} />
-                  {b.reliability ? (
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, paddingHorizontal: 16, paddingBottom: 12 }}>
-                      <ScoreChip label="With you" score={b.reliability.withYou} />
-                      <ScoreChip label="Overall" score={b.reliability.overall} />
+                  {b.reliability || b.vetting ? (
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, paddingHorizontal: 16, paddingBottom: 12, alignItems: "center" }}>
+                      {b.vetting ? <VettingChip verdict={b.vetting.verdict} approved={b.vetting.approved} onPress={() => nav.navigate("CarrierCheck", { orgId: b.carrierOrgId, payerOrgId: load.brokerOrgId ?? load.shipperOrgId })} /> : null}
+                      {b.reliability ? <ScoreChip label="With you" score={b.reliability.withYou} /> : null}
+                      {b.reliability ? <ScoreChip label="Overall" score={b.reliability.overall} /> : null}
                     </View>
                   ) : null}
                 </View>
@@ -346,25 +355,14 @@ export function LoadDetailScreen() {
         </Section>
       ) : null}
 
-      <Section title="Documents">
-        {load.documents.map((d) => (
-          <Row key={d.id} title={d.name} subtitle={`${titleCase(d.kind)} · ${when(d.at)}`} />
-        ))}
-        <View style={{ padding: 16 }}>
-          <Field label="Document name (e.g. Signed POD)" value={docName} onChangeText={setDocName} />
-          <Field label="File link" value={docUrl} onChangeText={setDocUrl} autoCapitalize="none" keyboardType="url" hint="Link to the uploaded scan" />
-          <Button
-            title="Add document"
-            variant="tonal"
-            disabled={!docName || !docUrl}
-            onPress={run(async () => {
-              await api.post(`/v1/loads/${load.id}/documents`, { kind: /pod|deliver/i.test(docName) ? "POD" : /bol|lading/i.test(docName) ? "BOL" : "OTHER", name: docName, url: docUrl });
-              setDocName("");
-              setDocUrl("");
-            })}
-          />
-        </View>
-      </Section>
+      <DocumentsSection
+        loadId={load.id}
+        docs={load.documents as DocView[]}
+        pickupStopId={[...load.stops].sort((a, b) => a.sequence - b.sequence).find((s) => s.type === "PICKUP")?.id}
+        deliveryStopId={[...load.stops].sort((a, b) => a.sequence - b.sequence).filter((s) => s.type === "DELIVERY").at(-1)?.id}
+        onAdded={fetchLoad}
+        onSign={(rel.driver || rel.dispatcher) && ["IN_TRANSIT", "AT_DELIVERY", "DELIVERED"].includes(load.status) ? () => nav.navigate("Signature", { loadId: load.id }) : undefined}
+      />
     </Screen>
   );
 }

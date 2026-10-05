@@ -31,6 +31,11 @@ create table if not exists lp_log (
 );
 create index if not exists lp_log_key_at on lp_log (collection, key, at);
 create sequence if not exists lp_load_number_block minvalue 0 start 0;
+create table if not exists lp_files (
+  id text primary key,
+  bytes bytea not null,
+  created_at timestamptz not null default now()
+);
 `;
 
 interface Change {
@@ -338,6 +343,18 @@ export class PgPersistence implements ChangeSink {
       }
     })();
     return this.refilling;
+  }
+
+  // ------------------------------------------------------------- files
+
+  /** Uploaded documents live in their own table; their details are an ordinary store record. */
+  async putFile(id: string, bytes: Buffer): Promise<void> {
+    await this.pool.query("insert into lp_files (id, bytes) values ($1, $2) on conflict (id) do nothing", [id, bytes]);
+  }
+
+  async getFile(id: string): Promise<Buffer | undefined> {
+    const res = await this.pool.query<{ bytes: Buffer }>("select bytes from lp_files where id = $1", [id]);
+    return res.rows[0]?.bytes;
   }
 
   // ------------------------------------------------------------- shutdown

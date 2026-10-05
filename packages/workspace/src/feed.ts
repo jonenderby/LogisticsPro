@@ -97,6 +97,12 @@ export function buildFeed(caps: ResolvedCapabilities, data: FeedData): ActionIte
         items.push({ id: `drive:${load.id}`, hat: "DRIVING", priority: active ? 100 : 80, title: `${active ? "Current load" : "Next load"} ${load.loadNumber}`, subtitle: stopSummary(load), loadId: load.id, cta: { label: next.label, action: "status", statusCode: next.code } });
       }
     }
+    // The driver who delivered is reminded to add the POD; customers often won't pay without it.
+    const finalStop = [...load.stops].sort((a, b) => a.sequence - b.sequence).at(-1)?.id;
+    const delivered = load.legs.some((l) => l.toStopId === finalStop && l.driverAccountIds.includes(data.accountId));
+    if (has("DRIVE") && delivered && ["DELIVERED", "INVOICED"].includes(load.status) && !load.documents.some((d) => d.kind === "POD")) {
+      items.push({ id: `pod:${load.id}`, hat: "DRIVING", priority: 76, title: `Add the POD for ${load.loadNumber}`, subtitle: "Scan the signed delivery receipt so the invoice gets paid", loadId: load.id, cta: { label: "Add POD", action: "open" } });
+    }
     if (has("INVOICE") && load.status === "DELIVERED" && !invoiced.has(load.id)) {
       const drove = load.legs.some((l) => l.driverAccountIds.includes(data.accountId));
       if ((drove && caps.ownerOperator) || (load.carrierOrgId && orgsWith("INVOICE").includes(load.carrierOrgId))) {

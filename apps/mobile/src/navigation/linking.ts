@@ -20,6 +20,8 @@ const SHARED_PATHS: Record<string, string> = {
   Notifications: "notifications",
   RateConfirmation: "load/:loadId/rate-confirmation",
   InvoiceDetail: "invoice/:id",
+  CarrierCheck: "carrier/:orgId/check",
+  Signature: "load/:loadId/sign",
 };
 
 /**

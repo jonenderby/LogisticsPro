@@ -1,4 +1,4 @@
-import type { Account, AlertPreferences, AppointmentMiss, ArrivalStatus, Bid, DailyMiles, DutyEvent, FuelPurchase, HosCycle, TrackPoint, Invoice, JoinCode, JoinRequest, Load, LoadException, RateConfirmation, Membership, Message, Organization, ShipmentOutcome } from "@logisticspro/domain";
+import type { Account, AlertPreferences, AppointmentMiss, ArrivalStatus, Bid, DailyMiles, DutyEvent, FuelPurchase, HosCycle, TrackPoint, Invoice, JoinCode, FmcsaRecord, JoinRequest, Load, LoadException, RateConfirmation, Membership, Message, Organization, ShipmentOutcome } from "@logisticspro/domain";
 import type { PartnerProfile, Transmission } from "@logisticspro/integration";
 import type { Violation } from "@logisticspro/navigation";
 import { AppendLog, type ChangeSink, type Persisted, PersistentList, PersistentMap } from "./persistence/collections.js";
@@ -28,7 +28,7 @@ export interface NotificationSettings {
 
 export interface InboxItem {
   id: string;
-  kind: "ARRIVAL" | "SUMMARY" | "TEST" | "TENDER" | "MESSAGE" | "STOP" | "DETENTION" | "PAYMENT";
+  kind: "ARRIVAL" | "SUMMARY" | "TEST" | "TENDER" | "MESSAGE" | "STOP" | "DETENTION" | "PAYMENT" | "VETTING";
   /** What a tap opens. */
   target?: "LOAD" | "THREAD" | "INVOICE";
   invoiceId?: string;
@@ -38,6 +38,33 @@ export interface InboxItem {
   status?: string;
   at: string;
   read: boolean;
+}
+
+export interface StoredFile {
+  id: string;
+  loadId: string;
+  name: string;
+  contentType: string;
+  size: number;
+  sha256: string;
+  uploadedByAccountId: string;
+  at: string;
+}
+
+export interface FmcsaEntry {
+  current: FmcsaRecord;
+  /** Earlier records, stamped with when they were replaced. */
+  history: FmcsaRecord[];
+  /** The last verdict seen, so a carrier going bad is reported once. */
+  lastVerdict?: string;
+}
+
+export interface CarrierApproval {
+  payerOrgId: string;
+  carrierOrgId: string;
+  approvedByAccountId: string;
+  at: string;
+  note: string;
 }
 
 export interface RouteEstimate {
@@ -111,6 +138,12 @@ export class MemoryStore {
   stoppedSince = new PersistentMap<string>("stoppedSince");
   /** Routed distance and driving time for what is left of a moving load, from the routing server. */
   routeEstimates = new PersistentMap<RouteEstimate>("routeEstimates");
+  /** Uploaded files' details (the bytes are in the file store). */
+  files = new PersistentMap<StoredFile>("files");
+  /** FMCSA facts per USDOT number, with earlier versions whose contact details differ. */
+  fmcsa = new PersistentMap<FmcsaEntry>("fmcsa");
+  /** A shipper's or broker's sign-off on a carrier that needs review, "<payerOrgId>|<carrierOrgId>". */
+  carrierApprovals = new PersistentMap<CarrierApproval>("carrierApprovals");
   /** Rate confirmation versions per load, oldest first. */
   rateConfirmations = new PersistentMap<RateConfirmation[]>("rateConfirmations");
   /** Miles per jurisdiction per truck per day, "<carrierOrgId>|<vehicle>|<date>" (fuel tax). */

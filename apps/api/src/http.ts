@@ -12,6 +12,8 @@ import type { IntegrationHub } from "./services/hub.js";
 import type { Notifier } from "./services/notify.js";
 import type { PgPersistence } from "./persistence/postgres.js";
 import type { PushSender } from "./services/push.js";
+import type { FmcsaClient } from "./services/fmcsa.js";
+import type { FileBytes } from "./services/files.js";
 import { recordOutcome } from "./services/reliability.js";
 import { rateConOnSave } from "./services/rateconfirmations.js";
 import type { MemoryStore } from "./store.js";
@@ -45,6 +47,10 @@ export interface AppContext {
   alerts: AlertEngine;
   /** Postgres write-through and replication; absent when running in memory. */
   persistence?: PgPersistence;
+  /** FMCSA registry lookups for carrier vetting; absent when not configured (nothing is enforced). */
+  fmcsa?: FmcsaClient;
+  /** Bytes of uploaded documents. */
+  files: FileBytes;
   now: () => Date;
 }
 

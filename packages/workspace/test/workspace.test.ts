@@ -71,6 +71,7 @@ describe("integrated action feed", () => {
       ["DRIVING", "Current load LP-1"],
       ["DISPATCH", "Tender LP-3"],
       ["DISPATCH", "Assign a team for LP-2"],
+      ["DRIVING", "Add the POD for LP-4"],
       ["BILLING", "Invoice LP-4"],
       ["MESSAGES", "2 new messages on LP-1"],
       ["DISPATCH", "Open load LP-9"],

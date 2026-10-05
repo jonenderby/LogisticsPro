@@ -55,6 +55,14 @@
         {
           "androidGoogleMapsApiKey": "${GOOGLE_MAPS_ANDROID_API_KEY}"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Logistics Pro uses the camera to scan bills of lading, delivery receipts and other load paperwork.",
+          "photosPermission": "Logistics Pro lets you attach photos of load paperwork you already took.",
+          "microphonePermission": false
+        }
       ]
     ],
     "scheme": "logisticspro"

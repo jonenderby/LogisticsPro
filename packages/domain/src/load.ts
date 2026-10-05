@@ -154,6 +154,15 @@ export const LoadDocument = z.object({
   url: z.string(),
   uploadedByAccountId: z.string(),
   at: z.string(),
+  /** Set for files uploaded to Logistics Pro (scans, photos, PDFs, signed receipts). */
+  fileId: z.string().optional(),
+  contentType: z.string().optional(),
+  size: z.number().int().optional(),
+  /** The stop the paper belongs to (the pickup's BOL, the delivery's POD). */
+  stopId: z.string().optional(),
+  /** A signed delivery receipt: who signed, and where. */
+  signedBy: z.string().optional(),
+  geo: z.object({ lat: z.number(), lng: z.number() }).optional(),
 });
 export type LoadDocument = z.infer<typeof LoadDocument>;
 

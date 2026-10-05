@@ -4,6 +4,7 @@ import { z } from "zod";
 import { type AppContext, HttpError, authenticate, hasOrgCap, me, parse, postMessage, requireOrgCap } from "../http.js";
 import { acceptTotpCode } from "../security/stepup.js";
 import { MOVING } from "../services/tracking.js";
+import { documentViews } from "./documents.js";
 
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -38,7 +39,7 @@ export function paymentRoutes(app: FastifyInstance, ctx: AppContext) {
       bucket: isOpen(inv) ? agingBucket(due, today()) : undefined,
       carrierName: orgName(inv.carrierOrgId),
       billToName: orgName(inv.billTo.orgId) ?? inv.billTo.address.name,
-      documents: (ctx.store.loads.get(inv.loadId)?.documents ?? []).filter((d) => !inv.documentIds || inv.documentIds.includes(d.id)),
+      documents: documentViews(ctx, (ctx.store.loads.get(inv.loadId)?.documents ?? []).filter((d) => inv.documentIds?.includes(d.id) || ["BOL", "POD", "LUMPER_RECEIPT", "SCALE_TICKET"].includes(d.kind))),
     };
   };
   const save = (inv: Invoice) => {

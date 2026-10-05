@@ -26,6 +26,8 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { geocodeStops } from "../services/geocode.js";
 import { carrierProfile } from "../services/reliability.js";
+import { approvalKey, requireEligible, vettingFor } from "../services/vetting.js";
+import { documentViews } from "./documents.js";
 import { type AppContext, HttpError, authenticate, canSeeLoad, canShip, capsOf, getLoad, hasOrgCap, isDriverOn, me, parse, postMessage, requireOrgCap, saveLoad } from "../http.js";
 
 const StopInput = z.object({
@@ -127,7 +129,7 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get("/v1/loads/:id", auth, async (req) => {
     const account = me(ctx, req);
     const load = getLoad(ctx, account.id, (req.params as { id: string }).id);
-    return { ...load, refinement: refinementLock(load) };
+    return { ...load, documents: documentViews(ctx, load.documents), refinement: refinementLock(load) };
   });
 
   /** Shipper/broker refinement. Open until pickup or ship confirm; carriers get a 204 change. */
@@ -274,12 +276,16 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
     if (canShip(ctx, account.id, load)) {
       // Show each bidder's record overall and with this business specifically.
       const business = load.brokerOrgId ?? load.shipperOrgId;
-      return all
-        .sort((a, b) => a.amount.amount - b.amount.amount)
-        .map((b) => {
-          const p = carrierProfile(ctx.store, b.carrierOrgId, business);
-          return { ...b, carrierName: ctx.store.orgs.get(b.carrierOrgId)?.name, reliability: { overall: p.overall, withYou: p.forBusiness, truckers: p.truckers } };
-        });
+      return Promise.all(
+        all
+          .sort((a, b) => a.amount.amount - b.amount.amount)
+          .map(async (b) => {
+            const p = carrierProfile(ctx.store, b.carrierOrgId, business);
+            const v = await vettingFor(ctx, b.carrierOrgId, business);
+            const approved = !!ctx.store.carrierApprovals.get(approvalKey(business, b.carrierOrgId));
+            return { ...b, carrierName: ctx.store.orgs.get(b.carrierOrgId)?.name, reliability: { overall: p.overall, withYou: p.forBusiness, truckers: p.truckers }, vetting: { verdict: v.verdict, approved } };
+          }),
+      );
     }
     const mine = new Set(ctx.store.membershipsOf(account.id).map((m) => m.orgId));
     return all.filter((b) => mine.has(b.carrierOrgId));
@@ -290,6 +296,8 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
     const { id, bidId } = req.params as { id: string; bidId: string };
     const load = getLoad(ctx, account.id, id);
     if (!canShip(ctx, account.id, load)) throw new HttpError(403, "FORBIDDEN", "Only the poster can award bids");
+    const bid = ctx.store.bids.get(bidId);
+    if (bid?.loadId === load.id) await requireEligible(ctx, load.brokerOrgId ?? load.shipperOrgId, bid.carrierOrgId);
     const awarded = awardBid(load, [...ctx.store.bids.values()], bidId, ctx.now().toISOString());
     awarded.bids.forEach((b) => ctx.store.bids.set(b.id, b));
     const next = saveLoad(ctx, { ...awarded.load, tender: { byAccountId: account.id, at: ctx.now().toISOString() } }, account.id);
@@ -304,6 +312,7 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
     if (!canShip(ctx, account.id, load)) throw new HttpError(403, "FORBIDDEN", "Only the shipper or broker can tender");
     const body = parse(z.object({ carrierOrgId: z.string().optional(), partnerKey: z.string().optional(), rate: Money.optional() }).refine((b) => !!b.carrierOrgId !== !!b.partnerKey, "Give exactly one of carrierOrgId or partnerKey"), req.body);
     if (body.carrierOrgId && !ctx.store.orgs.get(body.carrierOrgId)?.kinds.includes("CARRIER")) throw new HttpError(404, "NOT_FOUND", "Carrier not found");
+    if (body.carrierOrgId) await requireEligible(ctx, load.brokerOrgId ?? load.shipperOrgId, body.carrierOrgId);
     const next: Load = {
       ...transition(load, "TENDERED", ctx.now().toISOString()),
       carrierOrgId: body.carrierOrgId,

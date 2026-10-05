@@ -20,7 +20,7 @@ interface Settings {
 }
 interface Item {
   id: string;
-  kind: "ARRIVAL" | "SUMMARY" | "TEST" | "TENDER" | "MESSAGE" | "STOP" | "DETENTION" | "PAYMENT";
+  kind: "ARRIVAL" | "SUMMARY" | "TEST" | "TENDER" | "MESSAGE" | "STOP" | "DETENTION" | "PAYMENT" | "VETTING";
   target?: "LOAD" | "THREAD" | "INVOICE";
   invoiceId?: string;
   title: string;
@@ -39,6 +39,7 @@ const KIND: Record<Item["kind"], { label: string; tone: Tone }> = {
   STOP: { label: "At stop", tone: "info" },
   DETENTION: { label: "Detention", tone: "warning" },
   PAYMENT: { label: "Payment", tone: "success" },
+  VETTING: { label: "Carrier check", tone: "danger" },
 };
 
 /**

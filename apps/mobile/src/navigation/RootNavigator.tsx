@@ -27,6 +27,8 @@ import { DrivingLock } from "../ui/DrivingLock";
 import { HoursScreen } from "../screens/HoursScreen";
 import { FuelTaxScreen } from "../screens/FuelTaxScreen";
 import { RateConfirmationScreen } from "../screens/RateConfirmationScreen";
+import { CarrierCheckScreen } from "../screens/CarrierCheckScreen";
+import { SignatureScreen } from "../screens/SignatureScreen";
 import { InvoiceDetailScreen } from "../screens/MoneyScreens";
 import { NotificationsScreen } from "../screens/NotificationsScreen";
 import { Icon } from "../ui/Icon";
@@ -71,6 +73,8 @@ const SHARED: Array<{ name: keyof StackParams; component: ComponentType; title: 
   { name: "Notifications", component: NotificationsScreen, title: "Notifications" },
   { name: "RateConfirmation", component: RateConfirmationScreen, title: "Rate confirmation" },
   { name: "InvoiceDetail", component: InvoiceDetailScreen, title: "Invoice" },
+  { name: "CarrierCheck", component: CarrierCheckScreen, title: "Carrier check" },
+  { name: "Signature", component: SignatureScreen, title: "Delivery signature" },
 ];
 
 function stackFor(root: TabRoot) {

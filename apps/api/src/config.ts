@@ -39,6 +39,12 @@ export interface Config {
   alertIntervalSeconds: number;
   /** Postgres connection string. Without it, data lives in memory only. */
   databaseUrl?: string;
+  /** FMCSA QCMobile web key for carrier vetting. Without it, carriers are not checked. */
+  fmcsaWebKey?: string;
+  /** A JSON file of FMCSA records (an array) to check against instead, for demos and staging. */
+  fmcsaFixtures?: string;
+  /** Directory for uploaded documents when there is no database. Without either, they are kept in memory. */
+  filesDir?: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -67,6 +73,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     push: env.LP_PUSH === "off" ? "off" : "expo",
     expoAccessToken: env.LP_EXPO_ACCESS_TOKEN,
     alertIntervalSeconds: Number(env.LP_ALERT_INTERVAL_SECONDS ?? 60),
+    fmcsaWebKey: env.LP_FMCSA_WEBKEY || undefined,
+    fmcsaFixtures: env.LP_FMCSA_FIXTURES || undefined,
+    filesDir: env.LP_FILES_DIR || undefined,
     databaseUrl: env.LP_DATABASE_URL || env.DATABASE_URL || undefined,
   };
 }
