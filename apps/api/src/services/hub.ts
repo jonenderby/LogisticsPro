@@ -37,6 +37,8 @@ interface Origin {
  */
 export class IntegrationHub {
   readonly origins = new Map<string, Origin>();
+  /** Called when a partner's API or EDI message creates or changes a load (tenders, tender responses). */
+  onLoadSaved?: (prior: Load | undefined, next: Load) => void;
 
   constructor(
     private readonly store: MemoryStore,
@@ -252,6 +254,7 @@ export class IntegrationHub {
           updatedAt: now,
         };
         this.store.loads.set(load.id, load);
+        this.onLoadSaved?.(existing, load);
         this.origins.set(load.id, { carrierOrgId: orgId, partnerKey });
         return { loadId: load.id, action: existing ? "updated" : "created" };
       }
@@ -264,6 +267,7 @@ export class IntegrationHub {
             ? { ...load, status: "BOOKED", references: { ...load.references, pro: r.carrierReference ?? load.references.pro } }
             : { ...load, status: "DRAFT", externalCarrierKey: undefined };
         this.store.loads.set(load.id, { ...next, version: load.version + 1, updatedAt: now });
+        this.onLoadSaved?.(load, this.store.loads.get(load.id)!);
         return { loadId: load.id, action: r.decision === "ACCEPT" ? "booked" : "declined" };
       }
       case "SHIPMENT_STATUS": {

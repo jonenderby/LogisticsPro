@@ -94,6 +94,21 @@ Who hears about a load: members of the shipper with the ship capability, of the 
 
 API: `GET/PUT/DELETE /v1/me/alert-preferences`, `POST /v1/me/alert-preferences/test`, `POST /v1/me/push-tokens`, `POST /v1/me/push-tokens/remove`, `GET /v1/me/notifications`, `POST /v1/me/notifications/read`.
 
+## Tender and message notifications
+
+Everyone gets these under **More > Notifications**, on by default, each with its own switch:
+
+- **Tenders**: a carrier's dispatchers hear about a new tender the moment it arrives, whether from a shipper on the platform, an awarded bid, or a shipper's system by API or EDI 204: "New tender LP-100001. Acme Foods: Jackson, MS to Memphis, TN, pickup Mon 1:48 PM, $1,800." The shipper or broker who tendered hears when the carrier accepts or declines.
+- **Messages**: a new message on a load reaches everyone else on it: the drivers, the carrier's dispatchers and the shipper's and broker's staff. Status updates are not pushed as messages. Tapping opens the thread, and reading the thread clears its notifications.
+
+Push permission is asked for when someone turns a switch on or taps "Use this phone". Times in notifications use the phone's time zone.
+
+<p align="center">
+  <img src="screenshots/web-notifications.png" width="560" alt="Notifications settings with tender and message switches and the recent list">
+</p>
+
+API: `GET/PUT /v1/me/notification-settings`, `GET /v1/me/notifications`.
+
 ## Where locations come from
 
 - **Phones**: while a driver has a load assigned, the app sends their position at most once a minute, or after 200 m of movement (`POST /v1/me/location`). The location prompt appears only once a load is underway. This works while the app is open; background location is on the [roadmap](ROADMAP.md).

@@ -21,8 +21,10 @@ import { TrackScreen } from "../screens/TrackScreen";
 import { AuthFlow } from "../screens/auth/AuthFlow";
 import { MeProvider, useMe } from "../state/MeProvider";
 import { useLocationSharing } from "../state/useLocationSharing";
-import { useBrowserAlerts, usePushNotifications } from "../state/notifications";
+import { type OpenTarget, useBrowserAlerts, usePushNotifications } from "../state/notifications";
 import { AlertsScreen } from "../screens/AlertsScreen";
+import { HoursScreen } from "../screens/HoursScreen";
+import { NotificationsScreen } from "../screens/NotificationsScreen";
 import { Icon } from "../ui/Icon";
 import { useLayout } from "../ui/responsive";
 import { isIOS, useTheme } from "../ui/theme";
@@ -60,6 +62,8 @@ const SHARED: Array<{ name: keyof StackParams; component: ComponentType; title: 
   { name: "JoinCarrier", component: JoinCarrierScreen, title: "Join a carrier" },
   { name: "Reliability", component: ReliabilityScreen, title: "My reliability" },
   { name: "Alerts", component: AlertsScreen, title: "Arrival alerts" },
+  { name: "Hours", component: HoursScreen, title: "Hours of service" },
+  { name: "Notifications", component: NotificationsScreen, title: "Notifications" },
 ];
 
 function stackFor(root: TabRoot) {
@@ -102,15 +106,16 @@ const navigationRef = createNavigationContainerRef<Record<string, object | undef
 function AppNavigation() {
   const { me } = useMe();
   useLocationSharing();
-  // A tapped alert opens its load; one that launched the app waits until navigation is ready.
-  const pendingLoad = useRef<string | undefined>(undefined);
+  // A tapped notification opens its load or thread; one that launched the app waits until navigation is ready.
+  const pendingLoad = useRef<OpenTarget | undefined>(undefined);
   const firstTab = useRef("TodayTab");
-  const openLoad = useCallback((id: string) => {
+  const openLoad = useCallback((t: OpenTarget) => {
     if (!navigationRef.isReady()) {
-      pendingLoad.current = id;
+      pendingLoad.current = t;
       return;
     }
-    navigationRef.navigate(firstTab.current, { screen: "LoadDetail", params: { id } });
+    if (t.open === "THREAD") navigationRef.navigate(firstTab.current, { screen: "Thread", params: { loadId: t.loadId, title: t.loadNumber ?? "Messages" } });
+    else navigationRef.navigate(firstTab.current, { screen: "LoadDetail", params: { id: t.loadId } });
   }, []);
   usePushNotifications(!!me, openLoad);
   useBrowserAlerts(!!me, openLoad);

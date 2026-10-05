@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, type TextInputProps, View, type ViewStyle } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, type TextInputProps, View, type ViewStyle } from "react-native";
 import { Icon } from "./Icon";
 import { CONTENT_MAX_WIDTH, useLayout } from "./responsive";
 import { isIOS, useTheme } from "./theme";
@@ -221,4 +221,10 @@ const STATUS_TONE: Record<string, Tone> = {
 
 export function StatusPill({ status }: { status: string }) {
   return <Chip label={status.replace(/_/g, " ")} tone={STATUS_TONE[status] ?? "neutral"} />;
+}
+
+/** A settings row with a platform switch (UISwitch on iOS, Material switch on Android). */
+export function ToggleRow({ title, subtitle, value, onChange }: { title: string; subtitle?: string; value: boolean; onChange: (v: boolean) => void }) {
+  const { colors } = useTheme();
+  return <Row title={title} subtitle={subtitle} right={<Switch accessibilityLabel={title} value={value} onValueChange={onChange} trackColor={{ true: colors.primary }} />} />;
 }

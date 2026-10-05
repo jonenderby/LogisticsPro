@@ -53,7 +53,8 @@ describe("arrival alerts", () => {
     expect(await tick()).toEqual({ alerts: 2, summaries: 0 });
     expect(push.sent.at(-1)!.title).toBe(`${load.loadNumber} will be late`);
     const inbox = await F.get("/v1/me/notifications");
-    expect(inbox).toMatchObject({ unread: 1, items: [{ kind: "ARRIVAL", status: "LATE", loadId: load.id }] });
+    // Dee's inbox also holds the tender she received when the load was booked.
+    expect(inbox).toMatchObject({ unread: 2, items: [{ kind: "ARRIVAL", status: "LATE", loadId: load.id, target: "LOAD" }, { kind: "TENDER" }] });
     await F.post("/v1/me/notifications/read", {});
     expect((await F.get("/v1/me/notifications")).unread).toBe(0);
 

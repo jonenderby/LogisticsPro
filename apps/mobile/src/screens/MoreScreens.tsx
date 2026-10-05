@@ -24,6 +24,8 @@ const TARGET: Record<string, keyof StackParams> = {
   "join-carrier": "JoinCarrier",
   reliability: "Reliability",
   alerts: "Alerts",
+  hours: "Hours",
+  notifications: "Notifications",
   account: "Security",
   security: "Security",
 };

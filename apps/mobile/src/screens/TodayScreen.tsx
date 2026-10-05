@@ -5,7 +5,9 @@ import { reportStatus } from "../actions";
 import { useNav } from "../navigation/types";
 import { useMe } from "../state/MeProvider";
 import { confirm, notify } from "../ui/dialog";
-import { Banner, Button, Chip, Empty, Screen, Section, type Tone } from "../ui/components";
+import { Banner, Button, Chip, Empty, Row, Screen, Section, type Tone } from "../ui/components";
+import { HosSummary } from "../ui/Hos";
+import { useDutyStatus } from "./HoursScreen";
 import { useLayout } from "../ui/responsive";
 import { useTheme } from "../ui/theme";
 
@@ -27,6 +29,7 @@ export function TodayScreen() {
   const nav = useNav();
   const { colors, metrics } = useTheme();
   const { wide } = useLayout();
+  const setDuty = useDutyStatus(() => undefined);
   if (!me) return null;
 
   const act = async (item: ActionItem) => {
@@ -91,6 +94,12 @@ export function TodayScreen() {
             <Text style={{ color: colors.text, fontSize: metrics.body }}>Register your company to dispatch, bid on loads, ship freight or connect your ERP.</Text>
             <Button title="Register company" onPress={() => nav.navigate("RegisterCompany")} />
           </View>
+        </Section>
+      ) : null}
+      {me.hos ? (
+        <Section title="Hours of service">
+          <HosSummary hos={me.hos} onStatus={setDuty} />
+          <Row title="Hours, limits and duty log" onPress={() => nav.navigate("Hours")} />
         </Section>
       ) : null}
       <Section title="Needs your attention" bare={wide}>

@@ -1,12 +1,10 @@
-import { type AlertStatus, type Load, type ShipmentEta, alertMessage, digestMessage, dueSlots, isAlertableChange, isRepeat, newId } from "@logisticspro/domain";
+import { type AlertStatus, type Load, type ShipmentEta, alertMessage, digestMessage, dueSlots, isAlertableChange, isRepeat } from "@logisticspro/domain";
 import { type AppContext, capsOf } from "../http.js";
-import type { InboxItem } from "../store.js";
 import type { PushMessage } from "./push.js";
 import { etaFor, lane } from "./tracking.js";
 
 /** Loads whose arrival is worth watching: a carrier is on them and they are not delivered. */
 const WATCHED = ["TENDERED", "BOOKED", "DISPATCHED", "AT_PICKUP", "IN_TRANSIT", "AT_DELIVERY"];
-const INBOX_LIMIT = 200;
 
 /**
  * Who hears about a load: the shipper's and broker's shipping staff and the
@@ -78,7 +76,7 @@ export class AlertEngine {
         const key = `${accountId}:${load.id}`;
         if (isRepeat(store.alertSent.get(key), status, now)) continue;
         store.alertSent.set(key, { status, at });
-        pushes.push(...this.deliver(accountId, { kind: "ARRIVAL", ...alertMessage({ loadNumber: load.loadNumber, ...lane(load), eta }, status, prefs.timeZone), loadId: load.id, status }));
+        pushes.push(...this.ctx.notifier.deliver(accountId, { kind: "ARRIVAL", target: "LOAD", ...alertMessage({ loadNumber: load.loadNumber, ...lane(load), eta }, status, prefs.timeZone), loadId: load.id, status }));
         alerts++;
       }
     }
@@ -93,36 +91,20 @@ export class AlertEngine {
           .filter((w) => w.audience.includes(accountId) && prefs.statuses.includes(w.eta.status as AlertStatus))
           .map((w) => ({ loadNumber: w.load.loadNumber, ...lane(w.load), eta: w.eta, status: w.eta.status as AlertStatus }));
         if (!items.length && prefs.schedule.skipWhenEmpty) continue;
-        pushes.push(...this.deliver(accountId, { kind: "SUMMARY", ...digestMessage(items, prefs.statuses, prefs.timeZone) }));
+        pushes.push(...this.ctx.notifier.deliver(accountId, { kind: "SUMMARY", ...digestMessage(items, prefs.statuses, prefs.timeZone) }));
         summaries++;
       }
     }
     for (const [key, sentAt] of store.digestsSent) if (now.getTime() - Date.parse(sentAt) > 2 * 86_400_000) store.digestsSent.delete(key);
 
-    await this.push(pushes);
+    await this.ctx.notifier.send(pushes);
     return { alerts, summaries };
   }
 
   /** A test alert so a person can check their phone receives them. */
   async test(accountId: string): Promise<{ devices: number }> {
-    const msgs = this.deliver(accountId, { kind: "TEST", title: "Arrival alerts are on", body: "This is how late and at-risk shipments will reach you." });
-    await this.push(msgs);
+    const msgs = this.ctx.notifier.deliver(accountId, { kind: "TEST", title: "Arrival alerts are on", body: "This is how late and at-risk shipments will reach you." });
+    await this.ctx.notifier.send(msgs);
     return { devices: msgs.length };
-  }
-
-  /** Adds the alert to the inbox and returns one push per registered phone. */
-  private deliver(accountId: string, item: Omit<InboxItem, "id" | "at" | "read">): PushMessage[] {
-    const entry: InboxItem = { id: newId("ntf"), at: this.ctx.now().toISOString(), read: false, ...item };
-    this.ctx.store.notifications.set(accountId, [entry, ...(this.ctx.store.notifications.get(accountId) ?? [])].slice(0, INBOX_LIMIT));
-    const data: Record<string, string> = { notificationId: entry.id, ...(item.loadId ? { loadId: item.loadId } : {}) };
-    return (this.ctx.store.pushTokens.get(accountId) ?? []).map((t) => ({ to: t.token, title: item.title, body: item.body, data }));
-  }
-
-  private async push(messages: PushMessage[]) {
-    if (!messages.length) return;
-    const results = await this.ctx.push.send(messages);
-    const dead = new Set(results.filter((r) => r.unregistered).map((r) => r.token));
-    if (!dead.size) return;
-    for (const [accountId, tokens] of this.ctx.store.pushTokens) this.ctx.store.pushTokens.set(accountId, tokens.filter((t) => !dead.has(t.token)));
   }
 }

@@ -2,6 +2,7 @@ import { type Load, byUrgency, loadParties, summarizeEtas } from "@logisticspro/
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { type AppContext, HttpError, authenticate, capsOf, getLoad, hasOrgCap, isDriverOn, me, parse } from "../http.js";
+import { hosFor, recordFix } from "../services/hos.js";
 import { MOVING, OFFLINE_AFTER_MS, UNDELIVERED, activeLeg, etaFor, lane, positionForLoad } from "../services/tracking.js";
 
 /**
@@ -31,7 +32,9 @@ export function trackingRoutes(app: FastifyInstance, ctx: AppContext) {
     if (!prior || prior.at <= at.toISOString()) {
       ctx.store.positions.set(account.id, { accountId: account.id, geo: { lat: b.lat, lng: b.lng }, at: at.toISOString(), speedMps: b.speedMps, headingDeg: b.headingDeg, accuracyM: b.accuracyM });
     }
-    return { ok: true };
+    recordFix(ctx.store, account.id, { geo: { lat: b.lat, lng: b.lng }, at: at.toISOString(), speedMps: b.speedMps }, now, { autoDuty: true });
+    const hos = hosFor(ctx.store, account.id, now);
+    return { ok: true, duty: { status: hos.status, availableMin: hos.availableMin } };
   });
 
   const shipmentView = (load: Load, viewerIsShipper: boolean) => {
@@ -98,10 +101,13 @@ export function trackingRoutes(app: FastifyInstance, ctx: AppContext) {
         // A driver who also drives for another carrier: while moving that carrier's freight,
         // this carrier sees only that they are busy, not where they are or for whom.
         const elsewhere = !view && [...ctx.store.loads.values()].some((l) => l.carrierOrgId !== carrierId && MOVING.includes(l.status) && activeLeg(l)?.driverAccountIds.includes(m.accountId));
+        const hos = hosFor(ctx.store, m.accountId, ctx.now());
         return {
           accountId: acct.id,
           name: acct.name,
           phone: acct.phone,
+          // Hours are the driver's own across every carrier they drive for, as the law counts them.
+          hos: { status: hos.status, availableMin: hos.availableMin, limitedBy: hos.limitedBy, cycleLeftMin: hos.cycleLeftMin },
           position: p && !elsewhere ? { geo: p.geo, at: p.at, speedMps: p.speedMps, headingDeg: p.headingDeg, stale: offline } : undefined,
           state: view ? "ON_LOAD" : elsewhere ? "OTHER_CARRIER" : offline ? "OFFLINE" : "AVAILABLE",
           load: view ? { id: view.id, loadNumber: view.loadNumber, status: view.status, origin: view.origin, destination: view.destination, customerName: view.customerName, eta: view.eta } : undefined,

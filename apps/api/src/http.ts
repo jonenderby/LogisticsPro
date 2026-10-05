@@ -9,6 +9,7 @@ import type { Config } from "./config.js";
 import type { Tokens } from "./security/tokens.js";
 import type { AlertEngine } from "./services/alerts.js";
 import type { IntegrationHub } from "./services/hub.js";
+import type { Notifier } from "./services/notify.js";
 import type { PushSender } from "./services/push.js";
 import { recordOutcome } from "./services/reliability.js";
 import type { MemoryStore } from "./store.js";
@@ -38,6 +39,7 @@ export interface AppContext {
   as2Transport: As2Transport;
   /** Phone push delivery (Expo), and the engine that decides what to alert. */
   push: PushSender;
+  notifier: Notifier;
   alerts: AlertEngine;
   now: () => Date;
 }
@@ -113,6 +115,7 @@ export function saveLoad(ctx: AppContext, load: Load): Load {
   const key = carrierKeyOf(load);
   if (key !== (prior ? carrierKeyOf(prior) : undefined)) load = { ...load, carrierSince: key ? ctx.now().toISOString() : undefined };
   ctx.store.loads.set(load.id, load);
+  ctx.notifier.loadSaved(prior, load);
   recordOutcome(ctx.store, load);
   return load;
 }

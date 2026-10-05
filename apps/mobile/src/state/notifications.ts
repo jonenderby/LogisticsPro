@@ -39,7 +39,7 @@ export async function registerForPush(prompt = true): Promise<PushStatus> {
   if (!projectId) return { ok: false, reason: "This build has no EAS project ID, so it cannot receive push. Alerts still appear in your inbox." };
   try {
     const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
-    await api.post("/v1/me/push-tokens", { token, platform: Platform.OS });
+    await api.post("/v1/me/push-tokens", { token, platform: Platform.OS, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
     await SecureStore.setItemAsync(TOKEN_KEY, token);
     return { ok: true };
   } catch (e) {
@@ -57,11 +57,23 @@ export async function unregisterPush(): Promise<void> {
 }
 
 /**
- * While signed in: refresh this phone's token if permission was already given
- * (tokens can change), and open the load when an alert is tapped, including
- * the tap that launched the app.
+ * What a tapped notification opens: the load, or its message thread.
  */
-export function usePushNotifications(signedIn: boolean, openLoad: (loadId: string) => void) {
+export interface OpenTarget {
+  loadId: string;
+  open?: "LOAD" | "THREAD";
+  loadNumber?: string;
+}
+
+const targetOf = (d: Record<string, unknown> | undefined): OpenTarget | undefined =>
+  typeof d?.loadId === "string" ? { loadId: d.loadId, open: d.open === "THREAD" ? "THREAD" : "LOAD", loadNumber: typeof d.loadNumber === "string" ? d.loadNumber : undefined } : undefined;
+
+/**
+ * While signed in: refresh this phone's token if permission was already given
+ * (tokens can change), and open the load or thread when a notification is
+ * tapped, including the tap that launched the app.
+ */
+export function usePushNotifications(signedIn: boolean, openLoad: (t: OpenTarget) => void) {
   const open = useRef(openLoad);
   open.current = openLoad;
   useEffect(() => {
@@ -70,8 +82,8 @@ export function usePushNotifications(signedIn: boolean, openLoad: (loadId: strin
     const handle = (r: Notifications.NotificationResponse | null) => {
       if (!r || handledTaps.has(r.notification.request.identifier)) return;
       handledTaps.add(r.notification.request.identifier);
-      const loadId = r.notification.request.content.data?.loadId;
-      if (typeof loadId === "string") open.current(loadId);
+      const target = targetOf(r.notification.request.content.data as Record<string, unknown> | undefined);
+      if (target) open.current(target);
     };
     void Notifications.getLastNotificationResponseAsync().then(handle);
     const sub = Notifications.addNotificationResponseReceivedListener(handle);
@@ -84,6 +96,7 @@ interface InboxItem {
   title: string;
   body: string;
   loadId?: string;
+  target?: "LOAD" | "THREAD";
   read: boolean;
 }
 
@@ -91,7 +104,7 @@ interface InboxItem {
  * The website has no push service, so while it is open it checks the inbox
  * every minute and shows new alerts as browser notifications.
  */
-export function useBrowserAlerts(signedIn: boolean, openLoad: (loadId: string) => void) {
+export function useBrowserAlerts(signedIn: boolean, openLoad: (t: OpenTarget) => void) {
   const open = useRef(openLoad);
   open.current = openLoad;
   useEffect(() => {
@@ -109,7 +122,7 @@ export function useBrowserAlerts(signedIn: boolean, openLoad: (loadId: string) =
         const n = new Notification(item.title, { body: item.body, tag: item.id });
         n.onclick = () => {
           window.focus();
-          if (item.loadId) open.current(item.loadId);
+          if (item.loadId) open.current({ loadId: item.loadId, open: item.target, loadNumber: item.title.split(" · ")[1] });
           n.close();
         };
       }

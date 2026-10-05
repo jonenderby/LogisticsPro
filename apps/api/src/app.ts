@@ -20,9 +20,11 @@ import { operationsRoutes } from "./routes/operations.js";
 import { orgRoutes } from "./routes/orgs.js";
 import { Tokens } from "./security/tokens.js";
 import { AlertEngine } from "./services/alerts.js";
+import { Notifier } from "./services/notify.js";
 import { IntegrationHub } from "./services/hub.js";
 import { ExpoPushSender, NoPushSender, type PushSender } from "./services/push.js";
 import { alertRoutes } from "./routes/alerts.js";
+import { hosRoutes } from "./routes/hos.js";
 import { MemoryStore } from "./store.js";
 
 export interface AppOptions {
@@ -64,10 +66,13 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
     as2: station,
     as2Transport,
     push: opts.push ?? (cfg.push === "off" ? new NoPushSender() : new ExpoPushSender(cfg.expoAccessToken)),
+    notifier: undefined as unknown as Notifier,
     alerts: undefined as unknown as AlertEngine,
     now,
   };
+  ctx.notifier = new Notifier(ctx);
   ctx.alerts = new AlertEngine(ctx);
+  ctx.hub.onLoadSaved = (prior, next) => ctx.notifier.loadSaved(prior, next);
 
   const app = Fastify({ logger: opts.logger ?? false, bodyLimit: 5 * 1024 * 1024 });
   // Credentialed CORS (the web session cookie) only for configured origins.
@@ -100,6 +105,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   reliabilityRoutes(app, ctx);
   trackingRoutes(app, ctx);
   alertRoutes(app, ctx);
+  hosRoutes(app, ctx);
 
   if (cfg.alertIntervalSeconds > 0) {
     const timer = setInterval(() => void ctx.alerts.tick().catch((e) => app.log.error(e)), cfg.alertIntervalSeconds * 1000);

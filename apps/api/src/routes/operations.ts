@@ -1,3 +1,4 @@
+import { recordFix } from "../services/hos.js";
 import {
   DocumentKind,
   GeoPoint,
@@ -136,6 +137,7 @@ export function operationsRoutes(app: FastifyInstance, ctx: AppContext) {
     if (driving && body.geo) {
       const prior = ctx.store.positions.get(account.id);
       if (!prior || prior.at <= event.at) ctx.store.positions.set(account.id, { accountId: account.id, geo: body.geo, at: event.at });
+      recordFix(ctx.store, account.id, { geo: body.geo, at: event.at }, ctx.now(), { autoDuty: false });
     }
     const next = saveLoad(ctx, applyStatusEvent(load, event));
     const where = body.city ? ` · ${body.city}${body.state ? `, ${body.state}` : ""}` : "";
@@ -162,6 +164,8 @@ export function operationsRoutes(app: FastifyInstance, ctx: AppContext) {
     const load = getLoad(ctx, account.id, param(req));
     const msgs = ctx.store.messages.filter((m) => m.loadId === load.id);
     ctx.store.reads.set(`${account.id}:load:${load.id}`, ctx.now().toISOString());
+    // Reading the thread clears its message notifications.
+    for (const n of ctx.store.notifications.get(account.id) ?? []) if (n.kind === "MESSAGE" && n.loadId === load.id) n.read = true;
     return msgs.map((m) => ({ ...m, senderName: ctx.store.accounts.get(m.senderAccountId)?.name ?? "Logistics Pro" }));
   });
 
@@ -171,7 +175,9 @@ export function operationsRoutes(app: FastifyInstance, ctx: AppContext) {
     const { body } = parse(z.object({ body: z.string().trim().min(1).max(4000) }), req.body);
     const senderOrgId = ctx.store.membershipsOf(account.id).find((m) => [load.shipperOrgId, load.brokerOrgId, load.carrierOrgId].includes(m.orgId))?.orgId;
     reply.code(201);
-    return postMessage(ctx, load, { senderAccountId: account.id, senderOrgId, kind: "TEXT", body });
+    const msg = postMessage(ctx, load, { senderAccountId: account.id, senderOrgId, kind: "TEXT", body });
+    ctx.notifier.messagePosted(msg, load);
+    return msg;
   });
 
   app.get("/v1/messages/threads", auth, async (req) => {

@@ -22,6 +22,8 @@ export type StackParams = {
   JoinCarrier: undefined;
   Reliability: undefined;
   Alerts: undefined;
+  Hours: undefined;
+  Notifications: undefined;
 };
 
 export const useNav = () => useNavigation<NavigationProp<StackParams>>();

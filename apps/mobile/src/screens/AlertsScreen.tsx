@@ -1,15 +1,14 @@
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useState } from "react";
-import { Switch, View } from "react-native";
+import { View } from "react-native";
 import { api, errorMessage } from "../api/client";
 import { IS_WEB } from "../config";
 import { useNav } from "../navigation/types";
 import { browserNotifications, registerForPush } from "../state/notifications";
 import { ARRIVAL, type Arrival } from "../ui/arrival";
-import { Banner, Body, Button, Chip, Empty, Field, Padded, Row, Screen, Section } from "../ui/components";
+import { Banner, Body, Button, Chip, Empty, Field, Padded, Row, Screen, Section, ToggleRow } from "../ui/components";
 import { confirm, notify } from "../ui/dialog";
 import { when } from "../ui/format";
-import { useTheme } from "../ui/theme";
 
 type Status = Exclude<Arrival, "UNKNOWN">;
 interface Prefs {
@@ -23,7 +22,7 @@ interface Prefs {
 }
 interface InboxItem {
   id: string;
-  kind: "ARRIVAL" | "SUMMARY" | "TEST";
+  kind: "ARRIVAL" | "SUMMARY" | "TEST" | "TENDER" | "MESSAGE";
   title: string;
   body: string;
   loadId?: string;
@@ -42,11 +41,6 @@ const normalizeTime = (t: string) => {
   return m ? `${m[1]!.padStart(2, "0")}:${m[2]}` : t.trim();
 };
 const display = (t: string) => new Date(`2000-01-01T${t}:00`).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-
-function Toggle({ title, subtitle, value, onChange }: { title: string; subtitle?: string; value: boolean; onChange: (v: boolean) => void }) {
-  const { colors } = useTheme();
-  return <Row title={title} subtitle={subtitle} right={<Switch accessibilityLabel={title} value={value} onValueChange={onChange} trackColor={{ true: colors.primary }} />} />;
-}
 
 /**
  * Arrival alerts: pick the statuses to hear about (late, at risk, early, on
@@ -135,8 +129,8 @@ export function AlertsScreen() {
       </Section>
 
       <Section title="When" footer={`Times are in ${prefs.timeZone}.`}>
-        <Toggle title="Right away" subtitle="A push the moment the app decides a shipment has become one of these" value={prefs.instant} onChange={(v) => change({ instant: v })} />
-        <Toggle title="On a schedule" subtitle="A summary of every shipment in these statuses at set times" value={scheduleOn} onChange={(v) => { setScheduleOn(v); setDirty(true); }} />
+        <ToggleRow title="Right away" subtitle="A push the moment the app decides a shipment has become one of these" value={prefs.instant} onChange={(v) => change({ instant: v })} />
+        <ToggleRow title="On a schedule" subtitle="A summary of every shipment in these statuses at set times" value={scheduleOn} onChange={(v) => { setScheduleOn(v); setDirty(true); }} />
         {scheduleOn ? (
           <Padded>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -154,7 +148,7 @@ export function AlertsScreen() {
             </View>
           </Padded>
         ) : null}
-        {scheduleOn ? <Toggle title="Skip empty summaries" subtitle="Don't send a summary when nothing matches" value={schedule.skipWhenEmpty} onChange={(v) => setSchedule({ skipWhenEmpty: v })} /> : null}
+        {scheduleOn ? <ToggleRow title="Skip empty summaries" subtitle="Don't send a summary when nothing matches" value={schedule.skipWhenEmpty} onChange={(v) => setSchedule({ skipWhenEmpty: v })} /> : null}
         <Padded>
           <Field label="Time zone" value={prefs.timeZone} onChangeText={(v) => change({ timeZone: v.trim() })} autoCapitalize="none" hint="IANA name, e.g. America/Chicago" />
         </Padded>
@@ -202,7 +196,7 @@ export function AlertsScreen() {
 
       <Section title="Recent alerts">
         {inbox.length === 0 ? <Empty title="No alerts yet" message="Alerts appear here as well as on your phone." /> : null}
-        {inbox.map((i) => (
+        {inbox.filter((i) => ["ARRIVAL", "SUMMARY", "TEST"].includes(i.kind)).map((i) => (
           <Row
             key={i.id}
             title={i.title}

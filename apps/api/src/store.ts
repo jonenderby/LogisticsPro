@@ -1,4 +1,4 @@
-import type { Account, AlertPreferences, AppointmentMiss, ArrivalStatus, Bid, Invoice, JoinCode, JoinRequest, Load, LoadException, Membership, Message, Organization, ShipmentOutcome } from "@logisticspro/domain";
+import type { Account, AlertPreferences, AppointmentMiss, ArrivalStatus, Bid, DutyEvent, HosCycle, TrackPoint, Invoice, JoinCode, JoinRequest, Load, LoadException, Membership, Message, Organization, ShipmentOutcome } from "@logisticspro/domain";
 import type { PartnerProfile, Transmission } from "@logisticspro/integration";
 import type { Violation } from "@logisticspro/navigation";
 
@@ -14,9 +14,18 @@ export interface PushToken {
   createdAt: string;
 }
 
+export interface NotificationSettings {
+  tenders: boolean;
+  messages: boolean;
+  /** From the phone or browser, for times in notification text. */
+  timeZone?: string;
+}
+
 export interface InboxItem {
   id: string;
-  kind: "ARRIVAL" | "SUMMARY" | "TEST";
+  kind: "ARRIVAL" | "SUMMARY" | "TEST" | "TENDER" | "MESSAGE";
+  /** What a tap opens. */
+  target?: "LOAD" | "THREAD";
   title: string;
   body: string;
   loadId?: string;
@@ -77,8 +86,18 @@ export class MemoryStore {
   appointmentMisses = new Map<string, AppointmentMiss[]>();
   /** Latest reported position per driver account. */
   positions = new Map<string, DriverPosition>();
+  /** Duty status log per driver (hours of service). */
+  dutyLogs = new Map<string, DutyEvent[]>();
+  /** Location trail per driver, kept for 9 days, for miles driven. */
+  tracks = new Map<string, TrackPoint[]>();
+  /** Hours-of-service cycle per driver. */
+  hosSettings = new Map<string, { cycle: HosCycle }>();
+  /** Since when a driver's truck has been stopped while driving (automatic duty status). */
+  stoppedSince = new Map<string, string>();
   /** Arrival alert settings per account. */
   alertPrefs = new Map<string, AlertPreferences>();
+  /** Tender and message notification switches per account. */
+  notificationSettings = new Map<string, NotificationSettings>();
   /** Phone push tokens per account. */
   pushTokens = new Map<string, PushToken[]>();
   /** In-app alert inbox per account, newest first. */

@@ -1,4 +1,4 @@
-import type { Bid, Invoice, Load, Message, PublicAccount, Organization, MemberRole } from "@logisticspro/domain";
+import type { Bid, DutyEvent, HosClock, Invoice, Load, Message, PublicAccount, Organization, MemberRole } from "@logisticspro/domain";
 import type { ActionItem, Workspace } from "@logisticspro/workspace";
 
 export type { Bid, Invoice, Load, Message, ActionItem, Workspace };
@@ -10,6 +10,16 @@ export interface MeResponse {
   ownerOperator: boolean;
   workspace: Workspace;
   feed: ActionItem[];
+  /** Drivers only: hours of service right now. */
+  hos?: HosView;
+}
+
+export interface HosView extends HosClock {
+  milesThisShift: number;
+  milesLeft: number;
+  avgMph: number;
+  avgMphSource: "SHIFT" | "DEFAULT";
+  log?: DutyEvent[];
 }
 
 export interface Transmission {
