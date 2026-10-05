@@ -59,6 +59,10 @@ describe("central AS2 station", () => {
     expect(r990.mdn).toMatchObject({ signed: true, processed: true });
     expect(as2.micMatches(r990.mdn.mic, r990.msg.mic)).toBe(true);
     expect(await A.get(`/v1/loads/${load.id}`)).toMatchObject({ status: "BOOKED", references: { pro: "RL-PRO-9" } });
+    // The 990 is the carrier's signature on the rate confirmation.
+    const rc = (await A.get(`/v1/loads/${load.id}/rate-confirmation`)).current;
+    expect(rc).toMatchObject({ version: 1, status: "SIGNED", carrier: { partnerKey: "rl" }, references: { pro: "RL-PRO-9" } });
+    expect(rc.signatures.map((x: { side: string; method: string }) => `${x.side}:${x.method}`)).toEqual(["TENDERING:TENDER", "CARRIER:PARTNER_RESPONSE"]);
 
     await send(engine.render("SHIPMENT_STATUS", { shipmentId: load.loadNumber, carrierScac: "RLCA", statusCode: "LOADED", reason: "NORMAL", at: "2026-10-06T14:05:00Z", location: { city: "Bronx", state: "NY" }, references: {} }, rlProfile).body);
     expect((await A.get(`/v1/loads/${load.id}`)).status).toBe("IN_TRANSIT");

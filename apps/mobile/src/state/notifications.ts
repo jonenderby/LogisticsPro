@@ -57,16 +57,18 @@ export async function unregisterPush(): Promise<void> {
 }
 
 /**
- * What a tapped notification opens: the load, or its message thread.
+ * What a tapped notification opens: the load, its message thread, or an invoice.
  */
-export interface OpenTarget {
-  loadId: string;
-  open?: "LOAD" | "THREAD";
-  loadNumber?: string;
-}
+export type OpenTarget =
+  | { open?: "LOAD" | "THREAD"; loadId: string; loadNumber?: string }
+  | { open: "INVOICE"; invoiceId: string };
 
 const targetOf = (d: Record<string, unknown> | undefined): OpenTarget | undefined =>
-  typeof d?.loadId === "string" ? { loadId: d.loadId, open: d.open === "THREAD" ? "THREAD" : "LOAD", loadNumber: typeof d.loadNumber === "string" ? d.loadNumber : undefined } : undefined;
+  d?.open === "INVOICE" && typeof d.invoiceId === "string"
+    ? { open: "INVOICE", invoiceId: d.invoiceId }
+    : typeof d?.loadId === "string"
+      ? { loadId: d.loadId, open: d.open === "THREAD" ? "THREAD" : "LOAD", loadNumber: typeof d.loadNumber === "string" ? d.loadNumber : undefined }
+      : undefined;
 
 /**
  * While signed in: refresh this phone's token if permission was already given
@@ -96,7 +98,8 @@ interface InboxItem {
   title: string;
   body: string;
   loadId?: string;
-  target?: "LOAD" | "THREAD";
+  invoiceId?: string;
+  target?: "LOAD" | "THREAD" | "INVOICE";
   read: boolean;
 }
 
@@ -122,7 +125,8 @@ export function useBrowserAlerts(signedIn: boolean, openLoad: (t: OpenTarget) =>
         const n = new Notification(item.title, { body: item.body, tag: item.id });
         n.onclick = () => {
           window.focus();
-          if (item.loadId) open.current({ loadId: item.loadId, open: item.target, loadNumber: item.title.split(" · ")[1] });
+          if (item.target === "INVOICE" && item.invoiceId) open.current({ open: "INVOICE", invoiceId: item.invoiceId });
+          else if (item.loadId) open.current({ loadId: item.loadId, open: item.target === "THREAD" ? "THREAD" : "LOAD", loadNumber: item.title.split(" · ")[1] });
           n.close();
         };
       }

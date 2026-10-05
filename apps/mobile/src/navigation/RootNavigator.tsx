@@ -26,6 +26,8 @@ import { AlertsScreen } from "../screens/AlertsScreen";
 import { DrivingLock } from "../ui/DrivingLock";
 import { HoursScreen } from "../screens/HoursScreen";
 import { FuelTaxScreen } from "../screens/FuelTaxScreen";
+import { RateConfirmationScreen } from "../screens/RateConfirmationScreen";
+import { InvoiceDetailScreen } from "../screens/MoneyScreens";
 import { NotificationsScreen } from "../screens/NotificationsScreen";
 import { Icon } from "../ui/Icon";
 import { useLayout } from "../ui/responsive";
@@ -67,6 +69,8 @@ const SHARED: Array<{ name: keyof StackParams; component: ComponentType; title: 
   { name: "Hours", component: HoursScreen, title: "Hours of service" },
   { name: "FuelTax", component: FuelTaxScreen, title: "Fuel tax (IFTA)" },
   { name: "Notifications", component: NotificationsScreen, title: "Notifications" },
+  { name: "RateConfirmation", component: RateConfirmationScreen, title: "Rate confirmation" },
+  { name: "InvoiceDetail", component: InvoiceDetailScreen, title: "Invoice" },
 ];
 
 function stackFor(root: TabRoot) {
@@ -117,7 +121,8 @@ function AppNavigation() {
       pendingLoad.current = t;
       return;
     }
-    if (t.open === "THREAD") navigationRef.navigate(firstTab.current, { screen: "Thread", params: { loadId: t.loadId, title: t.loadNumber ?? "Messages" } });
+    if (t.open === "INVOICE") navigationRef.navigate(firstTab.current, { screen: "InvoiceDetail", params: { id: t.invoiceId } });
+    else if (t.open === "THREAD") navigationRef.navigate(firstTab.current, { screen: "Thread", params: { loadId: t.loadId, title: t.loadNumber ?? "Messages" } });
     else navigationRef.navigate(firstTab.current, { screen: "LoadDetail", params: { id: t.loadId } });
   }, []);
   const [routeName, setRouteName] = useState<string>();

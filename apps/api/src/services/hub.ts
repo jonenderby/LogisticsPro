@@ -263,8 +263,8 @@ export class IntegrationHub {
         if (!load || load.externalCarrierKey !== partnerKey) throw new HttpError(404, "NOT_FOUND", `No tender ${r.shipmentId} to ${partnerKey}`);
         const next: Load =
           r.decision === "ACCEPT"
-            ? { ...load, status: "BOOKED", references: { ...load.references, pro: r.carrierReference ?? load.references.pro } }
-            : { ...load, status: "DRAFT", externalCarrierKey: undefined };
+            ? { ...load, status: "BOOKED", references: { ...load.references, pro: r.carrierReference ?? load.references.pro }, tender: { ...load.tender, at: load.tender?.at ?? now, acceptedAt: now, via: "PARTNER" } }
+            : { ...load, status: "DRAFT", externalCarrierKey: undefined, tender: undefined };
         this.store.loads.set(load.id, { ...next, version: load.version + 1, updatedAt: now });
         this.onLoadSaved?.(load, this.store.loads.get(load.id)!);
         return { loadId: load.id, action: r.decision === "ACCEPT" ? "booked" : "declined" };

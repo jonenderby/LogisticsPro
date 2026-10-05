@@ -19,7 +19,7 @@ import {
   statusText,
   transition,
 } from "@logisticspro/domain";
-import { ChargeCode, detention, detentionLines, loadParties } from "@logisticspro/domain";
+import { ChargeCode, DEFAULT_PAYER_TERMS, detention, detentionLines, dueDate, loadParties, termsDays } from "@logisticspro/domain";
 import { LEGAL_TRUCK, NoRouteError, type Restriction, checkOversizeTrip } from "@logisticspro/navigation";
 import { withGeo } from "../services/geocode.js";
 import type { FastifyInstance } from "fastify";
@@ -222,11 +222,20 @@ export function operationsRoutes(app: FastifyInstance, ctx: AppContext) {
     // Detention owed at any stop goes on the invoice unless the biller entered it by hand.
     const terms = detentionTerms(ctx, load);
     const owed = body.lines?.some((l) => l.code === "DETENTION") ? [] : detentionLines(detention(load, terms, ctx.now().toISOString()), terms);
-    const inv = buildInvoice(load, { orgId: carrier.id, scac: carrier.scac }, account.id, { ...body, lines: body.lines || owed.length ? [...(body.lines ?? []), ...owed] : undefined }, ctx.now().toISOString());
+    const payer = ctx.store.orgs.get(load.billTo.orgId ?? load.brokerOrgId ?? load.shipperOrgId);
+    const payerDays = (payer?.payerTerms ?? DEFAULT_PAYER_TERMS).termsDays;
+    const built = buildInvoice(load, { orgId: carrier.id, scac: carrier.scac }, account.id, { ...body, terms: body.terms ?? `NET${payerDays}`, lines: body.lines || owed.length ? [...(body.lines ?? []), ...owed] : undefined }, ctx.now().toISOString());
+    // Paid to the factoring company when the carrier has one; fixed now so a later change can't redirect this invoice.
+    const remitTo = carrier.factoring
+      ? { kind: "FACTOR" as const, name: carrier.factoring.company, email: carrier.factoring.email, address: carrier.factoring.address }
+      : { kind: "CARRIER" as const, name: carrier.name, address: carrier.address };
+    const paperwork = load.documents.filter((d) => ["BOL", "POD", "LUMPER_RECEIPT", "SCALE_TICKET"].includes(d.kind)).map((d) => d.id);
+    const inv = { ...built, termsDays: body.terms ? termsDays(body.terms) : payerDays, remitTo, documentIds: paperwork, payments: [], history: [] };
     const transmissions = await ctx.hub.invoice(inv, load);
     const delivered = transmissions.some((t) => t.status === "SENT") || (!!inv.billTo.orgId && ctx.store.orgs.has(inv.billTo.orgId));
-    const saved = { ...inv, status: delivered ? ("SENT" as const) : ("DRAFT" as const) };
+    const saved = { ...inv, status: delivered ? ("SENT" as const) : ("DRAFT" as const), history: [{ status: delivered ? "SENT" : "DRAFT", at: inv.issuedAt, byAccountId: account.id }] };
     ctx.store.invoices.set(saved.id, saved);
+    if (delivered) ctx.notifier.payment(saved.billTo.orgId, [], { title: `Invoice ${saved.invoiceNumber}: $${saved.total.toFixed(2)}`, body: `${carrier.name} invoiced load ${load.loadNumber}. Due ${dueDate(saved)}.${paperwork.length ? ` ${paperwork.length} document${paperwork.length > 1 ? "s" : ""} attached.` : ""}`, loadId: load.id, invoiceId: saved.id });
     if (delivered) saveLoad(ctx, transition(load, "INVOICED", ctx.now().toISOString()));
     reply.code(201);
     return { invoice: saved, transmissions };
@@ -241,23 +250,6 @@ export function operationsRoutes(app: FastifyInstance, ctx: AppContext) {
     const terms = detentionTerms(ctx, load);
     const stops = detention(load, terms, ctx.now().toISOString());
     return { terms, stops, total: Math.round(stops.reduce((s, r) => s + r.amount, 0) * 100) / 100 };
-  });
-
-  app.get("/v1/invoices", auth, async (req) => {
-    const account = me(ctx, req);
-    const mine = new Set(ctx.store.membershipsOf(account.id).map((m) => m.orgId));
-    return [...ctx.store.invoices.values()].filter((i) => mine.has(i.carrierOrgId) || (i.billTo.orgId && mine.has(i.billTo.orgId)) || i.createdByAccountId === account.id);
-  });
-
-  app.post("/v1/invoices/:id/status", auth, async (req) => {
-    const account = me(ctx, req);
-    const inv = ctx.store.invoices.get(param(req));
-    if (!inv) throw new HttpError(404, "NOT_FOUND", "Invoice not found");
-    requireOrgCap(ctx, account.id, inv.billTo.orgId, "PAY");
-    const { status } = parse(z.object({ status: z.enum(["ACKNOWLEDGED", "PAID", "REJECTED"]) }), req.body);
-    const next = { ...inv, status };
-    ctx.store.invoices.set(inv.id, next);
-    return next;
   });
 
   // ---------------------------------------------------------------- navigation

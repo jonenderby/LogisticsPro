@@ -208,6 +208,10 @@ export const Load = z.object({
   visits: z.array(StopVisitSchema).optional(),
   /** When the current carrier was given the load. A carrier is never charged for an appointment missed before this. */
   carrierSince: z.string().optional(),
+  /** Who tendered the load to its current carrier, and who accepted (the two rate-confirmation signatures). */
+  tender: z
+    .object({ byAccountId: z.string().optional(), at: z.string(), acceptedByAccountId: z.string().optional(), acceptedAt: z.string().optional(), via: z.enum(["APP", "PARTNER"]).optional() })
+    .optional(),
   legs: z.array(Leg).default([]),
   events: z.array(LoadEvent).default([]),
   documents: z.array(LoadDocument).default([]),

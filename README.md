@@ -30,7 +30,7 @@ One app and one integration hub for truckers, carriers, 3PLs and shippers.
 | `apps/api` | Fastify API server: auth with mandatory 2FA, companies, loads, board, dispatch, status, messaging, invoices, integrations, inbound API/EDI. |
 | `apps/mobile` | Expo (React Native) app: iOS, Android and the website from one codebase. |
 | `deploy/` | Docker Compose with the API, Valhalla (truck routing) and Nominatim (address search); a synthetic map for testing Valhalla. |
-| `docs/` | [Architecture](docs/ARCHITECTURE.md), [integrations and carrier catalog](docs/INTEGRATIONS.md), [EDI and AS2](docs/EDI_AS2.md), [navigation and addresses](docs/NAVIGATION.md), [truckers, carriers and reliability](docs/NETWORK_AND_RELIABILITY.md), [live tracking, ETAs and notifications](docs/TRACKING.md), [hours of service](docs/HOURS_OF_SERVICE.md), [fuel tax](docs/FUEL_TAX.md), [roadmap](docs/ROADMAP.md). |
+| `docs/` | [Architecture](docs/ARCHITECTURE.md), [integrations and carrier catalog](docs/INTEGRATIONS.md), [EDI and AS2](docs/EDI_AS2.md), [navigation and addresses](docs/NAVIGATION.md), [truckers, carriers and reliability](docs/NETWORK_AND_RELIABILITY.md), [live tracking, ETAs and notifications](docs/TRACKING.md), [hours of service](docs/HOURS_OF_SERVICE.md), [fuel tax](docs/FUEL_TAX.md), [rate confirmations and getting paid](docs/PAYMENTS.md), [roadmap](docs/ROADMAP.md). |
 
 ## Quick start
 
@@ -76,6 +76,8 @@ Copy `.env.example` to `.env` and set `LP_JWT_SECRET` before running anywhere bu
 | Reliability profiles (drivers and carriers, overall and per business) | `packages/domain/src/reliability.ts`, `apps/api/src/routes/reliability.ts` |
 | Push notifications for tenders and messages | `apps/api/src/services/notify.ts`, `apps/mobile/src/screens/NotificationsScreen.tsx`; see [docs/TRACKING.md](docs/TRACKING.md#tender-and-message-notifications) |
 | Drivers see miles driven, miles left and legal driving time left | `packages/domain/src/hos.ts`, `apps/api/src/services/hos.ts`, `apps/mobile/src/ui/Hos.tsx`; see [docs/HOURS_OF_SERVICE.md](docs/HOURS_OF_SERVICE.md) |
+| Rate confirmations signed at tender acceptance, revised and re-signed when the load changes | `packages/domain/src/rateconfirmation.ts`, `apps/api/src/services/rateconfirmations.ts`, `apps/mobile/src/screens/RateConfirmationScreen.tsx`; see [docs/PAYMENTS.md](docs/PAYMENTS.md) |
+| Getting paid: invoice status, quick pay, factoring and aging | `packages/domain/src/payments.ts`, `apps/api/src/routes/payments.ts`, `apps/mobile/src/screens/MoneyScreens.tsx`; see [docs/PAYMENTS.md](docs/PAYMENTS.md#getting-paid) |
 | Fuel tax miles by state and province, fuel purchases and the quarterly IFTA report | `apps/api/src/services/ifta.ts`, `packages/domain/src/ifta.ts`, `apps/mobile/src/screens/FuelTaxScreen.tsx`; see [docs/FUEL_TAX.md](docs/FUEL_TAX.md) |
 | Push and scheduled alerts for late, at-risk, early or on-time shipments | `packages/domain/src/alerts.ts`, `apps/api/src/services/alerts.ts`, `apps/mobile/src/screens/AlertsScreen.tsx`; see [docs/TRACKING.md](docs/TRACKING.md#arrival-alerts) |
 | Businesses ding carriers for missed appointments; truckers in several carriers only affect the carrier hauling | `AppointmentMiss` and `missedAppointmentOutcomes` in `packages/domain/src/reliability.ts`; see [docs/NETWORK_AND_RELIABILITY.md](docs/NETWORK_AND_RELIABILITY.md#missed-appointments) |

@@ -22,6 +22,9 @@ import { Tokens } from "./security/tokens.js";
 import { AlertEngine } from "./services/alerts.js";
 import { Notifier } from "./services/notify.js";
 import { refreshRoutes } from "./services/routes.js";
+import { rateConOnSave } from "./services/rateconfirmations.js";
+import { rateConRoutes } from "./routes/rateconfirmations.js";
+import { paymentRoutes } from "./routes/payments.js";
 import { checkDetention } from "./services/stops.js";
 import { PgPersistence } from "./persistence/postgres.js";
 import { IntegrationHub } from "./services/hub.js";
@@ -79,7 +82,10 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   };
   ctx.notifier = new Notifier(ctx);
   ctx.alerts = new AlertEngine(ctx);
-  ctx.hub.onLoadSaved = (prior, next) => ctx.notifier.loadSaved(prior, next);
+  ctx.hub.onLoadSaved = (prior, next) => {
+    ctx.notifier.loadSaved(prior, next);
+    rateConOnSave(ctx, prior, next);
+  };
 
   const app = Fastify({ logger: opts.logger ?? false, bodyLimit: 5 * 1024 * 1024 });
   // Credentialed CORS (the web session cookie) only for configured origins.
@@ -123,6 +129,8 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   alertRoutes(app, ctx);
   hosRoutes(app, ctx);
   iftaRoutes(app, ctx);
+  rateConRoutes(app, ctx);
+  paymentRoutes(app, ctx);
 
   if (cfg.alertIntervalSeconds > 0) {
     const timer = setInterval(() => {

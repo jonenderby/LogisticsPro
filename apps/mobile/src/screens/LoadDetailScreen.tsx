@@ -1,5 +1,6 @@
 import { ON_TIME_GRACE_MINUTES, carrierKeyOf } from "@logisticspro/domain";
 import { nextDriverAction } from "@logisticspro/workspace";
+import { RATE_CON_STATUS } from "./RateConfirmationScreen";
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useState } from "react";
 import { View } from "react-native";
@@ -63,6 +64,7 @@ export function LoadDetailScreen() {
   const [pro, setPro] = useState("");
   const [docName, setDocName] = useState("");
   const [docUrl, setDocUrl] = useState("");
+  const [rateCon, setRateCon] = useState<{ version: number; status: keyof typeof RATE_CON_STATUS }>();
 
   const fetchLoad = useCallback(async () => {
     const l = await api.get<LoadDetail>(`/v1/loads/${id}`);
@@ -82,6 +84,8 @@ export function LoadDetailScreen() {
           ? await api.get<CarrierScore>(`/v1/reliability/partners/${encodeURIComponent(l.externalCarrierKey)}?orgId=${l.brokerOrgId ?? l.shipperOrgId}`).catch(() => undefined)
           : undefined,
     );
+    const rc = hasCarrier && !["DRAFT", "POSTED", "TENDERED"].includes(l.status) ? await api.get<{ current?: { version: number; status: keyof typeof RATE_CON_STATUS } }>(`/v1/loads/${id}/rate-confirmation`).catch(() => undefined) : undefined;
+    setRateCon(rc?.current);
     if (l.pickedUpAt) setExceptions(await api.get<LoadExceptionView[]>(`/v1/loads/${id}/exceptions`).catch(() => []));
   }, [id, nav, me]);
   useFocusEffect(
@@ -132,11 +136,13 @@ export function LoadDetailScreen() {
         load.refinement.locked ? <Banner tone="neutral" title="Details locked" message={load.refinement.reason} /> : <Banner tone="info" title="You can still change this load" message="Edits stay open until the driver picks up or you confirm shipment. Your carrier is notified of every change." />
       ) : null}
 
+      {rateCon?.status === "AWAITING_CARRIER" && rel.dispatcher ? <Banner tone="warning" title="The shipper changed this load" message="Review and sign the new rate confirmation." /> : null}
       <Section title="Summary">
         <Row title="Status" right={<StatusPill status={load.status} />} />
         <Row title="Service" value={`${MODE[load.mode]} · ${titleCase(load.service)}${load.teamRequired && load.service !== "TEAM_EXPEDITED" ? " · team" : ""}`} />
         <Row title="Equipment" value={`${titleCase(load.equipment.type)} ${load.equipment.lengthFt}'`} />
         {load.rate ? <Row title="Rate" value={money(load.rate.amount, load.rate.currency)} /> : null}
+        {rateCon ? <Row title="Rate confirmation" subtitle={`Version ${rateCon.version}`} right={<Chip label={RATE_CON_STATUS[rateCon.status].label} tone={RATE_CON_STATUS[rateCon.status].tone} />} onPress={() => nav.navigate("RateConfirmation", { loadId: load.id })} /> : null}
         {load.references.bol ? <Row title="BOL" value={load.references.bol} /> : null}
         {load.references.pro ? <Row title="PRO" value={load.references.pro} /> : null}
         {load.references.po.length ? <Row title="PO" value={load.references.po.join(", ")} /> : null}

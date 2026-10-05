@@ -1,4 +1,4 @@
-import type { Account, AlertPreferences, AppointmentMiss, ArrivalStatus, Bid, DailyMiles, DutyEvent, FuelPurchase, HosCycle, TrackPoint, Invoice, JoinCode, JoinRequest, Load, LoadException, Membership, Message, Organization, ShipmentOutcome } from "@logisticspro/domain";
+import type { Account, AlertPreferences, AppointmentMiss, ArrivalStatus, Bid, DailyMiles, DutyEvent, FuelPurchase, HosCycle, TrackPoint, Invoice, JoinCode, JoinRequest, Load, LoadException, RateConfirmation, Membership, Message, Organization, ShipmentOutcome } from "@logisticspro/domain";
 import type { PartnerProfile, Transmission } from "@logisticspro/integration";
 import type { Violation } from "@logisticspro/navigation";
 import { AppendLog, type ChangeSink, type Persisted, PersistentList, PersistentMap } from "./persistence/collections.js";
@@ -20,15 +20,18 @@ export interface NotificationSettings {
   messages: boolean;
   /** Detention starting at a stop (shippers and dispatch). */
   detention?: boolean;
+  /** Invoices and payments (people who bill or pay). */
+  payments?: boolean;
   /** From the phone or browser, for times in notification text. */
   timeZone?: string;
 }
 
 export interface InboxItem {
   id: string;
-  kind: "ARRIVAL" | "SUMMARY" | "TEST" | "TENDER" | "MESSAGE" | "STOP" | "DETENTION";
+  kind: "ARRIVAL" | "SUMMARY" | "TEST" | "TENDER" | "MESSAGE" | "STOP" | "DETENTION" | "PAYMENT";
   /** What a tap opens. */
-  target?: "LOAD" | "THREAD";
+  target?: "LOAD" | "THREAD" | "INVOICE";
+  invoiceId?: string;
   title: string;
   body: string;
   loadId?: string;
@@ -108,6 +111,8 @@ export class MemoryStore {
   stoppedSince = new PersistentMap<string>("stoppedSince");
   /** Routed distance and driving time for what is left of a moving load, from the routing server. */
   routeEstimates = new PersistentMap<RouteEstimate>("routeEstimates");
+  /** Rate confirmation versions per load, oldest first. */
+  rateConfirmations = new PersistentMap<RateConfirmation[]>("rateConfirmations");
   /** Miles per jurisdiction per truck per day, "<carrierOrgId>|<vehicle>|<date>" (fuel tax). */
   jurisdictionMiles = new PersistentMap<DailyMiles>("jurisdictionMiles");
   /** Fuel purchases entered by drivers and the office, by id. */

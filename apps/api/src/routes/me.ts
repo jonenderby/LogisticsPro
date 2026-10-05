@@ -36,13 +36,19 @@ export function meRoutes(app: FastifyInstance, ctx: AppContext) {
       .map((l) => ({ load: l, eta: etaFor(ctx.store, l, ctx.now()) }))
       .filter((x) => x.eta.status === "LATE" || x.eta.status === "AT_RISK")
       .map((x) => ({ loadId: x.load.id, loadNumber: x.load.loadNumber, status: x.eta.status as "LATE" | "AT_RISK", eta: x.eta.eta, reason: x.eta.reasons[0] }));
+    const signers = new Set([...caps.byOrg].filter(([, s]) => s.has("DISPATCH")).map(([id]) => id));
+    const rateConsToSign = loads
+      .filter((l) => l.carrierOrgId && signers.has(l.carrierOrgId))
+      .map((l) => ({ l, rc: ctx.store.rateConfirmations.get(l.id)?.at(-1) }))
+      .filter((x) => x.rc?.status === "AWAITING_CARRIER")
+      .map((x) => ({ loadId: x.l.id, loadNumber: x.l.loadNumber, version: x.rc!.version, changes: x.rc!.changes }));
     return {
       account: toPublicAccount(account),
       orgs: ctx.store.orgsOf(account.id).map((o) => ({ ...o, roles: ctx.store.membershipsOf(account.id).find((m) => m.orgId === o.id)!.roles })),
       capabilities: [...caps.all].sort(),
       ownerOperator: caps.ownerOperator,
       workspace: buildWorkspace(caps),
-      feed: buildFeed(caps, { accountId: account.id, loads, boardLoads, bids, invoices, unreadByLoad, joinRequests, arrivalAlerts, now: ctx.now().toISOString() }),
+      feed: buildFeed(caps, { accountId: account.id, loads, boardLoads, bids, invoices, unreadByLoad, joinRequests, arrivalAlerts, rateConsToSign, now: ctx.now().toISOString() }),
       hos: caps.all.has("DRIVE") ? { ...hosFor(ctx.store, account.id, ctx.now()), teamTruck: onTeamTruck(ctx.store, account.id) } : undefined,
     };
   });

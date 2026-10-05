@@ -32,7 +32,7 @@ export class Notifier {
     const { store } = this.ctx;
     const entry: InboxItem = { id: newId("ntf"), at: this.ctx.now().toISOString(), read: false, ...item };
     store.notifications.set(accountId, [entry, ...(store.notifications.get(accountId) ?? [])].slice(0, INBOX_LIMIT));
-    const data: Record<string, string> = { notificationId: entry.id, kind: item.kind, ...(item.loadId ? { loadId: item.loadId } : {}), ...(item.target ? { open: item.target } : {}), ...extra };
+    const data: Record<string, string> = { notificationId: entry.id, kind: item.kind, ...(item.loadId ? { loadId: item.loadId } : {}), ...(item.invoiceId ? { invoiceId: item.invoiceId } : {}), ...(item.target ? { open: item.target } : {}), ...extra };
     return (store.pushTokens.get(accountId) ?? []).map((t) => ({ to: t.token, title: item.title, body: item.body, data }));
   }
 
@@ -88,7 +88,18 @@ export class Notifier {
   }
 
   /** Members of an org who hold a capability there. */
-  private holders(orgId: string | undefined, cap: "SHIP" | "BROKER" | "DISPATCH"): string[] {
+  /** Invoice and payment news, to the people who handle money at an organization and anyone else named. */
+  payment(orgId: string | undefined, also: Array<string | undefined>, item: { title: string; body: string; loadId?: string; invoiceId?: string }): void {
+    const to = new Set([...this.holders(orgId, "PAY"), ...also.filter((x): x is string => !!x)]);
+    const pushes: PushMessage[] = [];
+    for (const id of to) {
+      if (this.settings(id).payments === false) continue;
+      pushes.push(...this.deliver(id, { kind: "PAYMENT", target: item.invoiceId ? "INVOICE" : "LOAD", ...item }));
+    }
+    void this.send(pushes);
+  }
+
+  private holders(orgId: string | undefined, cap: "SHIP" | "BROKER" | "DISPATCH" | "PAY"): string[] {
     if (!orgId) return [];
     return this.ctx.store.memberships.filter((m) => m.orgId === orgId && capsOf(this.ctx, m.accountId).byOrg.get(orgId)?.has(cap)).map((m) => m.accountId);
   }

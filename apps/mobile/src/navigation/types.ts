@@ -25,6 +25,8 @@ export type StackParams = {
   Hours: undefined;
   FuelTax: undefined;
   Notifications: undefined;
+  RateConfirmation: { loadId: string };
+  InvoiceDetail: { id: string };
 };
 
 export const useNav = () => useNavigation<NavigationProp<StackParams>>();

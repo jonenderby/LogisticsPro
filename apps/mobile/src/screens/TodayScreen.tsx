@@ -53,6 +53,10 @@ export function TodayScreen() {
           return nav.navigate("Thread", { loadId: item.loadId!, title: item.title });
         case "invoice-review":
           return nav.navigate("Money");
+        case "open-invoice":
+          return item.invoiceId ? nav.navigate("InvoiceDetail", { id: item.invoiceId }) : nav.navigate("Money");
+        case "rate-con":
+          return nav.navigate("RateConfirmation", { loadId: item.loadId! });
         case "track":
           return nav.navigate("Track");
         case "join-carrier":

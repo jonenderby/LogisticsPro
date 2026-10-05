@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Address, DomainError, newId } from "./common.js";
+import { InvoiceHistoryEntry, Payment, QuickPay, RemitTo } from "./payments.js";
 import { type Load, finalDeliveryStop, pickupStop, totalPieces, totalWeightLb } from "./load.js";
 
 export const ChargeCode = z.enum([
@@ -27,7 +28,8 @@ export const InvoiceLine = z.object({
 });
 export type InvoiceLine = z.infer<typeof InvoiceLine>;
 
-export const InvoiceStatus = z.enum(["DRAFT", "SENT", "ACKNOWLEDGED", "PAID", "REJECTED"]);
+export const InvoiceStatus = z.enum(["DRAFT", "SENT", "ACKNOWLEDGED", "APPROVED", "PARTIALLY_PAID", "PAID", "DISPUTED", "REJECTED"]);
+export type InvoiceStatus = z.infer<typeof InvoiceStatus>;
 
 export const Invoice = z.object({
   id: z.string(),
@@ -51,6 +53,16 @@ export const Invoice = z.object({
   issuedAt: z.string(),
   status: InvoiceStatus,
   createdByAccountId: z.string(),
+  /** Days from the invoice date to due, from the payer's terms. */
+  termsDays: z.number().int().optional(),
+  /** Who gets the money: the carrier, or its factoring company. Fixed when the invoice is issued. */
+  remitTo: RemitTo.optional(),
+  quickPay: QuickPay.optional(),
+  payments: z.array(Payment).optional(),
+  history: z.array(InvoiceHistoryEntry).optional(),
+  disputeReason: z.string().optional(),
+  /** Load documents sent with the invoice (BOL, POD, receipts). */
+  documentIds: z.array(z.string()).optional(),
 });
 export type Invoice = z.infer<typeof Invoice>;
 

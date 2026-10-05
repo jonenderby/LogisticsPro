@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DetentionTerms } from "./detention.js";
+import { Factoring, PayerTerms } from "./payments.js";
 import { Address, GeoPoint } from "./common.js";
 
 /**
@@ -30,6 +31,10 @@ export const Organization = z.object({
   distributionCenters: z.array(DistributionCenter).default([]),
   /** A carrier's detention terms; the platform default applies when unset. */
   detention: DetentionTerms.optional(),
+  /** A shipper's or broker's payment terms and quick-pay offer. */
+  payerTerms: PayerTerms.optional(),
+  /** A carrier's factoring company; invoices are paid to it. */
+  factoring: Factoring.optional(),
   createdAt: z.string(),
 });
 export type Organization = z.infer<typeof Organization>;

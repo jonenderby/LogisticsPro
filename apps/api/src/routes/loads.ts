@@ -26,7 +26,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { geocodeStops } from "../services/geocode.js";
 import { carrierProfile } from "../services/reliability.js";
-import { type AppContext, HttpError, authenticate, canSeeLoad, capsOf, getLoad, hasOrgCap, isDriverOn, me, parse, postMessage, requireOrgCap, saveLoad } from "../http.js";
+import { type AppContext, HttpError, authenticate, canSeeLoad, canShip, capsOf, getLoad, hasOrgCap, isDriverOn, me, parse, postMessage, requireOrgCap, saveLoad } from "../http.js";
 
 const StopInput = z.object({
   type: z.enum(["PICKUP", "DELIVERY"]),
@@ -69,11 +69,6 @@ const Refinement = z.object({
 
 function withStopIds(stops: Array<z.infer<typeof StopInput> & { id?: string }>) {
   return stops.map((s, i) => ({ ...s, id: s.id ?? newId("stop"), sequence: i + 1 }));
-}
-
-/** May this account act for the shipping side of the load (shipper or broker)? */
-function canShip(ctx: AppContext, accountId: string, load: Load): boolean {
-  return hasOrgCap(ctx, accountId, load.shipperOrgId, "SHIP") || hasOrgCap(ctx, accountId, load.brokerOrgId, "BROKER");
 }
 
 export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
@@ -146,7 +141,7 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
     const patch = { ...rest, ...(stops ? { stops: withStopIds(stops) } : {}), ...(references ? { references: { ...load.references, ...references } } : {}) };
     const { load: next, changed } = refineLoad(load, patch, ctx.now().toISOString());
     if (changed.length === 0) return { load, changed, transmissions: [] };
-    saveLoad(ctx, next);
+    saveLoad(ctx, next, account.id);
     let transmissions: unknown[] = [];
     if ((next.carrierOrgId || next.externalCarrierKey) && ["TENDERED", "BOOKED", "DISPATCHED", "AT_PICKUP"].includes(next.status)) {
       postMessage(ctx, next, { senderAccountId: account.id, kind: "SYSTEM", body: `Load updated by shipper: ${changed.join(", ")}` });
@@ -295,9 +290,9 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
     const { id, bidId } = req.params as { id: string; bidId: string };
     const load = getLoad(ctx, account.id, id);
     if (!canShip(ctx, account.id, load)) throw new HttpError(403, "FORBIDDEN", "Only the poster can award bids");
-    const { load: next, bids } = awardBid(load, [...ctx.store.bids.values()], bidId, ctx.now().toISOString());
-    bids.forEach((b) => ctx.store.bids.set(b.id, b));
-    saveLoad(ctx, next);
+    const awarded = awardBid(load, [...ctx.store.bids.values()], bidId, ctx.now().toISOString());
+    awarded.bids.forEach((b) => ctx.store.bids.set(b.id, b));
+    const next = saveLoad(ctx, { ...awarded.load, tender: { byAccountId: account.id, at: ctx.now().toISOString() } }, account.id);
     postMessage(ctx, next, { senderAccountId: account.id, kind: "SYSTEM", body: `Load awarded to ${ctx.store.orgs.get(next.carrierOrgId!)?.name ?? "carrier"} at $${next.rate?.amount}` });
     return { load: next, transmissions: await ctx.hub.tender(next, "ORIGINAL") };
   });
@@ -315,6 +310,7 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
       externalCarrierKey: body.partnerKey,
       rate: body.rate ?? load.rate,
       board: undefined,
+      tender: { byAccountId: account.id, at: ctx.now().toISOString() },
     };
     if (body.partnerKey && !ctx.store.profile(next.brokerOrgId ?? next.shipperOrgId, body.partnerKey)) {
       throw new HttpError(409, "PARTNER_NOT_CONFIGURED", `Set up partner "${body.partnerKey}" under Integrations first`);
@@ -332,9 +328,9 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
     const now = ctx.now().toISOString();
     const next: Load =
       body.decision === "ACCEPT"
-        ? { ...transition(load, "BOOKED", now), references: { ...load.references, pro: body.pro ?? load.references.pro } }
-        : { ...transition(load, "DRAFT", now), carrierOrgId: undefined };
-    saveLoad(ctx, next);
+        ? { ...transition(load, "BOOKED", now), references: { ...load.references, pro: body.pro ?? load.references.pro }, tender: { ...load.tender, at: load.tender?.at ?? now, acceptedByAccountId: account.id, acceptedAt: now, via: "APP" } }
+        : { ...transition(load, "DRAFT", now), carrierOrgId: undefined, tender: undefined };
+    saveLoad(ctx, next, account.id);
     postMessage(ctx, body.decision === "ACCEPT" ? next : load, { senderAccountId: account.id, kind: "SYSTEM", body: body.decision === "ACCEPT" ? "Carrier accepted the tender" : `Carrier declined the tender${body.reason ? `: ${body.reason}` : ""}` });
     return { load: next, transmissions: await ctx.hub.tenderResponse(body.decision === "ACCEPT" ? next : load, body.decision, body.reason) };
   });

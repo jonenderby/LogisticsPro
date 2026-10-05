@@ -3,7 +3,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { type AppContext, HttpError, authenticate, me, parse } from "../http.js";
 import { hashPassword, passwordProblems, verifyPassword } from "../security/password.js";
-import { hashCode, newRecoveryCodes, newTotpSecret, otpauthUri, totpStep } from "../security/totp.js";
+import { acceptTotpCode } from "../security/stepup.js";
+import { hashCode, newRecoveryCodes, newTotpSecret, otpauthUri } from "../security/totp.js";
 import { newOpaqueToken, sha256 } from "../security/tokens.js";
 
 const Register = z.object({
@@ -42,16 +43,8 @@ export function authRoutes(app: FastifyInstance, ctx: AppContext) {
   // Lockout is shared across API servers through the store.
   const failures = ctx.store.loginFailures;
 
-  /**
-   * An authenticator code works once (RFC 6238 section 5.2): a code seen on
-   * the wire, or reused within its 30 seconds, cannot open a second session.
-   */
-  const acceptCode = (accountId: string, secret: string, code: string): boolean => {
-    const step = totpStep(secret, code, ctx.now().getTime());
-    if (step === undefined || step <= (ctx.store.totpLastStep.get(accountId) ?? -1)) return false;
-    ctx.store.totpLastStep.set(accountId, step);
-    return true;
-  };
+  /** An authenticator code works once: a code seen on the wire cannot open a second session. */
+  const acceptCode = (accountId: string, secret: string, code: string): boolean => acceptTotpCode(ctx, accountId, secret, code);
 
   const setCookie = (reply: FastifyReply, value: string, maxAge: number) =>
     reply.header("set-cookie", `${COOKIE}=${encodeURIComponent(value)}; HttpOnly; SameSite=Strict; Path=/v1/auth; Max-Age=${maxAge}${ctx.cfg.cookieSecure ? "; Secure" : ""}`);

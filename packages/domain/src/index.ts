@@ -16,3 +16,5 @@ export * from "./hos.js";
 export * from "./matching.js";
 export * from "./detention.js";
 export * from "./ifta.js";
+export * from "./payments.js";
+export * from "./rateconfirmation.js";

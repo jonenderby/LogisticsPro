@@ -18,6 +18,8 @@ const SHARED_PATHS: Record<string, string> = {
   Hours: "hours",
   FuelTax: "fuel-tax",
   Notifications: "notifications",
+  RateConfirmation: "load/:loadId/rate-confirmation",
+  InvoiceDetail: "invoice/:id",
 };
 
 /**

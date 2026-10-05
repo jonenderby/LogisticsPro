@@ -13,6 +13,7 @@ import type { Notifier } from "./services/notify.js";
 import type { PgPersistence } from "./persistence/postgres.js";
 import type { PushSender } from "./services/push.js";
 import { recordOutcome } from "./services/reliability.js";
+import { rateConOnSave } from "./services/rateconfirmations.js";
 import type { MemoryStore } from "./store.js";
 
 export class HttpError extends Error {
@@ -107,19 +108,26 @@ export function canSeeLoad(ctx: AppContext, accountId: string, load: Load): bool
   return load.status === "POSTED" && capsOf(ctx, accountId).all.has("BID");
 }
 
+/** May this account act for the shipping side of the load (shipper or broker)? */
+export function canShip(ctx: AppContext, accountId: string, load: Load): boolean {
+  return hasOrgCap(ctx, accountId, load.shipperOrgId, "SHIP") || hasOrgCap(ctx, accountId, load.brokerOrgId, "BROKER");
+}
+
 export function getLoad(ctx: AppContext, accountId: string, id: string): Load {
   const load = ctx.store.loads.get(id);
   if (!load || !canSeeLoad(ctx, accountId, load)) throw new HttpError(404, "NOT_FOUND", "Load not found");
   return load;
 }
 
-export function saveLoad(ctx: AppContext, load: Load): Load {
+/** Save a load and run what follows from the change. `actorAccountId` is who made it, when known. */
+export function saveLoad(ctx: AppContext, load: Load, actorAccountId?: string): Load {
   const prior = ctx.store.loads.get(load.id);
   const key = carrierKeyOf(load);
   if (key !== (prior ? carrierKeyOf(prior) : undefined)) load = { ...load, carrierSince: key ? ctx.now().toISOString() : undefined };
   ctx.store.loads.set(load.id, load);
   ctx.notifier.loadSaved(prior, load);
   recordOutcome(ctx.store, load);
+  rateConOnSave(ctx, prior, load, actorAccountId);
   return load;
 }
 

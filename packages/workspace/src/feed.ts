@@ -10,6 +10,7 @@ export interface ActionItem {
   title: string;
   subtitle?: string;
   loadId?: string;
+  invoiceId?: string;
   cta: { label: string; action: string; statusCode?: StatusCode };
 }
 
@@ -24,6 +25,8 @@ export interface FeedData {
   joinRequests?: Array<{ id: string; carrierOrgId: string; carrierName?: string; accountName: string }>;
   /** Shipments whose arrival is late or at risk. */
   arrivalAlerts?: Array<{ loadId: string; loadNumber: string; status: "LATE" | "AT_RISK"; eta?: string; reason?: string }>;
+  /** Revised rate confirmations waiting on this person's carrier to sign. */
+  rateConsToSign?: Array<{ loadId: string; loadNumber: string; version: number; changes: string[] }>;
   now?: string;
 }
 
@@ -134,11 +137,30 @@ export function buildFeed(caps: ResolvedCapabilities, data: FeedData): ActionIte
     items.push({ id: `arrival:${a.loadId}`, hat, priority: a.status === "LATE" ? 94 : 86, title: `${a.loadNumber} ${a.status === "LATE" ? "will be late" : "is at risk of arriving late"}`, subtitle: a.reason, loadId: a.loadId, cta: { label: "Track", action: "track" } });
   }
 
+  for (const r of data.rateConsToSign ?? []) {
+    items.push({ id: `ratecon:${r.loadId}`, hat: "DISPATCH", priority: 84, title: `Sign rate confirmation ${r.loadNumber} v${r.version}`, subtitle: r.changes.length ? `Shipper changed: ${r.changes.join(", ")}` : undefined, loadId: r.loadId, cta: { label: "Review and sign", action: "rate-con" } });
+  }
+
   if (has("PAY")) {
     const payOrgs = orgsWith("PAY");
+    const today = (data.now ?? new Date().toISOString()).slice(0, 10);
     for (const inv of data.invoices ?? []) {
-      if (inv.status === "SENT" && inv.billTo.orgId && payOrgs.includes(inv.billTo.orgId)) {
-        items.push({ id: `pay:${inv.id}`, hat: "BILLING", priority: 50, title: `Invoice ${inv.invoiceNumber} received`, subtitle: `$${inv.total.toFixed(2)} · load ${inv.loadNumber}`, loadId: inv.loadId, cta: { label: "Review", action: "invoice-review" } });
+      const payer = !!inv.billTo.orgId && payOrgs.includes(inv.billTo.orgId);
+      const biller = payOrgs.includes(inv.carrierOrgId);
+      const due = invoiceDue(inv);
+      const open = ["SENT", "ACKNOWLEDGED", "APPROVED", "PARTIALLY_PAID"].includes(inv.status);
+      const money = `$${inv.total.toFixed(2)} · load ${inv.loadNumber}`;
+      if (payer && inv.quickPay?.status === "REQUESTED") {
+        items.push({ id: `qp:${inv.id}`, hat: "BILLING", priority: 72, title: `Quick pay requested on ${inv.invoiceNumber}`, subtitle: `$${inv.quickPay.netAmount.toFixed(2)} in ${inv.quickPay.days} days (${inv.quickPay.feePct}% fee)`, loadId: inv.loadId, invoiceId: inv.id, cta: { label: "Decide", action: "open-invoice" } });
+      } else if (payer && inv.status === "SENT") {
+        items.push({ id: `pay:${inv.id}`, hat: "BILLING", priority: 50, title: `Invoice ${inv.invoiceNumber} received`, subtitle: `${money} · due ${due}`, loadId: inv.loadId, invoiceId: inv.id, cta: { label: "Review", action: "open-invoice" } });
+      } else if (payer && open && due < today) {
+        items.push({ id: `late:${inv.id}`, hat: "BILLING", priority: 60, title: `Invoice ${inv.invoiceNumber} is past due`, subtitle: `${money} · was due ${due}`, loadId: inv.loadId, invoiceId: inv.id, cta: { label: "Pay", action: "open-invoice" } });
+      }
+      if (biller && inv.status === "DISPUTED") {
+        items.push({ id: `dispute:${inv.id}`, hat: "BILLING", priority: 75, title: `Invoice ${inv.invoiceNumber} disputed`, subtitle: inv.disputeReason, loadId: inv.loadId, invoiceId: inv.id, cta: { label: "Open", action: "open-invoice" } });
+      } else if (biller && open && due < today) {
+        items.push({ id: `overdue:${inv.id}`, hat: "BILLING", priority: 45, title: `Invoice ${inv.invoiceNumber} is overdue`, subtitle: `${money} · was due ${due}`, loadId: inv.loadId, invoiceId: inv.id, cta: { label: "Open", action: "open-invoice" } });
       }
     }
   }
@@ -149,6 +171,12 @@ export function buildFeed(caps: ResolvedCapabilities, data: FeedData): ActionIte
     }
   }
   return items.sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id));
+}
+
+function invoiceDue(inv: Invoice): string {
+  const from = inv.quickPay?.status === "APPROVED" && inv.quickPay.decidedAt ? inv.quickPay.decidedAt : inv.issuedAt;
+  const days = inv.quickPay?.status === "APPROVED" ? inv.quickPay.days : (inv.termsDays ?? 30);
+  return new Date(Date.parse(from) + days * 86_400_000).toISOString().slice(0, 10);
 }
 
 function stopSummary(load: Load): string {

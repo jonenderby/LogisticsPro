@@ -64,12 +64,12 @@ export function alertRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get("/v1/me/notification-settings", auth, async (req) => {
     const account = me(ctx, req);
     const caps = capsOf(ctx, account.id).all;
-    return { ...ctx.notifier.settings(account.id), tendersApply: caps.has("DISPATCH") || caps.has("SHIP") || caps.has("BROKER"), devices: (ctx.store.pushTokens.get(account.id) ?? []).length };
+    return { ...ctx.notifier.settings(account.id), tendersApply: caps.has("DISPATCH") || caps.has("SHIP") || caps.has("BROKER"), paymentsApply: caps.has("PAY") || caps.has("INVOICE"), devices: (ctx.store.pushTokens.get(account.id) ?? []).length };
   });
 
   app.put("/v1/me/notification-settings", auth, async (req) => {
     const account = me(ctx, req);
-    const body = parse(z.object({ tenders: z.boolean().optional(), messages: z.boolean().optional(), detention: z.boolean().optional(), timeZone: z.string().refine(isTimeZone, "Unknown time zone").optional() }), req.body);
+    const body = parse(z.object({ tenders: z.boolean().optional(), messages: z.boolean().optional(), detention: z.boolean().optional(), payments: z.boolean().optional(), timeZone: z.string().refine(isTimeZone, "Unknown time zone").optional() }), req.body);
     const next = { ...DEFAULT_NOTIFICATION_SETTINGS, ...ctx.store.notificationSettings.get(account.id), ...Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined)) };
     ctx.store.notificationSettings.set(account.id, next);
     return next;

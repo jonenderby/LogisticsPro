@@ -13,13 +13,16 @@ interface Settings {
   tenders: boolean;
   messages: boolean;
   detention?: boolean;
+  payments?: boolean;
   tendersApply: boolean;
+  paymentsApply?: boolean;
   devices: number;
 }
 interface Item {
   id: string;
-  kind: "ARRIVAL" | "SUMMARY" | "TEST" | "TENDER" | "MESSAGE" | "STOP" | "DETENTION";
-  target?: "LOAD" | "THREAD";
+  kind: "ARRIVAL" | "SUMMARY" | "TEST" | "TENDER" | "MESSAGE" | "STOP" | "DETENTION" | "PAYMENT";
+  target?: "LOAD" | "THREAD" | "INVOICE";
+  invoiceId?: string;
   title: string;
   body: string;
   loadId?: string;
@@ -35,6 +38,7 @@ const KIND: Record<Item["kind"], { label: string; tone: Tone }> = {
   TEST: { label: "Test", tone: "neutral" },
   STOP: { label: "At stop", tone: "info" },
   DETENTION: { label: "Detention", tone: "warning" },
+  PAYMENT: { label: "Payment", tone: "success" },
 };
 
 /**
@@ -71,7 +75,7 @@ export function NotificationsScreen() {
     const r = await registerForPush(true);
     if (!r.ok) notify("Push is not available", r.reason);
   };
-  const change = async (patch: Partial<Pick<Settings, "tenders" | "messages" | "detention">>) => {
+  const change = async (patch: Partial<Pick<Settings, "tenders" | "messages" | "detention" | "payments">>) => {
     try {
       setSettings({ ...settings, ...(await api.put<Settings>("/v1/me/notification-settings", patch)) });
       if (Object.values(patch).some(Boolean)) await ensurePermission();
@@ -88,6 +92,7 @@ export function NotificationsScreen() {
         {settings.tendersApply ? <ToggleRow title="Tenders" subtitle="New tenders for your company, and carriers accepting or declining yours" value={settings.tenders} onChange={(v) => change({ tenders: v })} /> : null}
         <ToggleRow title="Messages" subtitle="New messages on your loads" value={settings.messages} onChange={(v) => change({ messages: v })} />
         {settings.tendersApply ? <ToggleRow title="Detention" subtitle="When free time runs out at a pickup or delivery" value={settings.detention !== false} onChange={(v) => change({ detention: v })} /> : null}
+        {settings.paymentsApply ? <ToggleRow title="Invoices and payments" subtitle="New invoices, quick-pay requests, approvals, disputes and payments" value={settings.payments !== false} onChange={(v) => change({ payments: v })} /> : null}
         {tracks ? <Row title="Arrival alerts" subtitle="Late, at risk, early or on time, right away or on a schedule" onPress={() => nav.navigate("Alerts")} /> : null}
       </Section>
 
@@ -111,7 +116,7 @@ export function NotificationsScreen() {
             title={i.title}
             subtitle={`${i.body}\n${when(i.at)}`}
             right={<Chip label={KIND[i.kind].label} tone={KIND[i.kind].tone} />}
-            onPress={i.loadId ? () => (i.target === "THREAD" ? nav.navigate("Thread", { loadId: i.loadId!, title: i.title.split(" · ")[1] ?? "Messages" }) : nav.navigate("LoadDetail", { id: i.loadId! })) : undefined}
+            onPress={i.target === "INVOICE" && i.invoiceId ? () => nav.navigate("InvoiceDetail", { id: i.invoiceId! }) : i.loadId ? () => (i.target === "THREAD" ? nav.navigate("Thread", { loadId: i.loadId!, title: i.title.split(" · ")[1] ?? "Messages" }) : nav.navigate("LoadDetail", { id: i.loadId! })) : undefined}
           />
         ))}
       </Section>
