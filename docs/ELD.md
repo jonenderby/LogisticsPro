@@ -26,9 +26,21 @@ A truck's position counts for the driver the ELD says is logged in to it. Trucks
 
 API: `GET /v1/orgs/:id/eld`, `PUT /v1/orgs/:id/eld`, `PUT /v1/orgs/:id/eld/drivers/:externalId`, `POST /v1/orgs/:id/eld/sync`, `POST /v1/orgs/:id/eld/remove`.
 
+## Testing against live accounts
+
+`apps/api/test/eld.live.test.ts` reads drivers, hours clocks and truck locations from real accounts and checks they arrive in the shape the adapters expect: clocks in minutes within the legal limits, recent timestamps, valid coordinates, and clocks only for drivers the account lists. Each provider runs only when its credentials are set; without any, the tests are skipped, as they are in CI. They only read.
+
+```bash
+LP_TEST_MOTIVE_KEY=... npm run test:eld-live
+LP_TEST_SAMSARA_TOKEN=... npm run test:eld-live
+LP_TEST_GEOTAB_DATABASE=... LP_TEST_GEOTAB_USER=... LP_TEST_GEOTAB_PASSWORD=... npm run test:eld-live   # LP_TEST_GEOTAB_SERVER defaults to my.geotab.com
+```
+
+Run them when a carrier first connects each provider, and after a provider announces API changes.
+
 ## Limits
 
-- The adapters follow each provider's published API and are tested against their documented response shapes, not live accounts. Expect to adjust field names when the first real account is connected.
+- The adapters follow each provider's published API and are tested against their documented response shapes. Live accounts haven't been run yet; the live tests above are the check to run with the first real account of each.
 - Motive and Samsara also offer OAuth apps for marketplace listings; this uses API keys and tokens, which the carrier creates.
 - Duty status is read, not written: Logistics Pro never edits the ELD's record.
 - With a team on one truck, the truck's GPS goes to whichever driver the ELD has logged in.

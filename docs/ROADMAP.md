@@ -20,7 +20,7 @@ What is built and tested is described in the README. This is what remains before
 - Web push for the website while it is closed (needs VAPID keys and a service worker).
 - CarPlay and Android Auto.
 - Address type-ahead while typing stops (search exists; the New load form does not use it yet).
-- More ELD providers (Omnitracs, Verizon Connect, J.J. Keller) behind the same adapter, and testing the three built adapters against live accounts.
+- More ELD providers (Omnitracs, Verizon Connect, J.J. Keller) behind the same adapter, and running the live ELD tests (`npm run test:eld-live`) with each provider's first real account.
 - Split sleeper-berth pairings, the adverse driving conditions extension and the short-haul exception in the hours clock.
 - Offline queueing of status updates in poor coverage.
 

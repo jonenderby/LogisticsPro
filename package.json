@@ -19,7 +19,8 @@
     "dev:mobile": "npm run start --workspace @logisticspro/mobile",
     "build:web": "npm run build:web --workspace @logisticspro/mobile",
     "serve": "npm run build:web && LP_WEB_DIR=$PWD/dist/web npm run start:api",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:eld-live": "vitest run apps/api/test/eld.live.test.ts"
   },
   "engines": {
     "node": ">=20"
