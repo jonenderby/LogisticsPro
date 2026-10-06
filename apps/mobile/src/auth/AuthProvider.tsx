@@ -1,3 +1,4 @@
+import type { Lang } from "@logisticspro/workspace";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { stopBackgroundTracking } from "../state/backgroundLocation";
 import { unregisterPush } from "../state/notifications";
@@ -26,7 +27,7 @@ export type ProfileType = "TRUCKER" | "CARRIER" | "BROKER_3PL" | "BUSINESS";
 
 interface AuthApi {
   phase: Phase;
-  register(input: { email: string; password: string; name: string; phone?: string; profileType: ProfileType; language: "en" | "es" }): Promise<void>;
+  register(input: { email: string; password: string; name: string; phone?: string; profileType: ProfileType; language: Lang }): Promise<void>;
   signIn(email: string, password: string): Promise<void>;
   activate(code: string): Promise<void>;
   verify(code: string): Promise<void>;

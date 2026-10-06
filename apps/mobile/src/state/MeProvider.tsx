@@ -1,4 +1,4 @@
-import { type Lang, type Translate, translator } from "@logisticspro/workspace";
+import { DEFAULT_LANG, type Lang, type Translate, translator } from "@logisticspro/workspace";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api } from "../api/client";
 import type { Load, MeResponse } from "../api/types";
@@ -17,8 +17,7 @@ interface MeApi {
   setLanguage(lang: Lang): Promise<void>;
 }
 
-/** English is the default everywhere until the person picks another language. */
-export const DEFAULT_LANG: Lang = "en";
+
 
 const Ctx = createContext<MeApi | undefined>(undefined);
 

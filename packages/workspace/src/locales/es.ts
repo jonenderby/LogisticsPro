@@ -1,8 +1,10 @@
+import type { Dictionary } from "../i18n.js";
+
 /**
  * Spanish (US trucking usage, informal "tú"). Keys are the English text
  * exactly as written in the code; {braces} are filled in at runtime.
  */
-export const ES: Record<string, string> = {
+export const es: Dictionary = {
   // ---------------------------------------------------------- navigation and menus
   Today: "Hoy",
   Loads: "Cargas",
@@ -325,4 +327,24 @@ export const ES: Record<string, string> = {
   "Open your authenticator app and enter the 6-digit code for Logistics Pro, or use a recovery code.": "Abre tu app de autenticación y escribe el código de 6 dígitos de Logistics Pro, o usa un código de recuperación.",
   Code: "Código",
   Verify: "Verificar",
+  // ---------------------------------------------------------- load page (office parts)
+  "Every carrier is scored on the loads it hauls, including carriers connected by API or EDI. Missed appointments you report count against it.": "Cada transportista recibe una calificación por las cargas que mueve, incluso los conectados por API o EDI. Las citas perdidas que reportes cuentan en su contra.",
+  Appointments: "Citas",
+  "A missed appointment counts against the carrier that was hauling the load at the time, and the drivers on that leg. It never counts against another carrier the driver also works for.": "Una cita perdida cuenta contra el transportista que movía la carga en ese momento y contra los choferes de ese tramo. Nunca cuenta contra otro transportista para el que también trabaje el chofer.",
+  "Minutes late (optional)": "Minutos de retraso (opcional)",
+  "Note (optional)": "Nota (opcional)",
+  "Report missed appointment": "Reportar cita perdida",
+  Shipper: "Remitente",
+  "Notes for the carrier": "Notas para el transportista",
+  "Save changes": "Guardar cambios",
+  "Post to load board": "Publicar en la bolsa de cargas",
+  "Tender directly": "Ofrecer directamente",
+  "Confirm shipment": "Confirmar envío",
+  "Release carrier": "Liberar transportista",
+  "Take the load back so you can give it to another carrier": "Recupera la carga para dársela a otro transportista",
+  "Cancel load": "Cancelar carga",
+  Award: "Adjudicar",
+  Bid: "Ofertar",
+  "Your all-in rate (USD)": "Tu tarifa total (USD)",
+  "Place bid": "Enviar oferta",
 };

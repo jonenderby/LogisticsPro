@@ -1,32 +1,41 @@
-import { ES } from "./i18n.es.js";
+import { DEFAULT_LANG, LANGUAGES, type Lang, PICKABLE_LANGUAGES, languageInfo } from "@logisticspro/domain";
+// i18n:imports (npm run i18n -- new adds lines here)
+import { es } from "./locales/es.js";
 
 /**
- * Translations. English text is the key, so code stays readable and a
- * missing translation falls back to English rather than to a code. Values
- * in braces are filled in: t("Next load {n}", { n: "LP-1001" }).
+ * Translations. English is the source text and the default everywhere, so
+ * code stays readable and anything not yet translated shows in English.
+ * Values in braces are filled in: t("Next load {n}", { n: "LP-1001" }).
  *
- * English is the default everywhere. People choose Spanish when they set
- * up their account, or later under More > Language.
- *
- * Spanish covers what drivers see first: the Today feed, load status
- * buttons, hours of service, driving mode, documents, the delivery
- * signature, navigation and the push notifications drivers get.
+ * Languages are listed in packages/domain/src/languages.ts; each one other
+ * than English has a dictionary in ./locales/. `npm run i18n` shows what
+ * each language still needs. See docs/LANGUAGES.md.
  */
-export type Lang = "en" | "es";
-export const LANGUAGES: Array<{ code: Lang; name: string }> = [
-  { code: "en", name: "English" },
-  { code: "es", name: "Español" },
-];
+export { DEFAULT_LANG, LANGUAGES, type Lang, PICKABLE_LANGUAGES, languageInfo };
+
+/** English text to its translation. An empty string means not translated yet. */
+export type Dictionary = Record<string, string>;
+
+/** One dictionary per language other than English; a language without one won't compile. */
+export const DICTIONARIES: Record<Exclude<Lang, "en">, Dictionary> = {
+  es,
+  // i18n:dictionaries
+};
 
 export type Params = Record<string, string | number | undefined>;
 export type Translate = (text: string, params?: Params) => string;
 
+const dictionaryFor = (lang?: Lang): Dictionary | undefined => (lang && lang !== "en" ? DICTIONARIES[lang] : undefined);
+
 export function translate(lang: Lang | undefined, text: string, params?: Params): string {
-  const base = lang === "es" ? (ES[text] ?? text) : text;
+  const base = dictionaryFor(lang)?.[text] || text;
   return params ? base.replace(/\{(\w+)\}/g, (m, k: string) => (params[k] !== undefined ? String(params[k]) : m)) : base;
 }
 
 export const translator = (lang?: Lang): Translate => (text, params) => translate(lang, text, params);
 
-/** Is there a Spanish version of this text? (For the completeness test.) */
-export const hasSpanish = (text: string) => Object.prototype.hasOwnProperty.call(ES, text);
+/** Is this text translated into `lang`? English always is. */
+export function hasTranslation(lang: Lang, text: string): boolean {
+  if (lang === "en") return true;
+  return !!dictionaryFor(lang)?.[text];
+}

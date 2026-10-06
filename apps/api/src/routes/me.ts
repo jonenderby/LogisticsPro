@@ -1,4 +1,4 @@
-import { toPublicAccount } from "@logisticspro/domain";
+import { Language, toPublicAccount } from "@logisticspro/domain";
 import { hosFor, onTeamTruck } from "../services/hos.js";
 import { buildFeed, buildWorkspace } from "@logisticspro/workspace";
 import type { FastifyInstance } from "fastify";
@@ -15,7 +15,7 @@ export function meRoutes(app: FastifyInstance, ctx: AppContext) {
   /** Personal settings: the app's language (which also sets the Today feed's and push notifications'). */
   app.put("/v1/me/preferences", { preHandler: authenticate(ctx) }, async (req) => {
     const account = me(ctx, req);
-    const { language } = parse(z.object({ language: z.enum(["en", "es"]) }), req.body);
+    const { language } = parse(z.object({ language: Language }), req.body);
     const next = { ...account, language };
     ctx.store.accounts.set(account.id, next);
     return toPublicAccount(next);

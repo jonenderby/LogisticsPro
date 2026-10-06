@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Language } from "./languages.js";
 
 /** The profile picked at sign-up. It seeds defaults; capabilities come from memberships. */
 export const ProfileType = z.enum(["TRUCKER", "CARRIER", "BROKER_3PL", "BUSINESS"]);
@@ -28,7 +29,7 @@ export const Account = z.object({
   }),
   driver: DriverProfile.optional(),
   /** The language the app, the Today feed and push notifications use. Unset: the device's. */
-  language: z.enum(["en", "es"]).optional(),
+  language: Language.optional(),
   createdAt: z.string(),
 });
 export type Account = z.infer<typeof Account>;

@@ -1,4 +1,4 @@
-import { formatMinutes } from "@logisticspro/domain";
+import { formatMinutes, languageInfo } from "@logisticspro/domain";
 import * as Location from "expo-location";
 import * as Speech from "expo-speech";
 import { useEffect, useState } from "react";
@@ -72,7 +72,7 @@ export function DrivingLock({ onNavigate, routeName }: { onNavigate: (loadId?: s
         hos.availableMin > 0 ? t("You have {time} left to drive, {limit}.", { time: spoken(hos.availableMin), limit: t(LIMIT[hos.limitedBy]!) }) : t("You are out of driving time. Find a safe place to stop."),
         next ? t("Next stop {city}, {state}. Estimated arrival {time}.", { city: next.city, state: next.state, time: time(trip?.eta.eta) }) : "",
       ].join(" "),
-      { language: lang === "es" ? "es-US" : "en-US" },
+      { language: languageInfo(lang).speech },
     );
   const stopped = async () => {
     try {

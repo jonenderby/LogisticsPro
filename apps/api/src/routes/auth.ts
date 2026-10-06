@@ -1,4 +1,4 @@
-import { type Account, ProfileType, newId, toPublicAccount } from "@logisticspro/domain";
+import { type Account, DEFAULT_LANG, Language, ProfileType, newId, toPublicAccount } from "@logisticspro/domain";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { type AppContext, HttpError, authenticate, me, parse } from "../http.js";
@@ -15,7 +15,7 @@ const Register = z.object({
   profileType: ProfileType,
   driver: z.object({ cdlNumber: z.string().optional(), cdlState: z.string().optional() }).optional(),
   /** Chosen when the account is set up; English unless they pick Spanish. */
-  language: z.enum(["en", "es"]).default("en"),
+  language: Language.default(DEFAULT_LANG),
 });
 
 const Login = z.object({ email: z.string(), password: z.string() });

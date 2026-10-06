@@ -9,6 +9,7 @@
     "apps/*"
   ],
   "scripts": {
+    "i18n": "tsx packages/workspace/scripts/i18n.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",

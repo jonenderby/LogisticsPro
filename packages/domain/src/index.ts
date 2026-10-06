@@ -21,3 +21,4 @@ export * from "./rateconfirmation.js";
 export * from "./vetting.js";
 export * from "./eld.js";
 export * from "./analytics.js";
+export * from "./languages.js";

@@ -7,7 +7,7 @@ import { errorMessage } from "../../api/client";
 import { type ProfileType, useAuth } from "../../auth/AuthProvider";
 import { Banner, Button, Chip, Field, Segmented } from "../../ui/components";
 import { useTheme } from "../../ui/theme";
-import { LANGUAGES, type Lang, translator } from "@logisticspro/workspace";
+import { DEFAULT_LANG, type Lang, PICKABLE_LANGUAGES, translator } from "@logisticspro/workspace";
 
 function Shell({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   const { colors, metrics } = useTheme();
@@ -43,7 +43,7 @@ export function AuthFlow() {
   const [profileType, setProfileType] = useState<ProfileType>("TRUCKER");
   const [code, setCode] = useState("");
   // English unless the person picks Spanish while setting up their account.
-  const [lang, setLang] = useState<Lang>("en");
+  const [lang, setLang] = useState<Lang>(DEFAULT_LANG);
   const t = translator(lang);
   const { colors } = useTheme();
 
@@ -120,7 +120,11 @@ export function AuthFlow() {
     return (
       <Shell title={t("Create account")}>
         <Text style={{ color: colors.textSecondary, marginBottom: 6 }}>Language / Idioma</Text>
-        <Segmented<Lang> options={LANGUAGES.map((l) => ({ value: l.code, label: l.name }))} value={lang} onChange={setLang} />
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          {PICKABLE_LANGUAGES.map((l) => (
+            <Chip key={l.code} label={l.name} selected={l.code === lang} onPress={() => setLang(l.code as Lang)} />
+          ))}
+        </View>
         <Text style={{ color: colors.textSecondary, marginTop: 14, marginBottom: 6 }}>{t("I am a…")}</Text>
         <Segmented options={PROFILES.map(({ value, label }) => ({ value, label: t(label) }))} value={profileType} onChange={setProfileType} />
         <Text style={{ color: colors.textSecondary, marginVertical: 10 }}>{help}</Text>

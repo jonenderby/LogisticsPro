@@ -8,7 +8,7 @@ import { notify } from "../ui/dialog";
 import { useMe } from "../state/MeProvider";
 import { Body, Button, Chip, Field, Padded, Row, Screen, Section } from "../ui/components";
 import { titleCase } from "../ui/format";
-import { LANGUAGES } from "@logisticspro/workspace";
+import { type Lang, PICKABLE_LANGUAGES } from "@logisticspro/workspace";
 
 const TARGET: Record<string, keyof StackParams> = {
   loads: "Loads",
@@ -51,8 +51,8 @@ export function MoreScreen() {
       </Section>
       <Section title={t("Language")} footer={t("Also used for your Today list and notifications.")}>
         <View style={{ flexDirection: "row", gap: 8, padding: 16 }}>
-          {LANGUAGES.map((l) => (
-            <Chip key={l.code} label={l.name} selected={lang === l.code} onPress={() => void setLanguage(l.code).catch((e) => notify(t("Couldn't save"), errorMessage(e)))} />
+          {PICKABLE_LANGUAGES.map((l) => (
+            <Chip key={l.code} label={l.name} selected={lang === l.code} onPress={() => void setLanguage(l.code as Lang).catch((e) => notify(t("Couldn't save"), errorMessage(e)))} />
           ))}
         </View>
       </Section>
