@@ -177,9 +177,8 @@ export class IntegrationHub {
   }
 
   private findLoad(orgId: string, shipmentId: string): Load | undefined {
-    return [...this.store.loads.values()].find(
-      (l) => l.loadNumber === shipmentId && [l.shipperOrgId, l.brokerOrgId, l.carrierOrgId].includes(orgId),
-    );
+    const l = this.store.loadByNumber(shipmentId);
+    return l && [l.shipperOrgId, l.brokerOrgId, l.carrierOrgId].includes(orgId) ? l : undefined;
   }
 
   /** A partner may only touch loads it carries (or tendered to us). */
@@ -197,7 +196,7 @@ export class IntegrationHub {
         const t = doc as LoadTender;
         const profile = this.store.profile(orgId, partnerKey);
         const shipper = this.externalOrg(orgId, partnerKey, profile?.name ?? partnerKey);
-        const existing = [...this.store.loads.values()].find((l) => l.shipperOrgId === shipper.id && l.references.shipperRef === t.shipmentId);
+        const existing = this.store.loads.where("shipperRef", `${shipper.id}|${t.shipmentId}`)[0];
         if (t.purpose === "CANCEL") {
           if (existing) this.store.loads.set(existing.id, { ...existing, status: "CANCELLED", version: existing.version + 1, updatedAt: now });
           return { loadId: existing?.id, action: "cancelled" };

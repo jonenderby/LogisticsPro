@@ -1,4 +1,4 @@
-import { shipperAnalytics } from "@logisticspro/domain";
+import { type Load, shipperAnalytics } from "@logisticspro/domain";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { type AppContext, HttpError, authenticate, hasOrgCap, me, parse } from "../http.js";
@@ -18,9 +18,13 @@ export function analyticsRoutes(app: FastifyInstance, ctx: AppContext) {
     const { days } = parse(z.object({ days: z.coerce.number().int().refine((d) => [30, 90, 365].includes(d), "30, 90 or 365 days").default(90) }), req.query ?? {});
     const to = ctx.now();
     const from = new Date(to.getTime() - days * 86_400_000);
+    // Loads finished long ago are archived; read the ones in this window from the database.
+    const inMemory = ctx.store.loadsOfParty(orgId);
+    const ids = new Set(inMemory.map((l) => l.id));
+    const archived = ctx.persistence ? (await ctx.persistence.archivedLoads<Load>([orgId], { deliveredFrom: new Date(from.getTime() - days * 86_400_000).toISOString(), limit: 200_000 })).filter((l) => !ids.has(l.id)) : [];
     return shipperAnalytics({
       orgId,
-      loads: [...ctx.store.loads.values()],
+      loads: [...inMemory, ...archived],
       outcomes: [...ctx.store.outcomes.values()],
       from: from.toISOString(),
       to: to.toISOString(),

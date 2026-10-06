@@ -22,6 +22,10 @@ create table if not exists lp_docs (
   primary key (collection, key)
 );
 create index if not exists lp_docs_order on lp_docs (collection, seq);
+-- Archived records stay here but are not kept in memory (see services/archive.ts).
+alter table lp_docs add column if not exists archived boolean not null default false;
+create index if not exists lp_docs_archived_loads on lp_docs using gin ((array[doc->>'shipperOrgId', doc->>'brokerOrgId', doc->>'carrierOrgId'])) where collection = 'loads' and archived;
+create index if not exists lp_docs_archived_by_load on lp_docs ((doc->>'loadId')) where archived;
 create table if not exists lp_log (
   id bigserial primary key,
   collection text not null,
@@ -83,15 +87,21 @@ export class PgPersistence implements ChangeSink {
   private refilling?: Promise<void>;
   private closed = false;
 
+  /** Connections that hold record locks, apart from the ones that write, so waiting for a lock never starves a write. */
+  private readonly lockPool: pg.Pool;
+
   private constructor(
     private readonly pool: pg.Pool,
     private readonly store: MemoryStore,
     private readonly log: Logger,
-  ) {}
+    url: string,
+  ) {
+    this.lockPool = new pg.Pool({ connectionString: url, max: 20 });
+  }
 
   static async start(opts: { url: string; store: MemoryStore; log?: Logger }): Promise<PgPersistence> {
     const pool = new pg.Pool({ connectionString: opts.url, max: 10 });
-    const p = new PgPersistence(pool, opts.store, opts.log ?? { info: () => undefined, error: (m, e) => console.error(m, e) });
+    const p = new PgPersistence(pool, opts.store, opts.log ?? { info: () => undefined, error: (m, e) => console.error(m, e) }, opts.url);
     await pool.query(SCHEMA);
     await p.load();
     opts.store.attach(p);
@@ -108,7 +118,7 @@ export class PgPersistence implements ChangeSink {
 
   private async load() {
     const collections = this.store.collections();
-    const docs = await this.pool.query<{ collection: string; key: string; doc: unknown }>("select collection, key, doc from lp_docs order by collection, seq");
+    const docs = await this.pool.query<{ collection: string; key: string; doc: unknown }>("select collection, key, doc from lp_docs where not archived order by collection, seq");
     for (const row of docs.rows) collections.get(row.collection)?.applyRemote(row.key, row.doc);
     const since = new Date(Date.now() - LOG_KEEP_MS);
     const logs = await this.pool.query<{ collection: string; key: string; item: { at: string } }>("select collection, key, item from lp_log where at >= $1 order by at", [since]);
@@ -193,7 +203,7 @@ export class PgPersistence implements ChangeSink {
         await client.query(
           `insert into lp_docs (collection, key, doc)
            select * from unnest($1::text[], $2::text[], $3::jsonb[])
-           on conflict (collection, key) do update set doc = excluded.doc, updated_at = now()`,
+           on conflict (collection, key) do update set doc = excluded.doc, updated_at = now(), archived = false`,
           [up.c, up.k, up.d],
         );
       }
@@ -250,6 +260,99 @@ export class PgPersistence implements ChangeSink {
     for (const p of change.p ?? []) add("p", p);
     parts.push(cur);
     for (const part of parts) if (part.d?.length || part.a?.length || part.p?.length) await this.pool.query("select pg_notify($1, $2)", [CHANNEL, JSON.stringify(part)]);
+  }
+
+  // ------------------------------------------------------------- record locks
+
+  /**
+   * Hold `key` across every server until the returned release is called.
+   * Used around changes two servers could make at once (awarding a bid,
+   * answering a tender, recording a payment).
+   */
+  async lock(key: string): Promise<() => Promise<void>> {
+    const client = await this.lockPool.connect();
+    try {
+      await client.query("select pg_advisory_lock(hashtextextended($1, 0))", [key]);
+    } catch (e) {
+      client.release(true);
+      throw e;
+    }
+    let released = false;
+    return async () => {
+      if (released) return;
+      released = true;
+      try {
+        await client.query("select pg_advisory_unlock(hashtextextended($1, 0))", [key]);
+        client.release();
+      } catch {
+        // Dropping the connection releases its locks.
+        client.release(true);
+      }
+    };
+  }
+
+  /** Re-read a record from the database, so a change another server just committed is seen before acting on it. */
+  async refresh(collection: string, key: string): Promise<void> {
+    await this.applying.catch(() => undefined);
+    const coll = this.store.collections().get(collection) as (Persisted & { has?(k: string): boolean }) | undefined;
+    if (!coll?.has?.(key) || this.isDirty(collection, key)) return;
+    const doc = (await this.readDocs(collection, [key])).get(key);
+    if (doc !== undefined && !this.isDirty(collection, key)) coll.applyRemote(key, doc);
+  }
+
+  // ------------------------------------------------------------- archive
+
+  /** Whether a record has changes not yet written. */
+  isDirty(collection: string, key: string): boolean {
+    return !!this.dirty.get(collection)?.has(key);
+  }
+
+  /** Mark records archived: they stay in the database but are no longer loaded into memory. */
+  async markArchived(collection: string, keys: string[]): Promise<void> {
+    if (keys.length) await this.pool.query("update lp_docs set archived = true where collection = $1 and key = any($2::text[])", [collection, keys]);
+  }
+
+  /** Records by key, archived or not. */
+  async readDocs(collection: string, keys: string[]): Promise<Map<string, unknown>> {
+    if (!keys.length) return new Map();
+    const res = await this.pool.query<{ key: string; doc: unknown }>("select key, doc from lp_docs where collection = $1 and key = any($2::text[])", [collection, keys]);
+    return new Map(res.rows.map((r) => [r.key, r.doc]));
+  }
+
+  /** Archived records that belong to a load (messages, bids, invoices), oldest first. */
+  async readArchivedByLoad(collections: string[], loadId: string): Promise<Array<{ collection: string; key: string; doc: unknown }>> {
+    const res = await this.pool.query<{ collection: string; key: string; doc: unknown }>(
+      "select collection, key, doc from lp_docs where archived and doc->>'loadId' = $1 and collection = any($2::text[]) order by seq",
+      [loadId, collections],
+    );
+    return res.rows;
+  }
+
+  /**
+   * Archived loads where any of `parties` is shipper, broker or carrier, newest
+   * first. `before` pages by updatedAt; `q` matches the load number,
+   * references or stops; `deliveredFrom` keeps loads delivered since then.
+   */
+  async archivedLoads<T>(parties: string[], opts: { before?: string; q?: string; deliveredFrom?: string; limit: number }): Promise<T[]> {
+    if (!parties.length) return [];
+    const where = ["collection = 'loads'", "archived", "array[doc->>'shipperOrgId', doc->>'brokerOrgId', doc->>'carrierOrgId'] && $1::text[]"];
+    const args: unknown[] = [parties];
+    if (opts.before) {
+      args.push(opts.before);
+      where.push(`doc->>'updatedAt' < $${args.length}`);
+    }
+    if (opts.deliveredFrom) {
+      args.push(opts.deliveredFrom);
+      where.push(`doc->>'deliveredAt' >= $${args.length}`);
+    }
+    if (opts.q) {
+      args.push(`%${opts.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+      const n = args.length;
+      where.push(`(doc->>'loadNumber' ilike $${n} or (doc->'references')::text ilike $${n} or (doc->'stops')::text ilike $${n})`);
+    }
+    args.push(opts.limit);
+    const res = await this.pool.query<{ doc: T }>(`select doc from lp_docs where ${where.join(" and ")} order by doc->>'updatedAt' desc limit $${args.length}`, args);
+    return res.rows.map((r) => r.doc);
   }
 
   // ------------------------------------------------------------- replication
@@ -375,6 +478,7 @@ export class PgPersistence implements ChangeSink {
       this.listener.release();
     }
     await this.pool.end();
+    await this.lockPool.end();
   }
 }
 

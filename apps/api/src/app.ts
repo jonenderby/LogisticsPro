@@ -42,6 +42,9 @@ import { eldClient } from "./services/eldClients.js";
 import { syncAllEld } from "./services/eld.js";
 import { eldRoutes } from "./routes/eld.js";
 import { analyticsRoutes } from "./routes/analytics.js";
+import { setupRoutes } from "./routes/setup.js";
+import { archiveColdData, restoreInvoice, restoreLoad } from "./services/archive.js";
+import { lockRecord } from "./services/locks.js";
 
 export interface AppOptions {
   config?: Partial<Config>;
@@ -119,7 +122,43 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
       return payload;
     });
     app.addHook("onClose", async () => persistence.close());
+    // Archived loads and invoices come back into memory when someone opens them.
+    app.addHook("preHandler", async (req) => {
+      const p = (req.params ?? {}) as Record<string, string | undefined>;
+      const route = req.routeOptions.url ?? "";
+      if (p.loadId) await restoreLoad(ctx, p.loadId);
+      else if (p.id && route.startsWith("/v1/loads/:id")) await restoreLoad(ctx, p.id);
+      else if (p.id && route.startsWith("/v1/invoices/:id")) await restoreInvoice(ctx, p.id);
+    });
+    if (cfg.archiveAfterDays > 0 && cfg.alertIntervalSeconds > 0) {
+      const sweep = setInterval(() => void archiveColdData(ctx).catch((e) => app.log.error(e)), 3_600_000);
+      sweep.unref();
+      app.addHook("onClose", async () => clearInterval(sweep));
+    }
   }
+
+  // Changes to one load or invoice run one at a time across every server, each
+  // seeing the last one's saved result; the lock is released once the change is committed.
+  const held = new WeakMap<object, () => Promise<void>>();
+  app.addHook("preHandler", async (req) => {
+    if (req.method === "GET" || req.method === "HEAD" || !req.headers.authorization) return;
+    const p = (req.params ?? {}) as Record<string, string | undefined>;
+    const route = req.routeOptions.url ?? "";
+    const [collection, key] = route.startsWith("/v1/invoices/:id") ? ["invoices", p.id] : route.startsWith("/v1/loads/:id") ? ["loads", p.id] : ["loads", p.loadId];
+    if (!key) return;
+    held.set(req, await lockRecord(ctx, `${collection}:${key}`));
+    await persistence?.refresh(collection, key);
+    if (collection === "invoices") {
+      const loadId = ctx.store.invoices.get(key)?.loadId;
+      if (loadId) await persistence?.refresh("loads", loadId);
+    }
+  });
+  const release = async (req: object) => {
+    await held.get(req)?.();
+    held.delete(req);
+  };
+  app.addHook("onResponse", async (req) => release(req));
+  app.addHook("onRequestAbort", async (req) => release(req));
 
   app.setErrorHandler((err, _req, reply) => {
     const http = toHttpError(err);
@@ -151,6 +190,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   documentRoutes(app, ctx);
   eldRoutes(app, ctx);
   analyticsRoutes(app, ctx);
+  setupRoutes(app, ctx);
 
   if (cfg.alertIntervalSeconds > 0) {
     const timer = setInterval(() => {

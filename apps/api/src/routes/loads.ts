@@ -28,7 +28,8 @@ import { carrierProfile } from "../services/reliability.js";
 import { approvalKey, requireEligible, vettingFor } from "../services/vetting.js";
 import { currentHosClock } from "../services/hos.js";
 import { documentViews } from "./documents.js";
-import { type AppContext, HttpError, authenticate, canSeeLoad, canShip, capsOf, getLoad, hasOrgCap, isDriverOn, me, parse, postMessage, requireOrgCap, saveLoad } from "../http.js";
+import { archivedLoadsFor } from "../services/archive.js";
+import { type AppContext, HttpError, authenticate, canShip, capsOf, getLoad, hasOrgCap, isDriverOn, me, parse, postMessage, requireOrgCap, saveLoad } from "../http.js";
 
 const StopInput = z.object({
   type: z.enum(["PICKUP", "DELIVERY"]),
@@ -117,13 +118,21 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
     const orgsWith = (c: Parameters<typeof caps.all.has>[0]) => new Set([...caps.byOrg].filter(([, s]) => s.has(c)).map(([id]) => id));
     const myOrgs = new Set(ctx.store.membershipsOf(account.id).map((m) => m.orgId));
     // Open board loads belong on /v1/board unless you are a party to them.
-    let loads = [...ctx.store.loads.values()].filter((l) => canSeeLoad(ctx, account.id, l) && (l.status !== "POSTED" || loadParties(l).some((o) => myOrgs.has(o))));
+    let loads = ctx.store.loadsOf(account.id).filter((l) => l.status !== "POSTED" || loadParties(l).some((o) => myOrgs.has(o)));
     if (filter === "driving") loads = loads.filter((l) => isDriverOn(l, account.id));
     if (filter === "dispatch") loads = loads.filter((l) => !!l.carrierOrgId && orgsWith("DISPATCH").has(l.carrierOrgId));
     if (filter === "shipments") loads = loads.filter((l) => orgsWith("SHIP").has(l.shipperOrgId) && !l.brokerOrgId);
     if (filter === "brokered") loads = loads.filter((l) => !!l.brokerOrgId && orgsWith("BROKER").has(l.brokerOrgId));
     if (status) loads = loads.filter((l) => status.split(",").includes(l.status));
     return loads.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  });
+
+  /** Older finished loads, kept in the database rather than memory. Newest first; page with `before`. */
+  app.get("/v1/loads/history", auth, async (req) => {
+    const account = me(ctx, req);
+    const q = parse(z.object({ q: z.string().trim().max(100).optional(), before: z.string().max(40).optional(), limit: z.coerce.number().int().min(1).max(200).default(50) }), req.query ?? {});
+    const loads = await archivedLoadsFor(ctx, account.id, { q: q.q || undefined, before: q.before, limit: q.limit });
+    return { loads, next: loads.length === q.limit ? loads[loads.length - 1]!.updatedAt : undefined };
   });
 
   app.get("/v1/loads/:id", auth, async (req) => {
@@ -207,8 +216,9 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
     if (!capsOf(ctx, account.id).all.has("BID")) throw new HttpError(403, "FORBIDDEN", "Register a carrier company to see the load board");
     const q = req.query as { originState?: string; destinationState?: string; equipment?: string; team?: string };
     const mine = new Set(ctx.store.membershipsOf(account.id).map((m) => m.orgId));
-    return [...ctx.store.loads.values()]
-      .filter((l) => l.status === "POSTED" && !mine.has(l.board!.postedByOrgId))
+    return ctx.store
+      .loadsIn("POSTED")
+      .filter((l) => !mine.has(l.board!.postedByOrgId))
       .filter((l) => !q.originState || l.stops.find((s) => s.type === "PICKUP")?.address.state === q.originState)
       .filter((l) => !q.destinationState || l.stops[l.stops.length - 1]!.address.state === q.destinationState)
       .filter((l) => !q.equipment || l.equipment.type === q.equipment)
@@ -241,7 +251,7 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
     const log = ctx.store.dutyLogs.get(driverId);
     const hos = log?.length || ctx.store.eldDrivers.has(driverId) ? currentHosClock(ctx.store, driverId, now) : undefined;
     const mine = new Set(ctx.store.membershipsOf(account.id).map((m) => m.orgId));
-    const board = [...ctx.store.loads.values()].filter((l) => l.status === "POSTED" && !mine.has(l.board!.postedByOrgId));
+    const board = ctx.store.loadsIn("POSTED").filter((l) => !mine.has(l.board!.postedByOrgId));
     const matches = rankMatches(board.map((l) => matchLoad(l, { now: now.toISOString(), from: from.geo, hos, team: q.team === "true" })).filter((m): m is NonNullable<typeof m> => !!m));
     return {
       driver: { accountId: driver.id, name: driver.name },
@@ -261,7 +271,7 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
     const load = getLoad(ctx, account.id, (req.params as { id: string }).id);
     const body = parse(z.object({ carrierOrgId: z.string(), amount: Money, plan: z.enum(["SOLO", "TEAM", "RELAY", "CONSOLIDATED"]).default("SOLO"), transitHours: z.number().positive().optional(), notes: z.string().max(500).optional() }), req.body);
     requireOrgCap(ctx, account.id, body.carrierOrgId, "BID");
-    const existing = [...ctx.store.bids.values()].find((b) => b.loadId === load.id && b.carrierOrgId === body.carrierOrgId && b.status === "OPEN");
+    const existing = ctx.store.bids.where("load", load.id).find((b) => b.carrierOrgId === body.carrierOrgId && b.status === "OPEN");
     if (existing) ctx.store.bids.set(existing.id, { ...existing, status: "WITHDRAWN" });
     const bid = placeBid(load, { ...body, bidderAccountId: account.id }, ctx.now().toISOString());
     ctx.store.bids.set(bid.id, bid);
@@ -272,7 +282,7 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get("/v1/loads/:id/bids", auth, async (req) => {
     const account = me(ctx, req);
     const load = getLoad(ctx, account.id, (req.params as { id: string }).id);
-    const all = [...ctx.store.bids.values()].filter((b) => b.loadId === load.id);
+    const all = ctx.store.bids.where("load", load.id);
     if (canShip(ctx, account.id, load)) {
       // Show each bidder's record overall and with this business specifically.
       const business = load.brokerOrgId ?? load.shipperOrgId;
@@ -298,7 +308,7 @@ export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
     if (!canShip(ctx, account.id, load)) throw new HttpError(403, "FORBIDDEN", "Only the poster can award bids");
     const bid = ctx.store.bids.get(bidId);
     if (bid?.loadId === load.id) await requireEligible(ctx, load.brokerOrgId ?? load.shipperOrgId, bid.carrierOrgId);
-    const awarded = awardBid(load, [...ctx.store.bids.values()], bidId, ctx.now().toISOString());
+    const awarded = awardBid(load, ctx.store.bids.where("load", load.id), bidId, ctx.now().toISOString());
     awarded.bids.forEach((b) => ctx.store.bids.set(b.id, b));
     const next = saveLoad(ctx, { ...awarded.load, tender: { byAccountId: account.id, at: ctx.now().toISOString() } }, account.id);
     postMessage(ctx, next, { senderAccountId: account.id, kind: "SYSTEM", body: `Load awarded to ${ctx.store.orgs.get(next.carrierOrgId!)?.name ?? "carrier"} at $${next.rate?.amount}` });

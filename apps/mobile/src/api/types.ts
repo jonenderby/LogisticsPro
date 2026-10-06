@@ -8,6 +8,8 @@ export interface MeResponse {
   orgs: Array<Organization & { roles: MemberRole[] }>;
   capabilities: string[];
   ownerOperator: boolean;
+  /** Runs this deployment (LP_ADMIN_EMAILS) and can see its setup status. */
+  platformAdmin?: boolean;
   workspace: Workspace;
   feed: ActionItem[];
   /** Drivers only: hours of service right now. */

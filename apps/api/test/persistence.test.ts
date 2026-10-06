@@ -1,6 +1,7 @@
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type Harness, NYC, api, harness, loadBody, signUp } from "./helpers.js";
+import { archiveColdData } from "../src/services/archive.js";
+import { type Harness, NYC, TEST_NOW, api, harness, loadBody, signUp } from "./helpers.js";
 
 /**
  * Runs against a real Postgres when LP_TEST_DATABASE_URL is set (CI sets it).
@@ -120,5 +121,88 @@ describe.skipIf(!url)("Postgres persistence", () => {
     const res = await b.app.inject({ method: "GET", url: doc.viewUrl });
     expect(res.statusCode).toBe(200);
     expect(res.rawPayload.equals(pdf)).toBe(true);
+  });
+  it("lets only one of two servers award a load's bids", async () => {
+    const a = await server();
+    const b = await server();
+    const sam = await signUp(a, "BUSINESS", "Shipper Race");
+    const S = api(a, sam);
+    const acme = (await S.post("/v1/orgs", { name: "Race Foods", kinds: ["SHIPPER"], address: NYC })).org;
+    const carrier = async (name: string, scac: string) => {
+      const owner = await signUp(a, "CARRIER", name);
+      const C = api(a, owner);
+      return { C, org: (await C.post("/v1/orgs", { name, kinds: ["CARRIER"], scac })).org };
+    };
+    const one = await carrier("Race One", "RCEA");
+    const two = await carrier("Race Two", "RCEB");
+    const load = await S.post("/v1/loads", loadBody(acme.id), 201);
+    await S.post(`/v1/loads/${load.id}/post`, {});
+    const bid1 = await one.C.post(`/v1/loads/${load.id}/bids`, { carrierOrgId: one.org.id, amount: { amount: 5000, currency: "USD" }, plan: "SOLO" }, 201);
+    const bid2 = await two.C.post(`/v1/loads/${load.id}/bids`, { carrierOrgId: two.org.id, amount: { amount: 4900, currency: "USD" }, plan: "SOLO" }, 201);
+    await until(() => b.ctx.store.bids.has(bid1.id) && b.ctx.store.bids.has(bid2.id) && b.ctx.store.memberships.some((m) => m.accountId === sam.accountId));
+
+    // Both servers see the load posted; the shipper's two clicks land on different servers.
+    const [r1, r2] = await Promise.all([
+      a.app.inject({ method: "POST", url: `/v1/loads/${load.id}/bids/${bid1.id}/award`, headers: { authorization: `Bearer ${sam.token}` }, payload: {} }),
+      b.app.inject({ method: "POST", url: `/v1/loads/${load.id}/bids/${bid2.id}/award`, headers: { authorization: `Bearer ${sam.token}` }, payload: {} }),
+    ]);
+    expect([r1.statusCode, r2.statusCode].sort()).toEqual([200, 409]);
+    const winner = r1.statusCode === 200 ? one.org.id : two.org.id;
+    const [row] = await sql("select doc from lp_docs where collection = 'loads' and key = $1", [load.id]);
+    expect(row.doc.carrierOrgId).toBe(winner);
+    await until(() => a.ctx.store.loads.get(load.id)?.carrierOrgId === winner && b.ctx.store.loads.get(load.id)?.carrierOrgId === winner);
+  });
+
+  it("archives finished loads out of memory and brings them back when opened", async () => {
+    // Only the server running background jobs marks records archived; make it this one.
+    for (const h of servers.splice(0)) await h.app.close();
+    let now = Date.parse(TEST_NOW);
+    const a = await server(() => new Date(now));
+    expect(a.ctx.persistence!.isLeader()).toBe(true);
+    const sam = await signUp(a, "BUSINESS", "Shipper Old");
+    const S = api(a, sam);
+    const acme = (await S.post("/v1/orgs", { name: "Old Foods", kinds: ["SHIPPER"], address: NYC })).org;
+    const owner = await signUp(a, "CARRIER", "Owner Old");
+    const F = api(a, owner);
+    const fleet = (await F.post("/v1/orgs", { name: "Old Fleet", kinds: ["CARRIER"], scac: "OLDF" })).org;
+    const old = await S.post("/v1/loads", { ...loadBody(acme.id), references: { bol: "BOL-OLD", po: ["PO-ARCHIVE"] } }, 201);
+    await S.post(`/v1/loads/${old.id}/tender`, { carrierOrgId: fleet.id });
+    await F.post(`/v1/loads/${old.id}/tender-response`, { decision: "ACCEPT" });
+    await F.post(`/v1/loads/${old.id}/messages`, { body: "Delivered, thanks" }, 201);
+    for (const code of ["LOADED", "DELIVERED"]) await F.post(`/v1/loads/${old.id}/status`, { code });
+    const fresh = await S.post("/v1/loads", loadBody(acme.id), 201);
+
+    // Nothing is old enough yet.
+    expect((await archiveColdData(a.ctx)).loads).toBe(0);
+    now += 200 * 86_400_000;
+    const swept = await archiveColdData(a.ctx);
+    expect(swept.loads).toBe(1);
+    expect(a.ctx.store.loads.has(old.id)).toBe(false);
+    expect(a.ctx.store.messages.group(old.id)).toEqual([]);
+    expect(a.ctx.store.loads.has(fresh.id)).toBe(true);
+    expect(await sql("select archived from lp_docs where collection = 'loads' and key = $1", [old.id])).toEqual([{ archived: true }]);
+
+    // Off the working lists, but found in history, by search too.
+    expect((await S.get("/v1/loads")).map((l: { id: string }) => l.id)).not.toContain(old.id);
+    expect((await S.get("/v1/loads/history")).loads.map((l: { id: string }) => l.id)).toEqual([old.id]);
+    expect((await S.get("/v1/loads/history?q=PO-ARCHIVE")).loads).toHaveLength(1);
+    expect((await S.get("/v1/loads/history?q=nothing-like-this")).loads).toHaveLength(0);
+    // Only parties see it.
+    const stranger = api(a, await signUp(a, "BUSINESS", "Stranger"));
+    expect((await stranger.get("/v1/loads/history")).loads).toEqual([]);
+
+    // A server started now doesn't load it.
+    const b = await server(() => new Date(now));
+    expect(b.ctx.store.loads.has(old.id)).toBe(false);
+    expect(b.ctx.store.loads.has(fresh.id)).toBe(true);
+
+    // Opening it brings it back, with its thread.
+    expect((await api(b, sam).get(`/v1/loads/${old.id}`)).status).toBe("DELIVERED");
+    expect((await api(b, sam).get(`/v1/loads/${old.id}/messages`)).map((m: { body: string }) => m.body)).toContain("Delivered, thanks");
+    await stranger.get(`/v1/loads/${old.id}`, 404);
+
+    // Changing it makes it live again.
+    await api(b, sam).post(`/v1/loads/${old.id}/messages`, { body: "One more question" }, 201);
+    expect(await sql("select archived from lp_docs where collection = 'messages' and doc->>'body' = 'One more question'")).toEqual([{ archived: false }]);
   });
 });

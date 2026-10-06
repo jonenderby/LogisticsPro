@@ -49,6 +49,11 @@ export function MoreScreen() {
             <Row key={m.id} title={t(m.title)} onPress={() => nav.navigate(TARGET[m.id] as never)} />
           ))}
       </Section>
+      {me.platformAdmin ? (
+        <Section>
+          <Row title={t("Setup status")} subtitle={t("What this deployment is connected to")} onPress={() => nav.navigate("Setup")} />
+        </Section>
+      ) : null}
       <Section title={t("Language")} footer={t("Also used for your Today list and notifications.")}>
         <View style={{ flexDirection: "row", gap: 8, padding: 16 }}>
           {PICKABLE_LANGUAGES.map((l) => (
@@ -72,8 +77,8 @@ export function SecurityScreen() {
       <Section title={t("Account")}>
         <Row title={t("Name")} value={me.account.name} />
         <Row title={t("Email")} value={me.account.email} />
-        <Row title={t("Profile")} value={titleCase(me.account.profileType)} />
-        <Row title={t("Two-factor authentication")} value={me.account.mfaEnabled ? "On" : "Off"} />
+        <Row title={t("Profile")} value={t(titleCase(me.account.profileType))} />
+        <Row title={t("Two-factor authentication")} value={t(me.account.mfaEnabled ? "On" : "Off")} />
       </Section>
       <Section title={t("Recovery codes")} footer={t("Generating new codes invalidates the old ones.")}>
         <Padded>

@@ -87,7 +87,7 @@ export function trackingRoutes(app: FastifyInstance, ctx: AppContext) {
     if (!mine.length) throw new HttpError(403, "FORBIDDEN", "Shipment tracking is for shippers and 3PLs");
     if (orgId && !mine.includes(orgId)) throw new HttpError(403, "FORBIDDEN", "Not your organization");
     const orgs = new Set(orgId ? [orgId] : mine);
-    const shipments = [...ctx.store.loads.values()]
+    const shipments = [...new Map([...orgs].flatMap((o) => ctx.store.loadsOfParty(o)).map((l) => [l.id, l])).values()]
       .filter((l) => UNDELIVERED.includes(l.status) && (orgs.has(l.shipperOrgId) || (!!l.brokerOrgId && orgs.has(l.brokerOrgId))))
       .map((l) => shipmentView(l, orgs.has(l.shipperOrgId) && !l.brokerOrgId))
       .sort((a, b) => byUrgency(a.eta, b.eta));
@@ -103,7 +103,7 @@ export function trackingRoutes(app: FastifyInstance, ctx: AppContext) {
     const carrierId = orgId ?? managed[0];
     if (!carrierId || !managed.includes(carrierId) || !hasOrgCap(ctx, account.id, carrierId, "DISPATCH")) throw new HttpError(403, "FORBIDDEN", "Fleet tracking is for the carrier's owner, admins and dispatchers");
     const now = ctx.now().getTime();
-    const loads = [...ctx.store.loads.values()].filter((l) => l.carrierOrgId === carrierId && UNDELIVERED.includes(l.status) && l.status !== "POSTED");
+    const loads = ctx.store.loadsOfParty(carrierId).filter((l) => l.carrierOrgId === carrierId && UNDELIVERED.includes(l.status) && l.status !== "POSTED");
     const loadViews = loads.map((l) => shipmentView(l, false)).sort((a, b) => byUrgency(a.eta, b.eta));
     const drivers = ctx.store.memberships
       .filter((m) => m.orgId === carrierId && m.roles.includes("DRIVER"))
@@ -115,7 +115,7 @@ export function trackingRoutes(app: FastifyInstance, ctx: AppContext) {
         const offline = !p || now - Date.parse(p.at) > OFFLINE_AFTER_MS;
         // A driver who also drives for another carrier: while moving that carrier's freight,
         // this carrier sees only that they are busy, not where they are or for whom.
-        const elsewhere = !view && [...ctx.store.loads.values()].some((l) => l.carrierOrgId !== carrierId && MOVING.includes(l.status) && activeLeg(l)?.driverAccountIds.includes(m.accountId));
+        const elsewhere = !view && ctx.store.loadsOfParty(m.accountId).some((l) => l.carrierOrgId !== carrierId && MOVING.includes(l.status) && activeLeg(l)?.driverAccountIds.includes(m.accountId));
         const hos = hosFor(ctx.store, m.accountId, ctx.now());
         return {
           accountId: acct.id,

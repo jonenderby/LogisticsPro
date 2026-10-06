@@ -67,7 +67,7 @@ export function iftaRoutes(app: FastifyInstance, ctx: AppContext) {
     carrier(orgId);
     if (!office(account.id, orgId)) throw new HttpError(403, "FORBIDDEN", "Only the office enters fuel for other trucks");
     const out = new Map<string, string>();
-    for (const l of ctx.store.loads.values()) if (l.carrierOrgId === orgId) for (const leg of l.legs) if (leg.tractorId) out.set(`unit:${leg.tractorId}`, `Unit ${leg.tractorId}`);
+    for (const l of ctx.store.loadsOfParty(orgId)) if (l.carrierOrgId === orgId) for (const leg of l.legs) if (leg.tractorId) out.set(`unit:${leg.tractorId}`, `Unit ${leg.tractorId}`);
     for (const d of ctx.store.jurisdictionMiles.values()) if (d.carrierOrgId === orgId) out.set(d.vehicle, d.vehicleLabel);
     for (const m of ctx.store.memberships) if (m.orgId === orgId && m.roles.includes("DRIVER")) {
       const t = driverTruck(m.accountId);

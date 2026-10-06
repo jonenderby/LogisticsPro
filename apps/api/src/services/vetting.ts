@@ -69,7 +69,7 @@ export async function requireEligible(ctx: AppContext, payerOrgId: string, carri
  */
 export async function recheckCarriers(ctx: AppContext): Promise<number> {
   if (!ctx.fmcsa) return 0;
-  const active = [...ctx.store.loads.values()].filter((l) => l.carrierOrgId && ["BOOKED", "DISPATCHED", "AT_PICKUP", "IN_TRANSIT", "AT_DELIVERY"].includes(l.status));
+  const active = ctx.store.loadsIn("BOOKED", "DISPATCHED", "AT_PICKUP", "IN_TRANSIT", "AT_DELIVERY").filter((l) => l.carrierOrgId);
   const carriers = new Set(active.map((l) => l.carrierOrgId!));
   let alerts = 0;
   for (const carrierOrgId of carriers) {

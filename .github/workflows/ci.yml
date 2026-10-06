@@ -53,3 +53,38 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: logisticspro:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      # Runs the image against Postgres the way deploy/docker-compose.yml does,
+      # then checks it serves the API, saves to the database and serves the website.
+      - name: Start the image with Postgres
+        run: |
+          docker network create lp
+          docker run -d --name db --network lp -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=logisticspro postgres:16
+          for i in $(seq 1 30); do docker exec db psql -U postgres -d logisticspro -c "select 1" >/dev/null 2>&1 && break; sleep 2; done
+          docker run -d --name api --network lp -p 8080:8080 \
+            -e LP_JWT_SECRET=ci-only-secret \
+            -e LP_DATABASE_URL=postgres://postgres:ci@db:5432/logisticspro \
+            -e LP_PUSH=off \
+            logisticspro:ci
+          for i in $(seq 1 60); do curl -fsS http://localhost:8080/health && break; sleep 2; done
+      - name: Check the API, the database and the website
+        run: |
+          curl -fsS http://localhost:8080/health
+          curl -fsS -X POST http://localhost:8080/v1/auth/register -H "content-type: application/json" \
+            -d '{"email":"ci@example.com","password":"correct horse battery staple","name":"CI","profileType":"BUSINESS"}' | grep -q enrollToken
+          docker exec db psql -U postgres -d logisticspro -tAc "select count(*) from lp_docs where collection = 'accounts' and doc->>'email' = 'ci@example.com'" | grep -qx 1
+          curl -fsS -H "accept: text/html" http://localhost:8080/loads | grep -q '<div id="root">'
+      - if: failure()
+        run: docker logs api

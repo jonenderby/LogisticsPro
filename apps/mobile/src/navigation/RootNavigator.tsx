@@ -31,6 +31,8 @@ import { RateConfirmationScreen } from "../screens/RateConfirmationScreen";
 import { CarrierCheckScreen } from "../screens/CarrierCheckScreen";
 import { SignatureScreen } from "../screens/SignatureScreen";
 import { InsightsScreen } from "../screens/InsightsScreen";
+import { SetupScreen } from "../screens/SetupScreen";
+import { HistoryScreen } from "../screens/HistoryScreen";
 import { InvoiceDetailScreen } from "../screens/MoneyScreens";
 import { NotificationsScreen } from "../screens/NotificationsScreen";
 import { Icon } from "../ui/Icon";
@@ -78,6 +80,8 @@ const SHARED: Array<{ name: keyof StackParams; component: ComponentType; title: 
   { name: "CarrierCheck", component: CarrierCheckScreen, title: tx("Carrier check") },
   { name: "Signature", component: SignatureScreen, title: tx("Delivery signature") },
   { name: "Insights", component: InsightsScreen, title: tx("Insights") },
+  { name: "Setup", component: SetupScreen, title: tx("Setup status") },
+  { name: "History", component: HistoryScreen, title: tx("Older loads") },
 ];
 
 function stackFor(root: TabRoot) {

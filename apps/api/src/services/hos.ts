@@ -36,7 +36,7 @@ export function hosFor(store: MemoryStore, accountId: string, now: Date): HosVie
 
 /** A team truck: either driver could be at the wheel, so movement says nothing about who is driving. */
 export function onTeamTruck(store: MemoryStore, accountId: string): boolean {
-  return [...store.loads.values()].some((l: Load) => MOVING.includes(l.status) && (activeLeg(l)?.driverAccountIds.length ?? 0) > 1 && activeLeg(l)!.driverAccountIds.includes(accountId));
+  return store.loadsOfParty(accountId).some((l: Load) => MOVING.includes(l.status) && (activeLeg(l)?.driverAccountIds.length ?? 0) > 1 && activeLeg(l)!.driverAccountIds.includes(accountId));
 }
 
 function prune<T extends { at: string }>(items: T[], now: Date, keepLastBefore = false): T[] {

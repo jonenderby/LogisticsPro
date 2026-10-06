@@ -4,6 +4,10 @@ export interface Config {
   port: number;
   host: string;
   jwtSecret: Uint8Array;
+  /** False when no LP_JWT_SECRET was given and a random one is used, so sessions end on restart. */
+  jwtSecretSet: boolean;
+  /** Emails of the people who run this deployment; they see its setup status. */
+  adminEmails: string[];
   issuer: string;
   accessTokenTtl: string;
   refreshTokenDays: number;
@@ -45,6 +49,10 @@ export interface Config {
   fmcsaFixtures?: string;
   /** Directory for uploaded documents when there is no database. Without either, they are kept in memory. */
   filesDir?: string;
+  /** Finished loads untouched this many days leave memory (they stay in Postgres and come back when opened). 0 keeps everything. */
+  archiveAfterDays: number;
+  /** Integration transmissions older than this many days leave memory. */
+  archiveTransmissionsAfterDays: number;
   /** Key for encrypting credentials businesses give us (ELD API keys). Defaults to the JWT secret. */
   dataKey?: Uint8Array;
 }
@@ -56,6 +64,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     port: Number(env.PORT ?? 8080),
     host: env.HOST ?? "0.0.0.0",
     jwtSecret: secret ? new TextEncoder().encode(secret) : randomBytes(32),
+    jwtSecretSet: !!secret,
+    adminEmails: (env.LP_ADMIN_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
     issuer: env.LP_ISSUER ?? "logistics-pro",
     accessTokenTtl: env.LP_ACCESS_TTL ?? "1h",
     refreshTokenDays: Number(env.LP_REFRESH_DAYS ?? 30),
@@ -78,6 +88,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     fmcsaWebKey: env.LP_FMCSA_WEBKEY || undefined,
     fmcsaFixtures: env.LP_FMCSA_FIXTURES || undefined,
     filesDir: env.LP_FILES_DIR || undefined,
+    archiveAfterDays: Number(env.LP_ARCHIVE_AFTER_DAYS ?? 120),
+    archiveTransmissionsAfterDays: Number(env.LP_ARCHIVE_TRANSMISSIONS_AFTER_DAYS ?? 30),
     dataKey: env.LP_DATA_KEY ? new TextEncoder().encode(env.LP_DATA_KEY) : undefined,
     databaseUrl: env.LP_DATABASE_URL || env.DATABASE_URL || undefined,
   };

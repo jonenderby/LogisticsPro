@@ -8,7 +8,7 @@ const REPORTER_STALE_MS = 10 * 60_000;
 
 /** The truck and carrier a driver's miles count for right now. */
 export function vehicleOf(ctx: AppContext, accountId: string): { carrierOrgId?: string; vehicle: string; label: string; crew: string[] } {
-  const load = [...ctx.store.loads.values()].find((l) => MOVING.includes(l.status) && activeLeg(l)?.driverAccountIds.includes(accountId));
+  const load = ctx.store.loadsOfParty(accountId).find((l) => MOVING.includes(l.status) && activeLeg(l)?.driverAccountIds.includes(accountId));
   const leg = load ? activeLeg(load) : undefined;
   const crew = leg?.driverAccountIds ?? [accountId];
   const account = ctx.store.accounts.get(accountId);

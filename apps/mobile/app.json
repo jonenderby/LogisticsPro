@@ -50,12 +50,7 @@
           "color": "#1D5FD1"
         }
       ],
-      [
-        "react-native-maps",
-        {
-          "androidGoogleMapsApiKey": "${GOOGLE_MAPS_ANDROID_API_KEY}"
-        }
-      ],
+      "react-native-maps",
       [
         "expo-image-picker",
         {

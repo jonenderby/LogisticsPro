@@ -98,8 +98,8 @@ export function paymentRoutes(app: FastifyInstance, ctx: AppContext) {
     const title = `${org.name} changed where it gets paid`;
     const body2 = `New invoices are paid to ${now}${factoring ? " (factoring)" : ""}. Invoices already sent keep their remit-to. If you didn't expect this, call ${org.name} at a number you already have before paying.`;
     const payers = new Set<string>();
-    for (const inv of ctx.store.invoices.values()) if (inv.carrierOrgId === orgId && isOpen(inv) && inv.billTo.orgId) payers.add(inv.billTo.orgId);
-    for (const l of ctx.store.loads.values()) if (l.carrierOrgId === orgId && ["BOOKED", ...MOVING, "DELIVERED"].includes(l.status)) {
+    for (const inv of ctx.store.invoicesOfParty(orgId)) if (inv.carrierOrgId === orgId && isOpen(inv) && inv.billTo.orgId) payers.add(inv.billTo.orgId);
+    for (const l of ctx.store.loadsOfParty(orgId)) if (l.carrierOrgId === orgId && ["BOOKED", ...MOVING, "DELIVERED"].includes(l.status)) {
       payers.add(l.billTo.orgId ?? l.brokerOrgId ?? l.shipperOrgId);
       postMessage(ctx, l, { senderAccountId: account.id, kind: "SYSTEM", body: `${title}: ${now}.` });
     }
@@ -113,7 +113,8 @@ export function paymentRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get("/v1/invoices", auth, async (req) => {
     const account = me(ctx, req);
     const mine = new Set(ctx.store.membershipsOf(account.id).map((m) => m.orgId));
-    return [...ctx.store.invoices.values()]
+    return ctx.store
+      .invoicesOfParty(...mine, account.id)
       .filter((i) => mine.has(i.carrierOrgId) || (i.billTo.orgId && mine.has(i.billTo.orgId)) || i.createdByAccountId === account.id)
       .map(view)
       .sort((a, b) => b.issuedAt.localeCompare(a.issuedAt));
@@ -182,7 +183,7 @@ export function paymentRoutes(app: FastifyInstance, ctx: AppContext) {
     const account = me(ctx, req);
     const { orgId } = req.params as { orgId: string };
     requireOrgCap(ctx, account.id, orgId, "PAY");
-    const all = [...ctx.store.invoices.values()];
+    const all = ctx.store.invoicesOfParty(orgId);
     const receivable = all.filter((i) => i.carrierOrgId === orgId);
     const payable = all.filter((i) => i.billTo.orgId === orgId);
     const byParty = (list: Invoice[], key: (i: Invoice) => string | undefined) => {

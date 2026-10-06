@@ -3,12 +3,12 @@
 What is built and tested is described in the README. This is what remains before a production launch, roughly in priority order.
 
 ## Must have before real customers
-- **Database at scale.** Postgres persistence and multiple servers are built (see [ARCHITECTURE.md](ARCHITECTURE.md)). Every server still holds the full data set in memory, which suits thousands of loads a day, not millions. Past that, move hot collections (loads, messages, transmissions) to their own tables with indexed columns, read them per request, and use transactions for contested updates such as awarding a bid.
+- **Database at scale.** Postgres persistence, multiple servers, indexes, archiving of finished loads and record locks are built (see [ARCHITECTURE.md](ARCHITECTURE.md)). Each server keeps what is in play in memory: active loads and roughly four months of finished ones. Load test with production volumes before launch; past tens of thousands of active loads, read loads per request from their own table instead of keeping them in memory.
 - **Carrier onboarding and certification.** The catalog seeds methods per carrier, but each carrier still needs credentials (API keys or OAuth clients stored as secrets), its exact field names as a field map, and EDI test cycles against its implementation guide. Start with the carriers your first customers use.
 - **EDI connectivity.** AS2 is built in (central station, signed and encrypted, synchronous MDNs). Still to do: asynchronous MDNs, AS2 compression, certificate-exchange messages, and a native SFTP/VAN client (today those go through an outbox directory).
 - **Map servers.** Run Valhalla and Nominatim (or Pelias) with the full North America extract; see [NAVIGATION.md](NAVIGATION.md).
 - **Secrets management.** Partner credentials resolve from `LP_SECRET_*` environment variables, and ELD keys are encrypted in the database. Move both to a secrets manager with key rotation.
-- **Device testing and store builds.** The app is typechecked, bundled for iOS and Android, and exercised on web. It still needs EAS builds, testing on physical phones, App Store and Play Store listings, and a Google Maps key for Android.
+- **Device testing and store builds.** The app is typechecked, bundled for iOS and Android, and exercised on web, and `eas.json` has preview and production profiles (see [DEPLOYMENT.md](DEPLOYMENT.md)). It still needs an EAS project, Apple and Google push credentials, testing on physical phones, App Store and Play Store listings, and a Google Maps key for Android.
 
 ## Website
 - Desktop-first screens for heavy office work: bulk load entry or CSV import, and a dispatch board with drag-and-drop driver assignment.

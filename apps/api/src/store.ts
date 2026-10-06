@@ -133,10 +133,21 @@ export class MemoryStore {
   accounts = new PersistentMap<Account>("accounts");
   orgs = new PersistentMap<Organization>("orgs");
   memberships = PersistentList.create<Membership>("memberships", (m) => `${m.accountId}:${m.orgId}`);
-  loads = new PersistentMap<Load>("loads");
-  bids = new PersistentMap<Bid>("bids");
-  invoices = new PersistentMap<Invoice>("invoices");
-  messages = PersistentList.create<Message>("messages", (m) => m.id);
+  /**
+   * Indexed by every party (shipper, broker, carrier orgs and assigned
+   * drivers), by status, by load number and by the shipper's own reference.
+   */
+  loads = new PersistentMap<Load>("loads")
+    .index("party", (l) => [l.shipperOrgId, l.brokerOrgId, l.carrierOrgId, ...l.legs.flatMap((g) => g.driverAccountIds)])
+    .index("status", (l) => [l.status])
+    .index("number", (l) => [l.loadNumber])
+    .index("shipperRef", (l) => [l.references.shipperRef && `${l.shipperOrgId}|${l.references.shipperRef}`]);
+  bids = new PersistentMap<Bid>("bids").index("load", (b) => [b.loadId]).index("carrier", (b) => [b.carrierOrgId]);
+  /** Indexed by the carrier and the payer, by load, and by who created it. */
+  invoices = new PersistentMap<Invoice>("invoices")
+    .index("party", (i) => [i.carrierOrgId, i.billTo.orgId, i.createdByAccountId])
+    .index("load", (i) => [i.loadId]);
+  messages = PersistentList.create<Message>("messages", (m) => m.id, (m) => m.loadId);
   /** key: `${ownerOrgId}:${partnerKey}`; the org's own receiving preferences use partnerKey "receiving". */
   profiles = new PersistentMap<StoredProfile>("profiles");
   transmissions = PersistentList.create<Transmission>("transmissions", (t) => t.id);
@@ -227,6 +238,34 @@ export class MemoryStore {
   /** Report every change to `sink` (the database layer). */
   attach(sink: ChangeSink): void {
     for (const c of this.collections().values()) c.sink = sink;
+  }
+
+  /** Invoices where an org is the carrier or the payer (or an account created them, given an account id). */
+  invoicesOfParty(...ids: string[]): Invoice[] {
+    const seen = new Map<string, Invoice>();
+    for (const id of ids) for (const i of this.invoices.where("party", id)) seen.set(i.id, i);
+    return [...seen.values()];
+  }
+
+  /** Loads in any of these statuses. */
+  loadsIn(...statuses: Load["status"][]): Load[] {
+    return statuses.flatMap((st) => this.loads.where("status", st));
+  }
+
+  /** Loads where an account is a party: through its companies or as an assigned driver. */
+  loadsOf(accountId: string): Load[] {
+    const seen = new Map<string, Load>();
+    for (const term of [accountId, ...this.membershipsOf(accountId).map((m) => m.orgId)]) for (const l of this.loads.where("party", term)) seen.set(l.id, l);
+    return [...seen.values()];
+  }
+
+  /** Loads where an org is shipper, broker or carrier (or a driver is assigned, given an account id). */
+  loadsOfParty(id: string): Load[] {
+    return this.loads.where("party", id);
+  }
+
+  loadByNumber(loadNumber: string): Load | undefined {
+    return this.loads.where("number", loadNumber)[0];
   }
 
   accountByEmail(email: string): Account | undefined {

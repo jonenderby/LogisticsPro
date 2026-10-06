@@ -15,7 +15,7 @@ export function detentionTerms(ctx: AppContext, load: Load): DetentionTerms {
  * with one tap if they have not reported it.
  */
 export function recordStopVisits(ctx: AppContext, accountId: string, fix: { geo: GeoPoint; at: string }): void {
-  for (const load of ctx.store.loads.values()) {
+  for (const load of ctx.store.loadsOfParty(accountId)) {
     if (!WORKING.includes(load.status) || !activeLeg(load)?.driverAccountIds.includes(accountId)) continue;
     const r = updateVisits(load, fix);
     if (!r) continue;
@@ -31,7 +31,8 @@ export function recordStopVisits(ctx: AppContext, accountId: string, fix: { geo:
 export function checkDetention(ctx: AppContext): number {
   const now = ctx.now().toISOString();
   let sent = 0;
-  for (const load of ctx.store.loads.values()) {
+  // Free time can run out until the truck leaves, which may be after the delivery is reported.
+  for (const load of ctx.store.loadsIn(...(WORKING as Load["status"][]), "DELIVERED")) {
     const open = load.visits?.filter((v) => !v.departedAt && !v.detentionNotifiedAt);
     if (!open?.length) continue;
     const terms = detentionTerms(ctx, load);

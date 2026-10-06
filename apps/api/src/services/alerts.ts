@@ -58,11 +58,9 @@ export class AlertEngine {
     let alerts = 0;
     let summaries = 0;
 
-    for (const load of store.loads.values()) {
-      if (!WATCHED.includes(load.status)) {
-        store.arrivalSeen.delete(load.id);
-        continue;
-      }
+    // Forget loads that are no longer watched (delivered, cancelled or archived).
+    for (const id of [...store.arrivalSeen.keys()]) if (!WATCHED.includes(store.loads.get(id)?.status ?? "")) store.arrivalSeen.delete(id);
+    for (const load of store.loadsIn(...(WATCHED as Load["status"][]))) {
       const eta = etaFor(store, load, now);
       const audience = alertAudience(this.ctx, load);
       watched.push({ load, eta, audience });

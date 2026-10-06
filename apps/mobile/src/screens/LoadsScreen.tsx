@@ -1,10 +1,11 @@
+import { tx } from "@logisticspro/workspace";
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { api } from "../api/client";
 import type { Load } from "../api/types";
 import { useNav, useParams } from "../navigation/types";
-import { useMe } from "../state/MeProvider";
+import { useMe, useT } from "../state/MeProvider";
 import { Button, Empty, Row, Screen, Section, Segmented, StatusPill } from "../ui/components";
 import { money, titleCase, when } from "../ui/format";
 import { useLayout } from "../ui/responsive";
@@ -54,25 +55,35 @@ export function LoadsScreen() {
           <LoadsTable loads={loads} onOpen={(id) => nav.navigate("LoadDetail", { id })} />
         ) : (
           loads.map((l) => (
-            <Row key={l.id} title={`${l.loadNumber} · ${lane(l)}`} subtitle={`${when(l.stops[0]?.window.start)} · ${l.equipment.type.replace(/_/g, " ").toLowerCase()}${l.service === "TEAM_EXPEDITED" ? " · team" : ""}${l.oversize ? " · oversize" : ""}`} right={<StatusPill status={l.status} />} onPress={() => nav.navigate("LoadDetail", { id: l.id })} />
+            <LoadRow key={l.id} load={l} onOpen={(id) => nav.navigate("LoadDetail", { id })} />
           ))
         )}
+      </Section>
+      <Section>
+        <Row title={t("Older loads")} subtitle={t("Search loads finished in earlier months")} onPress={() => nav.navigate("History")} />
       </Section>
     </Screen>
   );
 }
 
+/** One load in a list: number, lane, pickup and equipment. */
+export function LoadRow({ load: l, onOpen }: { load: Load; onOpen: (id: string) => void }) {
+  const t = useT();
+  return <Row title={`${l.loadNumber} · ${lane(l)}`} subtitle={`${when(l.stops[0]?.window.start)} · ${t(titleCase(l.equipment.type))}${l.service === "TEAM_EXPEDITED" ? ` · ${t("team")}` : ""}${l.oversize ? ` · ${t("oversize")}` : ""}`} right={<StatusPill status={l.status} />} onPress={() => onOpen(l.id)} />;
+}
+
 const COLUMNS = [
-  { key: "load", title: "Load", flex: 1 },
-  { key: "lane", title: "Lane", flex: 2.4 },
-  { key: "pickup", title: "Pickup", flex: 1.3 },
-  { key: "equipment", title: "Equipment", flex: 1.2 },
-  { key: "rate", title: "Rate", flex: 1 },
-  { key: "status", title: "Status", flex: 1.2 },
+  { key: "load", title: tx("Load"), flex: 1 },
+  { key: "lane", title: tx("Lane"), flex: 2.4 },
+  { key: "pickup", title: tx("Pickup"), flex: 1.3 },
+  { key: "equipment", title: tx("Equipment"), flex: 1.2 },
+  { key: "rate", title: tx("Rate"), flex: 1 },
+  { key: "status", title: tx("Status"), flex: 1.2 },
 ] as const;
 
 /** Desktop: the same loads as a scannable table. */
 function LoadsTable({ loads, onOpen }: { loads: Load[]; onOpen: (id: string) => void }) {
+  const t = useT();
   const { colors, metrics } = useTheme();
   const cell = (flex: number) => ({ flex, paddingHorizontal: 12, paddingVertical: 12, justifyContent: "center" as const });
   return (
@@ -80,7 +91,7 @@ function LoadsTable({ loads, onOpen }: { loads: Load[]; onOpen: (id: string) => 
       <View style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.separator }}>
         {COLUMNS.map((c) => (
           <Text key={c.key} style={[cell(c.flex), { color: colors.textSecondary, fontSize: metrics.caption, fontWeight: "600" }]}>
-            {c.title}
+            {t(c.title)}
           </Text>
         ))}
       </View>
@@ -90,9 +101,9 @@ function LoadsTable({ loads, onOpen }: { loads: Load[]; onOpen: (id: string) => 
           <Text style={[cell(2.4), { color: colors.text, fontSize: metrics.callout }]}>{lane(l)}</Text>
           <Text style={[cell(1.3), { color: colors.text, fontSize: metrics.callout }]}>{when(l.stops[0]?.window.start)}</Text>
           <Text style={[cell(1.2), { color: colors.text, fontSize: metrics.callout }]}>
-            {titleCase(l.equipment.type)}
-            {l.service === "TEAM_EXPEDITED" ? " · team" : ""}
-            {l.oversize ? " · oversize" : ""}
+            {t(titleCase(l.equipment.type))}
+            {l.service === "TEAM_EXPEDITED" ? ` · ${t("team")}` : ""}
+            {l.oversize ? ` · ${t("oversize")}` : ""}
           </Text>
           <Text style={[cell(1), { color: colors.text, fontSize: metrics.callout }]}>{money(l.rate?.amount)}</Text>
           <View style={cell(1.2)}>

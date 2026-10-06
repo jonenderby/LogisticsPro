@@ -76,7 +76,7 @@ export function as2Routes(app: FastifyInstance, ctx: AppContext) {
     const profileFor = (d: { doc: unknown }): StoredProfile | { error: string } => {
       if (pool.length === 1) return pool[0]!;
       const sid = shipmentIdOf(d.doc);
-      const load = sid ? [...ctx.store.loads.values()].find((l) => l.loadNumber === sid) : undefined;
+      const load = sid ? ctx.store.loadByNumber(sid) : undefined;
       const owner = load && pool.find((p) => [load.shipperOrgId, load.brokerOrgId, load.carrierOrgId].includes(p.ownerOrgId));
       return owner ?? { error: `Several businesses trade with ${from} under interchange id ${receiver}; give each a distinct EDI interchange id` };
     };

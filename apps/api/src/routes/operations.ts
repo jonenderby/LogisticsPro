@@ -163,7 +163,7 @@ export function operationsRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get("/v1/loads/:id/messages", auth, async (req) => {
     const account = me(ctx, req);
     const load = getLoad(ctx, account.id, param(req));
-    const msgs = ctx.store.messages.filter((m) => m.loadId === load.id);
+    const msgs = ctx.store.messages.group(load.id);
     ctx.store.reads.set(`${account.id}:load:${load.id}`, ctx.now().toISOString());
     // Reading the thread clears its message notifications.
     for (const n of ctx.store.notifications.get(account.id) ?? []) if (n.kind === "MESSAGE" && n.loadId === load.id) n.read = true;
@@ -184,10 +184,10 @@ export function operationsRoutes(app: FastifyInstance, ctx: AppContext) {
 
   app.get("/v1/messages/threads", auth, async (req) => {
     const account = me(ctx, req);
-    const visible = [...ctx.store.loads.values()].filter((l) => getLoadSafe(ctx, account.id, l.id));
+    const visible = ctx.store.loadsOf(account.id);
     return visible
       .map((l) => {
-        const msgs = ctx.store.messages.filter((m) => m.loadId === l.id);
+        const msgs = ctx.store.messages.group(l.id);
         const last = msgs[msgs.length - 1];
         const read = ctx.store.reads.get(`${account.id}:load:${l.id}`) ?? "";
         return last ? { loadId: l.id, loadNumber: l.loadNumber, last, unread: msgs.filter((m) => m.createdAt > read && m.senderAccountId !== account.id).length } : undefined;
@@ -343,10 +343,3 @@ export function operationsRoutes(app: FastifyInstance, ctx: AppContext) {
 
 }
 
-function getLoadSafe(ctx: AppContext, accountId: string, id: string): Load | undefined {
-  try {
-    return getLoad(ctx, accountId, id);
-  } catch {
-    return undefined;
-  }
-}

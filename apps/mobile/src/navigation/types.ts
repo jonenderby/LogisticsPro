@@ -30,6 +30,8 @@ export type StackParams = {
   CarrierCheck: { orgId: string; payerOrgId?: string };
   Signature: { loadId: string };
   Insights: undefined;
+  Setup: undefined;
+  History: undefined;
 };
 
 export const useNav = () => useNavigation<NavigationProp<StackParams>>();

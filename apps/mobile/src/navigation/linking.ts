@@ -23,6 +23,8 @@ const SHARED_PATHS: Record<string, string> = {
   CarrierCheck: "carrier/:orgId/check",
   Signature: "load/:loadId/sign",
   Insights: "insights",
+  Setup: "setup",
+  History: "older-loads",
 };
 
 /**

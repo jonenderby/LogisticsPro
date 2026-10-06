@@ -19,7 +19,7 @@ export async function refreshRoutes(ctx: AppContext, limit = 50): Promise<number
   if (ctx.routing instanceof StaticProvider) return 0;
   const now = ctx.now();
   let done = 0;
-  for (const load of ctx.store.loads.values()) {
+  for (const load of ctx.store.loadsIn(...(MOVING as Load["status"][]))) {
     if (done >= limit) break;
     if (!MOVING.includes(load.status) || !load.pickedUpAt) continue;
     const p = positionForLoad(ctx.store, load);

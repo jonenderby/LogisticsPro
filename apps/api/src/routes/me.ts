@@ -3,7 +3,8 @@ import { hosFor, onTeamTruck } from "../services/hos.js";
 import { buildFeed, buildWorkspace } from "@logisticspro/workspace";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { type AppContext, authenticate, canSeeLoad, capsOf, me, parse } from "../http.js";
+import { type AppContext, authenticate, capsOf, me, parse } from "../http.js";
+import { isPlatformAdmin } from "../services/setup.js";
 import { UNDELIVERED, etaFor } from "../services/tracking.js";
 
 /**
@@ -24,15 +25,15 @@ export function meRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get("/v1/me", { preHandler: authenticate(ctx) }, async (req) => {
     const account = me(ctx, req);
     const caps = capsOf(ctx, account.id);
-    const loads = [...ctx.store.loads.values()].filter((l) => l.status !== "POSTED" && canSeeLoad(ctx, account.id, l));
-    const boardLoads = caps.all.has("BID") ? [...ctx.store.loads.values()].filter((l) => l.status === "POSTED") : [];
+    const loads = ctx.store.loadsOf(account.id).filter((l) => l.status !== "POSTED");
+    const boardLoads = caps.all.has("BID") ? ctx.store.loadsIn("POSTED") : [];
     const myOrgIds = new Set(ctx.store.membershipsOf(account.id).map((m) => m.orgId));
-    const bids = [...ctx.store.bids.values()].filter((b) => myOrgIds.has(b.carrierOrgId) || loads.some((l) => l.id === b.loadId));
-    const invoices = [...ctx.store.invoices.values()].filter((i) => myOrgIds.has(i.carrierOrgId) || (i.billTo.orgId && myOrgIds.has(i.billTo.orgId)) || loads.some((l) => l.id === i.loadId));
+    const bids = [...new Map([...[...myOrgIds].flatMap((o) => ctx.store.bids.where("carrier", o)), ...loads.flatMap((l) => ctx.store.bids.where("load", l.id))].map((b) => [b.id, b])).values()];
+    const invoices = [...new Map([...ctx.store.invoicesOfParty(...myOrgIds), ...loads.flatMap((l) => ctx.store.invoices.where("load", l.id))].map((i) => [i.id, i])).values()];
     const unreadByLoad: Record<string, number> = {};
     for (const l of loads) {
       const lastRead = ctx.store.reads.get(`${account.id}:load:${l.id}`) ?? "";
-      const n = ctx.store.messages.filter((m) => m.loadId === l.id && m.senderAccountId !== account.id && m.createdAt > lastRead).length;
+      const n = ctx.store.messages.group(l.id).filter((m) => m.senderAccountId !== account.id && m.createdAt > lastRead).length;
       if (n) unreadByLoad[l.id] = n;
     }
     const managed = new Set([...caps.byOrg].filter(([, s]) => s.has("DISPATCH") || s.has("MANAGE_ORG")).map(([id]) => id));
@@ -57,6 +58,7 @@ export function meRoutes(app: FastifyInstance, ctx: AppContext) {
       orgs: ctx.store.orgsOf(account.id).map((o) => ({ ...o, roles: ctx.store.membershipsOf(account.id).find((m) => m.orgId === o.id)!.roles })),
       capabilities: [...caps.all].sort(),
       ownerOperator: caps.ownerOperator,
+      platformAdmin: isPlatformAdmin(ctx, account.email),
       workspace: buildWorkspace(caps),
       feed: buildFeed(caps, { accountId: account.id, loads, boardLoads, bids, invoices, unreadByLoad, joinRequests, arrivalAlerts, rateConsToSign, now: ctx.now().toISOString(), lang: account.language }),
       hos: caps.all.has("DRIVE") ? { ...hosFor(ctx.store, account.id, ctx.now()), teamTruck: onTeamTruck(ctx.store, account.id) } : undefined,
