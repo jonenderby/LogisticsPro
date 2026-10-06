@@ -10,7 +10,7 @@ export interface TabSpec {
 }
 
 export interface MoreEntry {
-  id: TabId | "account" | "security" | "register-company" | "join-carrier" | "reliability" | "alerts" | "hours" | "fuel-tax" | "notifications" | "integrations" | "fleet" | "distribution-centers";
+  id: TabId | "account" | "security" | "register-company" | "join-carrier" | "reliability" | "alerts" | "hours" | "fuel-tax" | "insights" | "notifications" | "integrations" | "fleet" | "distribution-centers";
   title: string;
 }
 
@@ -65,6 +65,7 @@ export function buildWorkspace(caps: ResolvedCapabilities): Workspace {
   if (has("MANAGE_INTEGRATIONS")) more.push({ id: "integrations", title: "Integrations (API & EDI)" });
   if (has("DRIVE")) more.push({ id: "hours", title: "Hours of service" });
   if (has("DRIVE") || has("MANAGE_FLEET")) more.push({ id: "fuel-tax", title: "Fuel tax (IFTA)" });
+  if (has("SHIP") || has("BROKER")) more.push({ id: "insights", title: "Insights" });
   more.push({ id: "notifications", title: "Notifications" });
   if (has("DRIVE")) more.push({ id: "reliability", title: "My reliability" }, { id: "join-carrier", title: "Join a carrier" });
   if (has("REGISTER_COMPANY") || (has("DRIVE") && !has("DISPATCH"))) more.push({ id: "register-company", title: "Register your company" });

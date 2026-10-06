@@ -29,6 +29,7 @@ export type StackParams = {
   InvoiceDetail: { id: string };
   CarrierCheck: { orgId: string; payerOrgId?: string };
   Signature: { loadId: string };
+  Insights: undefined;
 };
 
 export const useNav = () => useNavigation<NavigationProp<StackParams>>();

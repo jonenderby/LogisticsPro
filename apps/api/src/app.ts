@@ -41,6 +41,7 @@ import { DiskFileBytes, MemoryFileBytes, PgFileBytes } from "./services/files.js
 import { eldClient } from "./services/eldClients.js";
 import { syncAllEld } from "./services/eld.js";
 import { eldRoutes } from "./routes/eld.js";
+import { analyticsRoutes } from "./routes/analytics.js";
 
 export interface AppOptions {
   config?: Partial<Config>;
@@ -149,6 +150,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   vettingRoutes(app, ctx);
   documentRoutes(app, ctx);
   eldRoutes(app, ctx);
+  analyticsRoutes(app, ctx);
 
   if (cfg.alertIntervalSeconds > 0) {
     const timer = setInterval(() => {
