@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { bookedLoad, call, signIn, visible, world } from "./helpers";
+import { readFileSync } from "node:fs";
+import { bookedLoad, call, freshCode, signIn, visible, world } from "./helpers";
 
 test.describe("rate confirmations and getting paid", () => {
   test("the carrier opens the signed rate confirmation from the load", async ({ page }) => {
@@ -39,5 +40,32 @@ test.describe("rate confirmations and getting paid", () => {
 
     await page.goto("/money");
     await expect(visible(page, new RegExp(`^${invoice.invoiceNumber} · \\$1,800\\.00$`))).toBeVisible();
+  });
+  test("the shipper pays an approved invoice by ACH with a bank file", async ({ page }) => {
+    const w = await world();
+    await call("PUT", `/v1/orgs/${w.fleet.id}/payout-account`, { holderName: "Blue Line LLC", routingNumber: "121000248", accountNumber: "5550001234", accountType: "CHECKING", code: await freshCode(w.owner.secret) }, w.owner.token);
+    await call("PUT", `/v1/orgs/${w.acme.id}/ach-originator`, { companyName: "Acme Foods", companyId: "1123456789", bankRoutingNumber: "021000021", bankName: "JPMorgan Chase" }, w.shipper.token);
+    const load = await bookedLoad(w);
+    for (const code of ["ARRIVED_PICKUP", "LOADED", "ARRIVED_DELIVERY", "DELIVERED"]) await call("POST", `/v1/loads/${load.id}/status`, { code }, w.driver.token);
+    const { invoice } = await call("POST", `/v1/loads/${load.id}/invoices`, {}, w.owner.token);
+    await call("POST", `/v1/invoices/${invoice.id}/status`, { status: "APPROVED" }, w.shipper.token);
+
+    await signIn(page, w.shipper);
+    page.on("dialog", (d) => void d.accept());
+    await page.goto("/money");
+    await page.getByText("Pay by ACH", { exact: true }).filter({ visible: true }).first().click();
+    await expect(visible(page, "Approved and ready to pay", true)).toBeVisible();
+    await page.getByRole("switch", { name: `${invoice.invoiceNumber} · $1,800.00` }).filter({ visible: true }).click();
+    await page.getByLabel("Authenticator code").filter({ visible: true }).fill(await freshCode(w.shipper.secret));
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Make payment file" }).filter({ visible: true }).click();
+    const file = readFileSync(await (await download).path(), "utf8");
+    expect(file).toContain("5550001234");
+    expect(file).toContain(`RMR*IV*${invoice.invoiceNumber}**1800.00`);
+
+    await page.getByText(/^\$1,800\.00 · effective /).filter({ visible: true }).click();
+    await page.getByRole("button", { name: "Mark sent to the bank" }).filter({ visible: true }).click();
+    await expect(visible(page, "Sent", true).first()).toBeVisible();
+    expect((await call("GET", `/v1/invoices/${invoice.id}`, undefined, w.shipper.token)).status).toBe("PAID");
   });
 });

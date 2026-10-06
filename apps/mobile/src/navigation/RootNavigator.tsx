@@ -33,6 +33,7 @@ import { SignatureScreen } from "../screens/SignatureScreen";
 import { InsightsScreen } from "../screens/InsightsScreen";
 import { SetupScreen } from "../screens/SetupScreen";
 import { HistoryScreen } from "../screens/HistoryScreen";
+import { AchPaymentsScreen } from "../screens/AchPaymentsScreen";
 import { InvoiceDetailScreen } from "../screens/MoneyScreens";
 import { NotificationsScreen } from "../screens/NotificationsScreen";
 import { Icon } from "../ui/Icon";
@@ -82,6 +83,7 @@ const SHARED: Array<{ name: keyof StackParams; component: ComponentType; title: 
   { name: "Insights", component: InsightsScreen, title: tx("Insights") },
   { name: "Setup", component: SetupScreen, title: tx("Setup status") },
   { name: "History", component: HistoryScreen, title: tx("Older loads") },
+  { name: "AchPayments", component: AchPaymentsScreen, title: tx("Pay by ACH") },
 ];
 
 function stackFor(root: TabRoot) {

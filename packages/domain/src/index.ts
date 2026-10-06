@@ -17,6 +17,7 @@ export * from "./matching.js";
 export * from "./detention.js";
 export * from "./ifta.js";
 export * from "./payments.js";
+export * from "./ach.js";
 export * from "./rateconfirmation.js";
 export * from "./vetting.js";
 export * from "./eld.js";

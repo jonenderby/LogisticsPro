@@ -112,6 +112,32 @@ export interface DriverPosition {
   source?: "PHONE" | "ELD";
 }
 
+/** A bank account's full numbers, encrypted; the organization keeps only a summary. */
+export interface StoredBankAccount {
+  orgId: string;
+  /** JSON of { routingNumber, accountNumber }, sealed (see security/sealed.ts). */
+  sealed: string;
+  createdAt: string;
+}
+
+/** A payer's batch of ACH payments to carriers: one NACHA file for its bank. */
+export interface PaymentRun {
+  id: string;
+  orgId: string;
+  status: "CREATED" | "SENT" | "CANCELLED";
+  effectiveDate: string;
+  entries: Array<{ invoiceId: string; invoiceNumber: string; carrierOrgId: string; payeeName: string; last4: string; amount: number; traceNumber: string }>;
+  total: number;
+  fileName: string;
+  /** The NACHA file, sealed: it holds account numbers. */
+  sealedFile: string;
+  createdAt: string;
+  createdByAccountId: string;
+  sentAt?: string;
+  sentByAccountId?: string;
+  cancelledAt?: string;
+}
+
 export interface RefreshToken {
   hash: string;
   accountId: string;
@@ -186,6 +212,10 @@ export class MemoryStore {
   fmcsa = new PersistentMap<FmcsaEntry>("fmcsa");
   /** A shipper's or broker's sign-off on a carrier that needs review, "<payerOrgId>|<carrierOrgId>". */
   carrierApprovals = new PersistentMap<CarrierApproval>("carrierApprovals");
+  /** Bank accounts carriers are paid to, by id (each change is a new one). */
+  bankAccounts = new PersistentMap<StoredBankAccount>("bankAccounts");
+  /** Payers' ACH payment files, indexed by payer and by invoice. */
+  paymentRuns = new PersistentMap<PaymentRun>("paymentRuns").index("org", (r) => [r.orgId]).index("invoice", (r) => r.entries.map((e) => e.invoiceId));
   /** Rate confirmation versions per load, oldest first. */
   rateConfirmations = new PersistentMap<RateConfirmation[]>("rateConfirmations");
   /** Miles per jurisdiction per truck per day, "<carrierOrgId>|<vehicle>|<date>" (fuel tax). */

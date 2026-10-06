@@ -32,6 +32,7 @@ export type StackParams = {
   Insights: undefined;
   Setup: undefined;
   History: undefined;
+  AchPayments: { orgId: string };
 };
 
 export const useNav = () => useNavigation<NavigationProp<StackParams>>();

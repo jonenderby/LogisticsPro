@@ -226,9 +226,10 @@ export function operationsRoutes(app: FastifyInstance, ctx: AppContext) {
     const payerDays = (payer?.payerTerms ?? DEFAULT_PAYER_TERMS).termsDays;
     const built = buildInvoice(load, { orgId: carrier.id, scac: carrier.scac }, account.id, { ...body, terms: body.terms ?? `NET${payerDays}`, lines: body.lines || owed.length ? [...(body.lines ?? []), ...owed] : undefined }, ctx.now().toISOString());
     // Paid to the factoring company when the carrier has one; fixed now so a later change can't redirect this invoice.
+    const bank = carrier.payoutAccount && { accountRef: carrier.payoutAccount.id, holderName: carrier.payoutAccount.holderName, routingNumber: carrier.payoutAccount.routingNumber, last4: carrier.payoutAccount.last4, accountType: carrier.payoutAccount.accountType };
     const remitTo = carrier.factoring
-      ? { kind: "FACTOR" as const, name: carrier.factoring.company, email: carrier.factoring.email, address: carrier.factoring.address }
-      : { kind: "CARRIER" as const, name: carrier.name, address: carrier.address };
+      ? { kind: "FACTOR" as const, name: carrier.factoring.company, email: carrier.factoring.email, address: carrier.factoring.address, bank }
+      : { kind: "CARRIER" as const, name: carrier.name, address: carrier.address, bank };
     const paperwork = load.documents.filter((d) => ["BOL", "POD", "LUMPER_RECEIPT", "SCALE_TICKET"].includes(d.kind)).map((d) => d.id);
     const inv = { ...built, termsDays: body.terms ? termsDays(body.terms) : payerDays, remitTo, documentIds: paperwork, payments: [], history: [] };
     const transmissions = await ctx.hub.invoice(inv, load);

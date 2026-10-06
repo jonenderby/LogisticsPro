@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AchOriginator, BankAccountSummary } from "./ach.js";
 import { DetentionTerms } from "./detention.js";
 import { Factoring, PayerTerms } from "./payments.js";
 import { VettingPolicy } from "./vetting.js";
@@ -36,6 +37,10 @@ export const Organization = z.object({
   payerTerms: PayerTerms.optional(),
   /** A carrier's factoring company; invoices are paid to it. */
   factoring: Factoring.optional(),
+  /** Where a carrier (or its factoring company) is paid by ACH. The full account number is stored encrypted, apart from this. */
+  payoutAccount: BankAccountSummary.optional(),
+  /** A shipper's or broker's ACH origination details, for paying carriers from its bank. */
+  achOriginator: AchOriginator.optional(),
   /** A shipper's or broker's carrier vetting rules; the defaults apply when unset. */
   vetting: VettingPolicy.optional(),
   createdAt: z.string(),

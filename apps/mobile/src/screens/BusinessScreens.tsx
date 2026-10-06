@@ -10,7 +10,7 @@ import { Banner, Body, Button, Chip, Field, Padded, Row, Screen, Section } from 
 import { parseCoords, titleCase } from "../ui/format";
 import { DriverNetworkSection, ReliabilitySections } from "./NetworkScreens";
 import { confirm } from "../ui/dialog";
-import { FactoringSection, PayerTermsSection } from "./PaymentSettings";
+import { AchOriginatorSection, BankAccountSection, FactoringSection, PayerTermsSection } from "./PaymentSettings";
 import { VettingPolicySection } from "./CarrierCheckScreen";
 import { EldSection } from "./EldSection";
 
@@ -65,7 +65,7 @@ export function RegisterCompanyScreen() {
 }
 
 interface OrgDetail {
-  org: { id: string; name: string; kinds: Kind[]; scac?: string; mcNumber?: string; dotNumber?: string; detention?: { freeHours: number; ratePerHour: number }; payerTerms?: Parameters<typeof PayerTermsSection>[0]["terms"]; factoring?: Parameters<typeof FactoringSection>[0]["factoring"]; vetting?: Parameters<typeof VettingPolicySection>[0]["policy"]; distributionCenters: Array<{ id: string; name: string; address: { city: string; state: string } }> };
+  org: { id: string; name: string; kinds: Kind[]; scac?: string; mcNumber?: string; dotNumber?: string; detention?: { freeHours: number; ratePerHour: number }; payerTerms?: Parameters<typeof PayerTermsSection>[0]["terms"]; factoring?: Parameters<typeof FactoringSection>[0]["factoring"]; payoutAccount?: Parameters<typeof BankAccountSection>[0]["account"]; achOriginator?: Parameters<typeof AchOriginatorSection>[0]["originator"]; vetting?: Parameters<typeof VettingPolicySection>[0]["policy"]; distributionCenters: Array<{ id: string; name: string; address: { city: string; state: string } }> };
   members: Array<{ roles: string[]; account: { id: string; name: string; email: string } }>;
 }
 
@@ -200,7 +200,9 @@ export function BusinessScreen() {
           {isCarrier ? <DetentionTermsSection orgId={orgId} terms={detail.org.detention} onSaved={refresh} /> : null}
           {isCarrier ? <EldSection key={`eld-${orgId}`} orgId={orgId} canManage={orgsWithRole("OWNER", "ADMIN").includes(orgId)} /> : null}
           {isCarrier ? <FactoringSection key={`f-${orgId}`} orgId={orgId} factoring={detail.org.factoring} onSaved={refresh} /> : null}
+          {isCarrier ? <BankAccountSection key={`b-${orgId}`} orgId={orgId} account={detail.org.payoutAccount} factoring={!!detail.org.factoring} onSaved={refresh} /> : null}
           {detail.org.kinds.some((k) => k === "SHIPPER" || k === "BROKER_3PL") ? <PayerTermsSection key={`p-${orgId}-${detail.org.payerTerms?.termsDays ?? 30}`} orgId={orgId} terms={detail.org.payerTerms} onSaved={refresh} /> : null}
+          {detail.org.kinds.some((k) => k === "SHIPPER" || k === "BROKER_3PL") ? <AchOriginatorSection key={`a-${orgId}-${detail.org.achOriginator?.companyId ?? ""}`} orgId={orgId} originator={detail.org.achOriginator} onSaved={refresh} /> : null}
           {detail.org.kinds.some((k) => k === "SHIPPER" || k === "BROKER_3PL") ? <VettingPolicySection key={`v-${orgId}-${JSON.stringify(detail.org.vetting ?? {})}`} orgId={orgId} policy={detail.org.vetting} onSaved={refresh} /> : null}
           {isCarrier ? (
             <Section title={t("Distribution centers")} footer={t("Route LTL shipments through a DC to combine loads headed to the same area.")}>

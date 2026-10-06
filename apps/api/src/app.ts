@@ -43,6 +43,7 @@ import { syncAllEld } from "./services/eld.js";
 import { eldRoutes } from "./routes/eld.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { setupRoutes } from "./routes/setup.js";
+import { achRoutes } from "./routes/ach.js";
 import { archiveColdData, restoreInvoice, restoreLoad } from "./services/archive.js";
 import { lockRecord } from "./services/locks.js";
 
@@ -144,7 +145,15 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
     if (req.method === "GET" || req.method === "HEAD" || !req.headers.authorization) return;
     const p = (req.params ?? {}) as Record<string, string | undefined>;
     const route = req.routeOptions.url ?? "";
-    const [collection, key] = route.startsWith("/v1/invoices/:id") ? ["invoices", p.id] : route.startsWith("/v1/loads/:id") ? ["loads", p.id] : ["loads", p.loadId];
+    const [collection, key] = route.startsWith("/v1/invoices/:id")
+      ? ["invoices", p.id]
+      : route.startsWith("/v1/loads/:id")
+        ? ["loads", p.id]
+        : route.startsWith("/v1/payment-runs/:id")
+          ? ["paymentRuns", p.id]
+          : route === "/v1/orgs/:orgId/payment-runs"
+            ? ["orgs", p.orgId]
+            : ["loads", p.loadId];
     if (!key) return;
     held.set(req, await lockRecord(ctx, `${collection}:${key}`));
     await persistence?.refresh(collection, key);
@@ -191,6 +200,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   eldRoutes(app, ctx);
   analyticsRoutes(app, ctx);
   setupRoutes(app, ctx);
+  achRoutes(app, ctx);
 
   if (cfg.alertIntervalSeconds > 0) {
     const timer = setInterval(() => {

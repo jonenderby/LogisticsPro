@@ -48,14 +48,27 @@ A carrier that factors its invoices sets the factoring company under **Business 
 - every customer with open loads or invoices is told, and so are the carrier's own owners and billing;
 - invoices already sent keep the remit-to they were sent with.
 
+### Paying by ACH
+
+A carrier adds the bank account it is paid to under **Business > Bank account for ACH**: name on the account, routing number (checked) and account number. Like the factoring company, a change needs a fresh authenticator code and every customer is told. The full account number is stored encrypted and never shown again, only the last four digits. Each change is a new stored account, and an invoice keeps the account it was sent with. Changing the factoring company removes the bank account, since it belonged to the previous payee.
+
+A shipper or broker adds its bank's ACH details under **Business > Paying by ACH**: company name for statements, its 10-character ACH company ID and its bank's routing number and name. Then **Money > Pay by ACH**:
+
+1. Pick approved invoices. Invoices not approved, without bank details, or already in a file are listed with the reason.
+2. Confirm with an authenticator code. The file holds account numbers.
+3. Upload the file to your bank. It is a standard NACHA file of CCD credits effective the next business day, one entry per invoice for its balance, with the invoice number in an addenda record (`RMR*IV*<invoice>**<amount>\`) so the carrier's bank shows what was paid.
+4. **Mark sent to the bank.** Each invoice gets an ACH payment with the entry's trace number as its reference, and each carrier is told.
+
+A file can be downloaded again with a fresh code, or cancelled before it is marked sent. An invoice can't be in two open files.
+
 ### Aging
 
 **Money** shows what is owed to a carrier, and what a shipper or broker owes, in buckets: not due yet, 1 to 30, 31 to 60, 61 to 90 and over 90 days late. It also shows the largest balances by customer or carrier and the average days to pay. Overdue and disputed invoices, and quick-pay requests, appear on Today.
 
-API: `PUT /v1/orgs/:id/payer-terms`, `PUT /v1/orgs/:id/factoring`, `GET /v1/invoices/:id`, `POST /v1/invoices/:id/status`, `POST /v1/invoices/:id/payments`, `POST /v1/invoices/:id/quick-pay`, `POST /v1/invoices/:id/quick-pay/decision`, `GET /v1/orgs/:id/aging`.
+API: `PUT /v1/orgs/:id/payer-terms`, `PUT /v1/orgs/:id/factoring`, `PUT /v1/orgs/:id/payout-account`, `PUT /v1/orgs/:id/ach-originator`, `GET` and `POST /v1/orgs/:id/payment-runs`, `POST /v1/payment-runs/:id/file`, `/sent` and `/cancel`, `GET /v1/invoices/:id`, `POST /v1/invoices/:id/status`, `POST /v1/invoices/:id/payments`, `POST /v1/invoices/:id/quick-pay`, `POST /v1/invoices/:id/quick-pay/decision`, `GET /v1/orgs/:id/aging`.
 
 ## Limits
 
-- Payments are recorded, not moved. Logistics Pro doesn't hold or send money; the payer pays as it does today and records it.
+- Logistics Pro doesn't hold or send money. ACH payments go through the payer's own bank, from the file it uploads; other payments are recorded as they are made.
 - The factoring company is told only through the carrier. A notice of assignment still goes from the carrier to its customers the usual way.
 - Inbound EDI 820 remittance advice is not read yet; payments are entered in the app or by API.

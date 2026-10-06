@@ -108,6 +108,7 @@ export function MoneyScreen() {
   const row = (i: InvoiceView, who?: string) => (
     <Row key={i.id} title={`${i.invoiceNumber} · ${money(i.total, i.currency)}`} subtitle={`${who ? `${who} · ` : ""}${t("Load {n}", { n: i.loadNumber })} · ${open(i) ? `${t("due {date}", { date: i.dueDate })}${i.paid ? ` · ${t("{amount} left", { amount: money(i.balance) })}` : ""}` : when(i.issuedAt)}${i.quickPay?.status === "REQUESTED" ? ` · ${t("quick pay asked")}` : ""}`} right={statusChip(i, t)} onPress={() => nav.navigate("InvoiceDetail", { id: i.id })} />
   );
+  const payerOrgs = (me?.orgs ?? []).filter((o) => o.kinds.some((k) => k === "SHIPPER" || k === "BROKER_3PL") && o.roles.some((r) => ["OWNER", "ADMIN", "BILLING"].includes(r)));
   const receivables = agingByOrg.find((a) => a.receivable)?.receivable;
   const payables = agingByOrg.find((a) => a.payable)?.payable;
 
@@ -116,7 +117,7 @@ export function MoneyScreen() {
       {ready.length ? (
         <Section title={t("Ready to invoice")}>
           {ready.map((l) => (
-            <Row key={l.id} title={l.loadNumber} subtitle={`Delivered ${when(l.deliveredAt)}`} value={money(l.rate?.amount)} onPress={() => nav.navigate("SendInvoice", { loadId: l.id })} />
+            <Row key={l.id} title={l.loadNumber} subtitle={t("Delivered {date}", { date: when(l.deliveredAt) })} value={money(l.rate?.amount)} onPress={() => nav.navigate("SendInvoice", { loadId: l.id })} />
           ))}
         </Section>
       ) : null}
@@ -130,6 +131,9 @@ export function MoneyScreen() {
       {payables ? <AgingSection title={t("You owe")} side={payables} parties={payables.carriers} /> : null}
       {payable.length ? (
         <Section title={t("Invoices to pay")}>
+          {payerOrgs.map((o) => (
+            <Row key={o.id} title={t("Pay by ACH")} subtitle={payerOrgs.length > 1 ? o.name : t("Make a payment file for your bank")} onPress={() => nav.navigate("AchPayments", { orgId: o.id })} />
+          ))}
           {payable.filter(open).map((i) => row(i, i.carrierName))}
           {payable.filter((i) => !open(i)).slice(0, 20).map((i) => row(i, i.carrierName))}
         </Section>

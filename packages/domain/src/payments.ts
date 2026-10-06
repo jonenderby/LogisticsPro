@@ -30,6 +30,8 @@ export const RemitTo = z.object({
   name: z.string(),
   email: z.string().optional(),
   address: Address.optional(),
+  /** Bank account for ACH, when the payee gave one. Fixed when the invoice is issued. */
+  bank: z.object({ accountRef: z.string(), holderName: z.string(), routingNumber: z.string(), last4: z.string(), accountType: z.enum(["CHECKING", "SAVINGS"]) }).optional(),
 });
 export type RemitTo = z.infer<typeof RemitTo>;
 

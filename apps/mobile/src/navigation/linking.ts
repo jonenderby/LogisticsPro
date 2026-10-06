@@ -25,6 +25,7 @@ const SHARED_PATHS: Record<string, string> = {
   Insights: "insights",
   Setup: "setup",
   History: "older-loads",
+  AchPayments: "pay-by-ach/:orgId",
 };
 
 /**

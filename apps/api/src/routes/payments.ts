@@ -1,9 +1,9 @@
 import { Address, DomainError, Factoring, type Invoice, PayerTerms, PaymentMethod, aging, agingBucket, amountOwed, amountPaid, balance, decideQuickPay, dueDate, isOpen, recordPayment, requestQuickPay, setInvoiceStatus, DEFAULT_PAYER_TERMS } from "@logisticspro/domain";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { type AppContext, HttpError, authenticate, hasOrgCap, me, parse, postMessage, requireOrgCap } from "../http.js";
+import { type AppContext, HttpError, authenticate, hasOrgCap, me, parse, requireOrgCap } from "../http.js";
 import { acceptTotpCode } from "../security/stepup.js";
-import { MOVING } from "../services/tracking.js";
+import { announceRemitChange } from "../services/remit.js";
 import { documentViews } from "./documents.js";
 
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -93,19 +93,11 @@ export function paymentRoutes(app: FastifyInstance, ctx: AppContext) {
     const body = parse(z.object({ company: z.string().trim().min(1).max(120).nullable(), email: z.string().email().max(254).optional(), address: Address.optional(), code: z.string().min(6).max(8) }), req.body);
     if (!acceptTotpCode(ctx, account.id, account.mfa.totpSecret, body.code)) throw new HttpError(400, "BAD_CODE", "That authenticator code did not match");
     const factoring = body.company ? Factoring.parse({ company: body.company, email: body.email, address: body.address, since: ctx.now().toISOString(), setByAccountId: account.id }) : undefined;
-    ctx.store.orgs.set(orgId, { ...org, factoring });
+    // Bank details belonged to the previous payee; the new one gives its own.
+    ctx.store.orgs.set(orgId, { ...org, factoring, payoutAccount: undefined });
     const now = factoring ? `${factoring.company}` : org.name;
-    const title = `${org.name} changed where it gets paid`;
-    const body2 = `New invoices are paid to ${now}${factoring ? " (factoring)" : ""}. Invoices already sent keep their remit-to. If you didn't expect this, call ${org.name} at a number you already have before paying.`;
-    const payers = new Set<string>();
-    for (const inv of ctx.store.invoicesOfParty(orgId)) if (inv.carrierOrgId === orgId && isOpen(inv) && inv.billTo.orgId) payers.add(inv.billTo.orgId);
-    for (const l of ctx.store.loadsOfParty(orgId)) if (l.carrierOrgId === orgId && ["BOOKED", ...MOVING, "DELIVERED"].includes(l.status)) {
-      payers.add(l.billTo.orgId ?? l.brokerOrgId ?? l.shipperOrgId);
-      postMessage(ctx, l, { senderAccountId: account.id, kind: "SYSTEM", body: `${title}: ${now}.` });
-    }
-    for (const p of payers) ctx.notifier.payment(p, [], { title, body: body2 });
-    ctx.notifier.payment(orgId, [], { title: "Remit-to changed", body: `${account.name} set payments to go to ${now}. If this wasn't your team, change it back and contact support.` });
-    return { factoring: factoring ?? null, customersNotified: payers.size };
+    const notified = announceRemitChange(ctx, org, account, `New invoices are paid to ${now}${factoring ? " (factoring)" : ""}.`);
+    return { factoring: factoring ?? null, customersNotified: notified, bankCleared: !!org.payoutAccount };
   });
 
   // ------------------------------------------------------------ invoices
