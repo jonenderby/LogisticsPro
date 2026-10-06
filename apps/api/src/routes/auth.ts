@@ -14,6 +14,8 @@ const Register = z.object({
   phone: z.string().max(30).optional(),
   profileType: ProfileType,
   driver: z.object({ cdlNumber: z.string().optional(), cdlState: z.string().optional() }).optional(),
+  /** Chosen when the account is set up; English unless they pick Spanish. */
+  language: z.enum(["en", "es"]).default("en"),
 });
 
 const Login = z.object({ email: z.string(), password: z.string() });
@@ -84,6 +86,7 @@ export function authRoutes(app: FastifyInstance, ctx: AppContext) {
       passwordHash: await hashPassword(body.password),
       mfa: { enabled: false, recoveryCodeHashes: [] },
       driver: body.profileType === "TRUCKER" ? { ...body.driver, endorsements: [], twicCard: false } : undefined,
+      language: body.language,
       createdAt: ctx.now().toISOString(),
     };
     ctx.store.accounts.set(account.id, account);

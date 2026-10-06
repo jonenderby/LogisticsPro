@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildWorkspace, hasSpanish, langOf, resolveCapabilities, translate } from "../src/index.js";
+import { buildWorkspace, hasSpanish, resolveCapabilities, translate } from "../src/index.js";
 
 const ROOT = resolve(__dirname, "../../..");
 
@@ -46,6 +46,7 @@ const DRIVER_FILES = [
   "apps/mobile/src/screens/TodayScreen.tsx",
   "apps/mobile/src/screens/NavigateScreen.tsx",
   "apps/mobile/src/screens/MoreScreens.tsx",
+  "apps/mobile/src/screens/auth/AuthFlow.tsx",
   "packages/workspace/src/feed.ts",
   "apps/api/src/services/notify.ts",
 ];
@@ -61,6 +62,11 @@ const TABLE_VALUES = [
   "Arrived at pickup", "Loaded", "Handoff complete", "Arrived at relay", "Arrived at terminal", "Arrived at delivery", "Delivered",
   "north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest",
   "Allow camera access in Settings to scan paperwork.", "Couldn't read the photo", "Couldn't read the file",
+  "Trucker", "3PL", "Business",
+  "Drive loads, update status, navigate and invoice. Register your own company later to run it from the same app.",
+  "Dispatch drivers, bid on loads, plan relays and teams, and invoice customers.",
+  "Post and broker loads, award bids and connect carriers.",
+  "Ship freight, tender to carriers and connect your ERP.",
   "Today", "Loads", "Track", "Navigate", "Board", "Money", "Business", "More", "Trucker", "Carrier",
 ];
 
@@ -91,7 +97,6 @@ describe("Spanish", () => {
     expect(translate("es", "Next load {n}", { n: "LP-1001" })).toBe("Siguiente carga LP-1001");
     expect(translate("en", "Next load {n}", { n: "LP-1001" })).toBe("Next load LP-1001");
     expect(translate("es", "Something new")).toBe("Something new");
-    expect(langOf("es-MX")).toBe("es");
-    expect(langOf("en-US")).toBe("en");
+    expect(translate(undefined, "Next load {n}", { n: "LP-1001" })).toBe("Next load LP-1001");
   });
 });

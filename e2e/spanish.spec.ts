@@ -23,3 +23,26 @@ test("a driver switches the app to Spanish @phone", async ({ page }) => {
   await expect(visible(page, "Horas de servicio", true).first()).toBeVisible();
   expect((await call("GET", "/v1/me", undefined, w.driver.token)).account.language).toBe("es");
 });
+
+test("a new account is in English unless Spanish is picked during setup", async ({ page }) => {
+  await page.goto("/");
+  // English is the default before and during sign-up.
+  await expect(visible(page, "Every load, every partner, one app. Drive, dispatch, ship and invoice, with your ERP connected by API or EDI.", true)).toBeVisible();
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(visible(page, "Full name", true)).toBeVisible();
+
+  await page.getByText("Español", { exact: true }).filter({ visible: true }).click();
+  await expect(visible(page, "Nombre completo", true)).toBeVisible();
+  await page.getByLabel("Nombre completo").fill("Rosa Ruiz");
+  await page.getByLabel("Correo electrónico").fill(`rosa.${Date.now()}@example.com`);
+  await page.getByLabel("Contraseña").fill(PASSWORD);
+  await page.getByRole("button", { name: "Crear cuenta" }).filter({ visible: true }).click();
+
+  await expect(visible(page, "Protege tu cuenta", true)).toBeVisible();
+  const key = (await page.getByText(/^[A-Z2-7]{4}( [A-Z2-7]{1,4})+$/).filter({ visible: true }).innerText()).replace(/\s/g, "");
+  await page.getByLabel("Código de 6 dígitos").fill(await freshCode(key));
+  await page.getByRole("button", { name: "Activar verificación en dos pasos" }).filter({ visible: true }).click();
+  await page.getByRole("button", { name: "Ya los guardé" }).filter({ visible: true }).click();
+  await expect(visible(page, "Requiere tu atención", true)).toBeVisible();
+  await expect(visible(page, "Únete a tu transportista", true)).toBeVisible();
+});

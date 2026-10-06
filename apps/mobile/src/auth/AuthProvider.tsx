@@ -26,7 +26,7 @@ export type ProfileType = "TRUCKER" | "CARRIER" | "BROKER_3PL" | "BUSINESS";
 
 interface AuthApi {
   phase: Phase;
-  register(input: { email: string; password: string; name: string; phone?: string; profileType: ProfileType }): Promise<void>;
+  register(input: { email: string; password: string; name: string; phone?: string; profileType: ProfileType; language: "en" | "es" }): Promise<void>;
   signIn(email: string, password: string): Promise<void>;
   activate(code: string): Promise<void>;
   verify(code: string): Promise<void>;

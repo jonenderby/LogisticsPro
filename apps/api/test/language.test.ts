@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import { NYC, api, harness, loadBody, signUp } from "./helpers.js";
 
 describe("language", () => {
+  it("defaults every new account to English, with Spanish chosen at sign-up", async () => {
+    const h = await harness();
+    const reg = (language?: string) => h.app.inject({ method: "POST", url: "/v1/auth/register", payload: { email: `${language ?? "none"}@example.com`, password: "correct horse battery staple", name: "New Driver", profileType: "TRUCKER", ...(language ? { language } : {}) } });
+    expect((await reg()).json().account.language).toBe("en");
+    expect((await reg("es")).json().account.language).toBe("es");
+    expect((await reg("fr")).statusCode).toBe(400);
+  });
+
   it("gives a Spanish-speaking driver a Spanish feed and pushes", async () => {
     let now = Date.parse("2026-10-06T12:00:00Z");
     const h = await harness({ now: () => new Date(now) });
