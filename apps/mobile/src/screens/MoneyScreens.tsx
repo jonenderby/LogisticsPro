@@ -109,6 +109,7 @@ export function MoneyScreen() {
     <Row key={i.id} title={`${i.invoiceNumber} · ${money(i.total, i.currency)}`} subtitle={`${who ? `${who} · ` : ""}${t("Load {n}", { n: i.loadNumber })} · ${open(i) ? `${t("due {date}", { date: i.dueDate })}${i.paid ? ` · ${t("{amount} left", { amount: money(i.balance) })}` : ""}` : when(i.issuedAt)}${i.quickPay?.status === "REQUESTED" ? ` · ${t("quick pay asked")}` : ""}`} right={statusChip(i, t)} onPress={() => nav.navigate("InvoiceDetail", { id: i.id })} />
   );
   const payerOrgs = (me?.orgs ?? []).filter((o) => o.kinds.some((k) => k === "SHIPPER" || k === "BROKER_3PL") && o.roles.some((r) => ["OWNER", "ADMIN", "BILLING"].includes(r)));
+  const carrierOffices = (me?.orgs ?? []).filter((o) => o.kinds.includes("CARRIER") && o.roles.some((r) => ["OWNER", "ADMIN", "BILLING"].includes(r)) && (o.roles.length > 1 || !o.roles.includes("DRIVER")));
   const receivables = agingByOrg.find((a) => a.receivable)?.receivable;
   const payables = agingByOrg.find((a) => a.payable)?.payable;
 
@@ -118,6 +119,13 @@ export function MoneyScreen() {
         <Section title={t("Ready to invoice")}>
           {ready.map((l) => (
             <Row key={l.id} title={l.loadNumber} subtitle={t("Delivered {date}", { date: when(l.deliveredAt) })} value={money(l.rate?.amount)} onPress={() => nav.navigate("SendInvoice", { loadId: l.id })} />
+          ))}
+        </Section>
+      ) : null}
+      {carrierOffices.length ? (
+        <Section>
+          {carrierOffices.map((o) => (
+            <Row key={o.id} title={t("Driver pay")} subtitle={carrierOffices.length > 1 ? o.name : t("Pay statements for your drivers")} onPress={() => nav.navigate("Settlements", { orgId: o.id })} />
           ))}
         </Section>
       ) : null}

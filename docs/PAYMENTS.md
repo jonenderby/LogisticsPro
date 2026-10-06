@@ -67,11 +67,21 @@ A payer's accounting system can report what it paid instead of someone entering 
 
 When a payment is recorded, in the app or from an ACH file, the carrier's own systems get an 820 if their receiving preferences ask for it, and so does an off-platform carrier whose partner profile has a channel for it.
 
+### Driver pay
+
+A carrier sets how each driver is paid under **Business > Driver pay**: a percentage of the load's linehaul, an amount per loaded mile, or a flat amount per load. Then **Money > Driver pay**:
+
+1. Pick the pay period (last week, Monday to Sunday, by default) and **Make statements**. Each driver with delivered loads in the period gets a draft statement; a load already on a statement isn't paid again. Drivers without a pay rule are named so the office can set one.
+2. A team splits each load in half; on a relay, each driver is paid for their legs' share of the miles.
+3. Add adjustments to a draft: advances and deductions come off, bonuses and reimbursements are added.
+4. **Approve**: the driver sees it under **More > My pay** and is told. **Mark paid** with a reference when it's paid.
+5. **Export CSV** for payroll.
+
 ### Aging
 
 **Money** shows what is owed to a carrier, and what a shipper or broker owes, in buckets: not due yet, 1 to 30, 31 to 60, 61 to 90 and over 90 days late. It also shows the largest balances by customer or carrier and the average days to pay. Overdue and disputed invoices, and quick-pay requests, appear on Today.
 
-API: `PUT /v1/orgs/:id/payer-terms`, `PUT /v1/orgs/:id/factoring`, `PUT /v1/orgs/:id/payout-account`, `PUT /v1/orgs/:id/ach-originator`, `GET` and `POST /v1/orgs/:id/payment-runs`, `POST /v1/payment-runs/:id/file`, `/sent` and `/cancel`, `GET /v1/invoices/:id`, `POST /v1/invoices/:id/status`, `POST /v1/invoices/:id/payments`, `POST /v1/invoices/:id/quick-pay`, `POST /v1/invoices/:id/quick-pay/decision`, `GET /v1/orgs/:id/aging`.
+API: `PUT /v1/orgs/:id/payer-terms`, `PUT /v1/orgs/:id/factoring`, `PUT /v1/orgs/:id/payout-account`, `PUT /v1/orgs/:id/ach-originator`, `GET` and `POST /v1/orgs/:id/payment-runs`, `POST /v1/payment-runs/:id/file`, `/sent` and `/cancel`, `GET /v1/orgs/:id/driver-pay`, `PUT /v1/orgs/:id/drivers/:accountId/pay`, `GET` and `POST /v1/orgs/:id/settlements`, `GET /v1/orgs/:id/settlements.csv`, `POST /v1/settlements/:id/adjustments`, `/approve`, `/paid` and `/discard`, `GET /v1/me/settlements`, `GET /v1/invoices/:id`, `POST /v1/invoices/:id/status`, `POST /v1/invoices/:id/payments`, `POST /v1/invoices/:id/quick-pay`, `POST /v1/invoices/:id/quick-pay/decision`, `GET /v1/orgs/:id/aging`.
 
 ## Limits
 

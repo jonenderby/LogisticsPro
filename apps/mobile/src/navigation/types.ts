@@ -33,6 +33,9 @@ export type StackParams = {
   Setup: undefined;
   History: undefined;
   AchPayments: { orgId: string };
+  Settlements: { orgId: string };
+  SettlementDetail: { id: string };
+  MyPay: undefined;
 };
 
 export const useNav = () => useNavigation<NavigationProp<StackParams>>();

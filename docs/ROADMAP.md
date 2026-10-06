@@ -34,7 +34,7 @@ What is built and tested is described in the README. This is what remains before
 - Let customers weigh the three metrics differently, and add claims amounts and tender acceptance rate.
 
 ## Business
-- Moving money: ACH payouts, reading EDI 820 remittance advice, and driver settlement. Invoice status, quick pay and factoring are built; payments are recorded, not sent.
+- Moving money through a payments provider (sending ACH by API instead of a file the payer uploads, and paying drivers by direct deposit). ACH files, EDI 820 remittance in and out, and driver pay statements are built.
 - Commercial carrier monitoring (insurance certificates from insurers, identity verification) behind the FMCSA vetting interface.
 - Equipment registry (tractors, trailers) and maintenance.
 - Rate quote and pickup request flows in the app (the engine supports both transactions; the screens are not built yet).

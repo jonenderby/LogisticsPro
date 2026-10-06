@@ -49,6 +49,11 @@ export function MoreScreen() {
             <Row key={m.id} title={t(m.title)} onPress={() => nav.navigate(TARGET[m.id] as never)} />
           ))}
       </Section>
+      {me.capabilities.includes("DRIVE") ? (
+        <Section>
+          <Row title={t("My pay")} subtitle={t("Pay statements from your carrier")} onPress={() => nav.navigate("MyPay")} />
+        </Section>
+      ) : null}
       {me.platformAdmin ? (
         <Section>
           <Row title={t("Setup status")} subtitle={t("What this deployment is connected to")} onPress={() => nav.navigate("Setup")} />

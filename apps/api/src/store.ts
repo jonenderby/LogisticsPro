@@ -1,4 +1,5 @@
 import type { EldClock, EldDriver, EldProvider } from "@logisticspro/domain";
+import type { DriverPayRule, SettlementStatement } from "@logisticspro/domain";
 import type { Account, AlertPreferences, AppointmentMiss, ArrivalStatus, Bid, DailyMiles, DutyEvent, FuelPurchase, HosCycle, TrackPoint, Invoice, JoinCode, FmcsaRecord, JoinRequest, Load, LoadException, RateConfirmation, Membership, Message, Organization, ShipmentOutcome } from "@logisticspro/domain";
 import type { PartnerProfile, Transmission } from "@logisticspro/integration";
 import type { Violation } from "@logisticspro/navigation";
@@ -31,8 +32,9 @@ export interface InboxItem {
   id: string;
   kind: "ARRIVAL" | "SUMMARY" | "TEST" | "TENDER" | "MESSAGE" | "STOP" | "DETENTION" | "PAYMENT" | "VETTING";
   /** What a tap opens. */
-  target?: "LOAD" | "THREAD" | "INVOICE";
+  target?: "LOAD" | "THREAD" | "INVOICE" | "SETTLEMENT";
   invoiceId?: string;
+  settlementId?: string;
   title: string;
   body: string;
   loadId?: string;
@@ -216,6 +218,13 @@ export class MemoryStore {
   bankAccounts = new PersistentMap<StoredBankAccount>("bankAccounts");
   /** Payers' ACH payment files, indexed by payer and by invoice. */
   paymentRuns = new PersistentMap<PaymentRun>("paymentRuns").index("org", (r) => [r.orgId]).index("invoice", (r) => r.entries.map((e) => e.invoiceId));
+  /** How each driver is paid by each carrier, "<carrierOrgId>|<accountId>". */
+  driverPayRules = new PersistentMap<DriverPayRule & { setAt: string; setByAccountId: string }>("driverPayRules");
+  /** Driver pay statements, indexed by carrier, by driver, and by "<loadId>|<driverId>" so no load is paid twice. */
+  settlements = new PersistentMap<SettlementStatement>("settlements")
+    .index("carrier", (s) => [s.carrierOrgId])
+    .index("driver", (s) => [s.driverAccountId])
+    .index("paid", (s) => s.lines.map((l) => `${l.loadId}|${s.driverAccountId}`));
   /** Rate confirmation versions per load, oldest first. */
   rateConfirmations = new PersistentMap<RateConfirmation[]>("rateConfirmations");
   /** Miles per jurisdiction per truck per day, "<carrierOrgId>|<vehicle>|<date>" (fuel tax). */

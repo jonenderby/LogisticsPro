@@ -11,6 +11,7 @@ import { parseCoords, titleCase } from "../ui/format";
 import { DriverNetworkSection, ReliabilitySections } from "./NetworkScreens";
 import { confirm } from "../ui/dialog";
 import { AchOriginatorSection, BankAccountSection, FactoringSection, PayerTermsSection } from "./PaymentSettings";
+import { DriverPaySection } from "./SettlementScreens";
 import { VettingPolicySection } from "./CarrierCheckScreen";
 import { EldSection } from "./EldSection";
 
@@ -197,6 +198,7 @@ export function BusinessScreen() {
           </Section>
           {isCarrier ? <DriverNetworkSection orgId={orgId} onChange={refresh} /> : null}
           {isCarrier && reliability ? <ReliabilitySections profile={reliability} subject="carrier" canDispute={orgsWithRole("OWNER", "ADMIN", "DISPATCHER").includes(orgId)} onChanged={refresh} /> : null}
+          {isCarrier && orgsWithRole("OWNER", "ADMIN", "BILLING").includes(orgId) ? <DriverPaySection orgId={orgId} /> : null}
           {isCarrier ? <DetentionTermsSection orgId={orgId} terms={detail.org.detention} onSaved={refresh} /> : null}
           {isCarrier ? <EldSection key={`eld-${orgId}`} orgId={orgId} canManage={orgsWithRole("OWNER", "ADMIN").includes(orgId)} /> : null}
           {isCarrier ? <FactoringSection key={`f-${orgId}`} orgId={orgId} factoring={detail.org.factoring} onSaved={refresh} /> : null}

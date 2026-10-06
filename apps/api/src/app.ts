@@ -44,6 +44,7 @@ import { eldRoutes } from "./routes/eld.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { setupRoutes } from "./routes/setup.js";
 import { achRoutes } from "./routes/ach.js";
+import { settlementRoutes } from "./routes/settlements.js";
 import { archiveColdData, restoreInvoice, restoreLoad } from "./services/archive.js";
 import { lockRecord } from "./services/locks.js";
 
@@ -143,19 +144,22 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   // Changes to one load or invoice run one at a time across every server, each
   // seeing the last one's saved result; the lock is released once the change is committed.
   const held = new WeakMap<object, () => Promise<void>>();
+  // Route prefix, the collection it changes, and the parameter naming the record.
+  const LOCKED: Array<[string, string, string]> = [
+    ["/v1/invoices/:id", "invoices", "id"],
+    ["/v1/loads/:id", "loads", "id"],
+    ["/v1/payment-runs/:id", "paymentRuns", "id"],
+    ["/v1/settlements/:id", "settlements", "id"],
+    // Making a payment file or pay statements: one at a time per company, so nothing is paid twice.
+    ["/v1/orgs/:orgId/payment-runs", "orgs", "orgId"],
+    ["/v1/orgs/:orgId/settlements", "orgs", "orgId"],
+  ];
   app.addHook("preHandler", async (req) => {
     if (req.method === "GET" || req.method === "HEAD" || !req.headers.authorization) return;
     const p = (req.params ?? {}) as Record<string, string | undefined>;
     const route = req.routeOptions.url ?? "";
-    const [collection, key] = route.startsWith("/v1/invoices/:id")
-      ? ["invoices", p.id]
-      : route.startsWith("/v1/loads/:id")
-        ? ["loads", p.id]
-        : route.startsWith("/v1/payment-runs/:id")
-          ? ["paymentRuns", p.id]
-          : route === "/v1/orgs/:orgId/payment-runs"
-            ? ["orgs", p.orgId]
-            : ["loads", p.loadId];
+    const [, collection, param] = LOCKED.find(([prefix]) => route === prefix || route.startsWith(`${prefix}/`)) ?? ["", "loads", "loadId"];
+    const key = p[param];
     if (!key) return;
     held.set(req, await lockRecord(ctx, `${collection}:${key}`));
     await persistence?.refresh(collection, key);
@@ -203,6 +207,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   analyticsRoutes(app, ctx);
   setupRoutes(app, ctx);
   achRoutes(app, ctx);
+  settlementRoutes(app, ctx);
 
   if (cfg.alertIntervalSeconds > 0) {
     const timer = setInterval(() => {

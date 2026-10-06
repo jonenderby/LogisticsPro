@@ -22,7 +22,8 @@ interface Settings {
 interface Item {
   id: string;
   kind: "ARRIVAL" | "SUMMARY" | "TEST" | "TENDER" | "MESSAGE" | "STOP" | "DETENTION" | "PAYMENT" | "VETTING";
-  target?: "LOAD" | "THREAD" | "INVOICE";
+  target?: "LOAD" | "THREAD" | "INVOICE" | "SETTLEMENT";
+  settlementId?: string;
   invoiceId?: string;
   title: string;
   body: string;
@@ -119,7 +120,7 @@ export function NotificationsScreen() {
             title={i.title}
             subtitle={`${i.body}\n${when(i.at)}`}
             right={<Chip label={KIND[i.kind].label} tone={KIND[i.kind].tone} />}
-            onPress={i.target === "INVOICE" && i.invoiceId ? () => nav.navigate("InvoiceDetail", { id: i.invoiceId! }) : i.loadId ? () => (i.target === "THREAD" ? nav.navigate("Thread", { loadId: i.loadId!, title: i.title.split(" · ")[1] ?? "Messages" }) : nav.navigate("LoadDetail", { id: i.loadId! })) : undefined}
+            onPress={i.target === "INVOICE" && i.invoiceId ? () => nav.navigate("InvoiceDetail", { id: i.invoiceId! }) : i.target === "SETTLEMENT" && i.settlementId ? () => nav.navigate("SettlementDetail", { id: i.settlementId! }) : i.loadId ? () => (i.target === "THREAD" ? nav.navigate("Thread", { loadId: i.loadId!, title: i.title.split(" · ")[1] ?? "Messages" }) : nav.navigate("LoadDetail", { id: i.loadId! })) : undefined}
           />
         ))}
       </Section>

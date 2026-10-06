@@ -33,7 +33,7 @@ export class Notifier {
     const { store } = this.ctx;
     const entry: InboxItem = { id: newId("ntf"), at: this.ctx.now().toISOString(), read: false, ...item };
     store.notifications.set(accountId, [entry, ...(store.notifications.get(accountId) ?? [])].slice(0, INBOX_LIMIT));
-    const data: Record<string, string> = { notificationId: entry.id, kind: item.kind, ...(item.loadId ? { loadId: item.loadId } : {}), ...(item.invoiceId ? { invoiceId: item.invoiceId } : {}), ...(item.target ? { open: item.target } : {}), ...extra };
+    const data: Record<string, string> = { notificationId: entry.id, kind: item.kind, ...(item.loadId ? { loadId: item.loadId } : {}), ...(item.invoiceId ? { invoiceId: item.invoiceId } : {}), ...(item.settlementId ? { settlementId: item.settlementId } : {}), ...(item.target ? { open: item.target } : {}), ...extra };
     return (store.pushTokens.get(accountId) ?? []).map((t) => ({ to: t.token, title: item.title, body: item.body, data }));
   }
 
@@ -106,6 +106,12 @@ export class Notifier {
       pushes.push(...this.deliver(id, { kind: "PAYMENT", target: item.invoiceId ? "INVOICE" : "LOAD", ...item }));
     }
     void this.send(pushes);
+  }
+
+  /** A driver's pay statement was approved or paid. */
+  driverPay(accountId: string, item: { title: string; body: string; settlementId: string }): void {
+    if (this.settings(accountId).payments === false) return;
+    void this.send(this.deliver(accountId, { kind: "PAYMENT", target: "SETTLEMENT", ...item }));
   }
 
   private holders(orgId: string | undefined, cap: "SHIP" | "BROKER" | "DISPATCH" | "PAY"): string[] {

@@ -61,11 +61,14 @@ export async function unregisterPush(): Promise<void> {
  */
 export type OpenTarget =
   | { open?: "LOAD" | "THREAD"; loadId: string; loadNumber?: string }
-  | { open: "INVOICE"; invoiceId: string };
+  | { open: "INVOICE"; invoiceId: string }
+  | { open: "SETTLEMENT"; settlementId: string };
 
 const targetOf = (d: Record<string, unknown> | undefined): OpenTarget | undefined =>
   d?.open === "INVOICE" && typeof d.invoiceId === "string"
     ? { open: "INVOICE", invoiceId: d.invoiceId }
+    : d?.open === "SETTLEMENT" && typeof d.settlementId === "string"
+      ? { open: "SETTLEMENT", settlementId: d.settlementId }
     : typeof d?.loadId === "string"
       ? { loadId: d.loadId, open: d.open === "THREAD" ? "THREAD" : "LOAD", loadNumber: typeof d.loadNumber === "string" ? d.loadNumber : undefined }
       : undefined;
@@ -99,7 +102,8 @@ interface InboxItem {
   body: string;
   loadId?: string;
   invoiceId?: string;
-  target?: "LOAD" | "THREAD" | "INVOICE";
+  target?: "LOAD" | "THREAD" | "INVOICE" | "SETTLEMENT";
+  settlementId?: string;
   read: boolean;
 }
 
@@ -126,6 +130,7 @@ export function useBrowserAlerts(signedIn: boolean, openLoad: (t: OpenTarget) =>
         n.onclick = () => {
           window.focus();
           if (item.target === "INVOICE" && item.invoiceId) open.current({ open: "INVOICE", invoiceId: item.invoiceId });
+          else if (item.target === "SETTLEMENT" && item.settlementId) open.current({ open: "SETTLEMENT", settlementId: item.settlementId });
           else if (item.loadId) open.current({ loadId: item.loadId, open: item.target === "THREAD" ? "THREAD" : "LOAD", loadNumber: item.title.split(" · ")[1] });
           n.close();
         };

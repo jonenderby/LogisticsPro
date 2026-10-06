@@ -34,6 +34,7 @@ import { InsightsScreen } from "../screens/InsightsScreen";
 import { SetupScreen } from "../screens/SetupScreen";
 import { HistoryScreen } from "../screens/HistoryScreen";
 import { AchPaymentsScreen } from "../screens/AchPaymentsScreen";
+import { MyPayScreen, SettlementDetailScreen, SettlementsScreen } from "../screens/SettlementScreens";
 import { InvoiceDetailScreen } from "../screens/MoneyScreens";
 import { NotificationsScreen } from "../screens/NotificationsScreen";
 import { Icon } from "../ui/Icon";
@@ -84,6 +85,9 @@ const SHARED: Array<{ name: keyof StackParams; component: ComponentType; title: 
   { name: "Setup", component: SetupScreen, title: tx("Setup status") },
   { name: "History", component: HistoryScreen, title: tx("Older loads") },
   { name: "AchPayments", component: AchPaymentsScreen, title: tx("Pay by ACH") },
+  { name: "Settlements", component: SettlementsScreen, title: tx("Driver pay") },
+  { name: "SettlementDetail", component: SettlementDetailScreen, title: tx("Pay statement") },
+  { name: "MyPay", component: MyPayScreen, title: tx("My pay") },
 ];
 
 function stackFor(root: TabRoot) {
@@ -136,6 +140,7 @@ function AppNavigation() {
       return;
     }
     if (t.open === "INVOICE") navigationRef.navigate(firstTab.current, { screen: "InvoiceDetail", params: { id: t.invoiceId } });
+    else if (t.open === "SETTLEMENT") navigationRef.navigate(firstTab.current, { screen: "SettlementDetail", params: { id: t.settlementId } });
     else if (t.open === "THREAD") navigationRef.navigate(firstTab.current, { screen: "Thread", params: { loadId: t.loadId, title: t.loadNumber ?? "Messages" } });
     else navigationRef.navigate(firstTab.current, { screen: "LoadDetail", params: { id: t.loadId } });
   }, []);

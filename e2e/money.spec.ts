@@ -68,4 +68,31 @@ test.describe("rate confirmations and getting paid", () => {
     await expect(visible(page, "Sent", true).first()).toBeVisible();
     expect((await call("GET", `/v1/invoices/${invoice.id}`, undefined, w.shipper.token)).status).toBe("PAID");
   });
+  test("the carrier makes a pay statement and the driver sees it", async ({ page }) => {
+    const w = await world();
+    await call("PUT", `/v1/orgs/${w.fleet.id}/drivers/${w.driver.id}/pay`, { kind: "PERCENT", rate: 30 }, w.owner.token);
+    const load = await bookedLoad(w);
+    for (const code of ["ARRIVED_PICKUP", "LOADED", "ARRIVED_DELIVERY", "DELIVERED"]) await call("POST", `/v1/loads/${load.id}/status`, { code }, w.driver.token);
+    const today = new Date().toISOString().slice(0, 10);
+
+    await signIn(page, w.owner);
+    page.on("dialog", (d) => void d.accept());
+    await page.goto("/money");
+    await page.getByText("Driver pay", { exact: true }).filter({ visible: true }).first().click();
+    await page.getByLabel("From").filter({ visible: true }).fill(today);
+    await page.getByLabel("To").filter({ visible: true }).fill(today);
+    await page.getByRole("button", { name: "Make statements" }).filter({ visible: true }).click();
+    // 30% of $1,800.
+    await page.getByText(`${w.driver.name} · $540.00`, { exact: true }).filter({ visible: true }).click();
+    await expect(visible(page, new RegExp(`^${load.loadNumber} · Jackson, MS to Memphis, TN$`))).toBeVisible();
+    await page.getByLabel("Description").filter({ visible: true }).fill("Fuel advance");
+    await page.getByLabel("Amount (USD)").filter({ visible: true }).fill("40");
+    await page.getByRole("button", { name: "Add adjustment" }).filter({ visible: true }).click();
+    await expect(visible(page, "$500.00", true).first()).toBeVisible();
+    await page.getByRole("button", { name: "Approve", exact: true }).filter({ visible: true }).click();
+    await expect(visible(page, "Approved", true).first()).toBeVisible();
+
+    const mine = await call("GET", "/v1/me/settlements", undefined, w.driver.token);
+    expect(mine.map((s: { total: number; status: string }) => [s.total, s.status])).toEqual([[500, "APPROVED"]]);
+  });
 });
