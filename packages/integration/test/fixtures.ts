@@ -1,4 +1,4 @@
-import type { FreightInvoice, LoadTender, PartnerProfile, ShipmentStatus, TenderResponse } from "../src/index.js";
+import type { FreightInvoice, LoadTender, PartnerProfile, ShipmentStatus, TenderResponse , PaymentAdvice } from "../src/index.js";
 
 const party = (name: string, city: string, state: string, zip: string) => ({ name, line1: "1 Main St", city, state, postalCode: zip, country: "US" });
 
@@ -79,8 +79,23 @@ export function profile(method: "API_JSON" | "API_XML" | "EDI_X12", extra: Parti
     name: `Partner ${method}`,
     kind: "CARRIER",
     scac: "EXLA",
-    channels: { LOAD_TENDER: ch, TENDER_RESPONSE: ch, SHIPMENT_STATUS: ch, FREIGHT_INVOICE: ch },
+    channels: { LOAD_TENDER: ch, TENDER_RESPONSE: ch, SHIPMENT_STATUS: ch, FREIGHT_INVOICE: ch, PAYMENT_ADVICE: ch },
     edi: method === "EDI_X12" ? { senderQualifier: "ZZ", senderId: "LOGISTICSPRO", receiverQualifier: "02", receiverId: "EXLA", usage: "T", ackRequested: true, codeOverrides: {} } : undefined,
     ...extra,
   };
 }
+
+export const remittance: PaymentAdvice = {
+  paymentRef: "021000020000123",
+  paymentDate: "2026-10-08",
+  method: "ACH",
+  currency: "USD",
+  totalAmount: 6950.5,
+  payerName: "Acme Foods",
+  payeeName: "Estes Express Lines",
+  payeeScac: "EXLA",
+  invoices: [
+    { invoiceNumber: "INV-1001", amountPaid: 5200, amountInvoiced: 5200 },
+    { invoiceNumber: "INV-1002", amountPaid: 1750.5, amountInvoiced: 1800, adjustment: -49.5 },
+  ],
+};

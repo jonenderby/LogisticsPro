@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { IntegrationEngine, MemoryTransport, ValidationError, fieldPaths, type TransactionType } from "../src/index.js";
-import { invoice, profile, status, tender, tenderResponse } from "./fixtures.js";
+import { invoice, profile, remittance, status, tender, tenderResponse } from "./fixtures.js";
 
 const engine = new IntegrationEngine({ transports: { HTTPS: new MemoryTransport(), VAN: new MemoryTransport() }, secrets: () => "secret", now: () => new Date("2026-10-05T12:00:00Z") });
 
@@ -9,6 +9,7 @@ const docs: Array<[TransactionType, unknown]> = [
   ["TENDER_RESPONSE", tenderResponse],
   ["SHIPMENT_STATUS", status],
   ["FREIGHT_INVOICE", invoice],
+  ["PAYMENT_ADVICE", remittance],
 ];
 
 function parse(tx: TransactionType, method: "API_JSON" | "API_XML" | "EDI_X12", body: string) {
@@ -114,5 +115,35 @@ describe("X12 envelope", () => {
     const sneaky = { ...tender, notes: "Use dock 4~ISA*bad" };
     const { body } = engine.render("LOAD_TENDER", sneaky, profile("EDI_X12"));
     expect(body).toContain("NTE*GEN*Use dock 4 ISA bad~");
+  });
+});
+
+describe("820 remittance from a payer's system", () => {
+  it("reads payments, addresses and short pays as payers send them", () => {
+    const edi = [
+      "ISA*00*          *00*          *ZZ*ACMEFOODS      *ZZ*LOGISTICSPRO   *261008*0900*U*00401*000000077*0*P*>",
+      "GS*RA*ACMEFOODS*LOGISTICSPRO*20261008*0900*77*X*004010",
+      "ST*820*0001",
+      "BPR*C*6950.5*C*ACH*CCP*01*021000021*DA*123456*1123456789**01*121000248*DA*987654*20261008",
+      "TRN*1*021000020000123*1123456789",
+      "CUR*PR*USD",
+      "REF*VV*0001",
+      "N1*PR*Acme Foods",
+      "N3*1 Main St",
+      "N4*Memphis*TN*38103",
+      "N1*PE*Estes Express Lines*ZZ*EXLA",
+      "ENT*1",
+      "RMR*IV*INV-1001*PI*5200*5200",
+      "DTM*003*20261001",
+      "ENT*2",
+      "RMR*IV*INV-1002*PI*1750.50*1800.00*-49.50",
+      "SE*15*0001",
+      "GE*1*77",
+      "IEA*1*000000077",
+    ].join("~") + "~";
+    const res = engine.parseEdi(edi);
+    expect(res.errors).toEqual([]);
+    expect(res.documents[0]).toMatchObject({ transaction: "PAYMENT_ADVICE", doc: remittance });
+    expect(res.ack997).toContain("AK1*RA*77");
   });
 });

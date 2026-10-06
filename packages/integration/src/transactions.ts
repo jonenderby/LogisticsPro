@@ -185,6 +185,32 @@ export const FreightInvoice = z.object({
 });
 export type FreightInvoice = z.infer<typeof FreightInvoice>;
 
+// ---------------------------------------------------------------- 820
+/** Remittance advice: a payment and the invoices it pays. */
+export const PaymentAdvice = z.object({
+  /** The payment's trace or check number. */
+  paymentRef: z.string().min(1).max(30),
+  paymentDate: CanonicalDate,
+  method: z.enum(["ACH", "CHECK", "WIRE", "OTHER"]),
+  currency: z.string().length(3),
+  totalAmount: z.number().positive(),
+  payerName: z.string().min(1).max(60),
+  payeeName: z.string().min(1).max(60),
+  payeeScac: z.string().min(2).max(4).optional(),
+  invoices: z
+    .array(
+      z.object({
+        invoiceNumber: z.string().min(1).max(30),
+        amountPaid: z.number().nonnegative(),
+        amountInvoiced: z.number().nonnegative().optional(),
+        /** Taken off the invoice (a discount or a short pay). */
+        adjustment: z.number().optional(),
+      }),
+    )
+    .min(1),
+});
+export type PaymentAdvice = z.infer<typeof PaymentAdvice>;
+
 // ---------------------------------------------------------------- API-only
 export const RateQuoteRequest = z.object({
   quoteRef: z.string().min(1).max(30),
@@ -224,7 +250,7 @@ export const PickupRequest = z.object({
 export type PickupRequest = z.infer<typeof PickupRequest>;
 
 // ---------------------------------------------------------------- registry
-export const TransactionType = z.enum(["LOAD_TENDER", "TENDER_RESPONSE", "SHIPMENT_STATUS", "FREIGHT_INVOICE", "RATE_QUOTE", "PICKUP_REQUEST"]);
+export const TransactionType = z.enum(["LOAD_TENDER", "TENDER_RESPONSE", "SHIPMENT_STATUS", "FREIGHT_INVOICE", "PAYMENT_ADVICE", "RATE_QUOTE", "PICKUP_REQUEST"]);
 export type TransactionType = z.infer<typeof TransactionType>;
 
 export interface TransactionDefinition {
@@ -232,7 +258,7 @@ export interface TransactionDefinition {
   title: string;
   schema: z.ZodType;
   /** X12 transaction set, when one exists. */
-  x12?: { set: "204" | "990" | "214" | "210"; functionalId: "SM" | "GF" | "QM" | "IM" };
+  x12?: { set: "204" | "990" | "214" | "210" | "820"; functionalId: "SM" | "GF" | "QM" | "IM" | "RA" };
 }
 
 export const TRANSACTIONS: Record<TransactionType, TransactionDefinition> = {
@@ -240,6 +266,7 @@ export const TRANSACTIONS: Record<TransactionType, TransactionDefinition> = {
   TENDER_RESPONSE: { type: "TENDER_RESPONSE", title: "Response to a load tender", schema: TenderResponse, x12: { set: "990", functionalId: "GF" } },
   SHIPMENT_STATUS: { type: "SHIPMENT_STATUS", title: "Shipment status", schema: ShipmentStatus, x12: { set: "214", functionalId: "QM" } },
   FREIGHT_INVOICE: { type: "FREIGHT_INVOICE", title: "Freight invoice", schema: FreightInvoice, x12: { set: "210", functionalId: "IM" } },
+  PAYMENT_ADVICE: { type: "PAYMENT_ADVICE", title: "Payment and remittance advice", schema: PaymentAdvice, x12: { set: "820", functionalId: "RA" } },
   RATE_QUOTE: { type: "RATE_QUOTE", title: "LTL rate quote request", schema: RateQuoteRequest },
   PICKUP_REQUEST: { type: "PICKUP_REQUEST", title: "Pickup request", schema: PickupRequest },
 };
@@ -252,6 +279,8 @@ export type CanonicalDoc<T extends TransactionType> = T extends "LOAD_TENDER"
       ? ShipmentStatus
       : T extends "FREIGHT_INVOICE"
         ? FreightInvoice
+        : T extends "PAYMENT_ADVICE"
+          ? PaymentAdvice
         : T extends "RATE_QUOTE"
           ? RateQuoteRequest
           : PickupRequest;

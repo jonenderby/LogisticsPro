@@ -19,6 +19,7 @@ There is one canonical schema per transaction. JSON, XML and EDI are renderings 
 | Tender response | 990 | JSON, XML, EDI |
 | Shipment status | 214 | JSON, XML, EDI |
 | Freight invoice | 210 | JSON, XML, EDI |
+| Payment and remittance advice | 820 | JSON, XML, EDI |
 | Rate quote | — | JSON, XML |
 | Pickup request | — | JSON, XML |
 
@@ -32,6 +33,7 @@ Inbound EDI is answered with a 997 acknowledgment. Each transaction set in an in
 | 990 | B1 (A/D), N9*CN carrier PRO, K1 decline reason |
 | 214 | B10, L11 (BM, PO), LX, AT7 status and reason (second AT7*AG carries an ETA), MS1 city/state/lat-long, MS2 equipment, L11*QN stop |
 | 210 | B3, C3, N9 (BM, PO, CN), G62*86 pickup date, N1 BT/SH/CN loops, LX/L5/L0/L1 per charge, L3 totals |
+| 820 | BPR (amount, method ACH/CHK/FWT, effective date), TRN trace number, CUR, N1*PR payer and N1*PE payee (N104 SCAC with ZZ), ENT loops with RMR*IV (paid, invoiced, adjustment); amounts are decimal (R), not implied cents. Other header segments (REF, DTM, N2-N4, PER) are read past |
 | 997 | AK1, AK2, AK5, AK9 |
 
 Code tables (equipment, status, reason and charge codes) are defaults. Every trading partner publishes its own implementation guide, so each table can be overridden per partner profile, and a partner should be certified with test files before going live.

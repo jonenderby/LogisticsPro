@@ -61,6 +61,12 @@ A shipper or broker adds its bank's ACH details under **Business > Paying by ACH
 
 A file can be downloaded again with a fresh code, or cancelled before it is marked sent. An invoice can't be in two open files.
 
+### Remittance advice (EDI 820)
+
+A payer's accounting system can report what it paid instead of someone entering it: it posts an 820 (or the same document as JSON or XML) to `/v1/inbound/:orgId/:partner/payment_advice` or with its EDI. Each RMR line is matched to an open invoice by number, among invoices billed to that business or sent to that partner, and recorded with the payment's trace or check number. Lines that match nothing are named in the response; if none match, the request fails.
+
+When a payment is recorded, in the app or from an ACH file, the carrier's own systems get an 820 if their receiving preferences ask for it, and so does an off-platform carrier whose partner profile has a channel for it.
+
 ### Aging
 
 **Money** shows what is owed to a carrier, and what a shipper or broker owes, in buckets: not due yet, 1 to 30, 31 to 60, 61 to 90 and over 90 days late. It also shows the largest balances by customer or carrier and the average days to pay. Overdue and disputed invoices, and quick-pay requests, appear on Today.
@@ -71,4 +77,3 @@ API: `PUT /v1/orgs/:id/payer-terms`, `PUT /v1/orgs/:id/factoring`, `PUT /v1/orgs
 
 - Logistics Pro doesn't hold or send money. ACH payments go through the payer's own bank, from the file it uploads; other payments are recorded as they are made.
 - The factoring company is told only through the carrier. A notice of assignment still goes from the carrier to its customers the usual way.
-- Inbound EDI 820 remittance advice is not read yet; payments are entered in the app or by API.

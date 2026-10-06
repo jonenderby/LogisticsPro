@@ -13,7 +13,7 @@ import { titleCase } from "../ui/format";
 import { API_URL } from "../config";
 
 type Method = "API_JSON" | "API_XML" | "EDI_X12";
-type Tx = "LOAD_TENDER" | "TENDER_RESPONSE" | "SHIPMENT_STATUS" | "FREIGHT_INVOICE" | "RATE_QUOTE" | "PICKUP_REQUEST";
+type Tx = "LOAD_TENDER" | "TENDER_RESPONSE" | "SHIPMENT_STATUS" | "FREIGHT_INVOICE" | "PAYMENT_ADVICE" | "RATE_QUOTE" | "PICKUP_REQUEST";
 type EdiTransport = "AS2" | "VAN" | "SFTP";
 interface As2In {
   as2Id: string;
@@ -52,11 +52,12 @@ const TX_LABEL: Record<Tx, string> = {
   TENDER_RESPONSE: tx("Tender responses (990)"),
   SHIPMENT_STATUS: tx("Shipment status (214)"),
   FREIGHT_INVOICE: tx("Invoices (210)"),
+  PAYMENT_ADVICE: tx("Payments and remittance (820)"),
   RATE_QUOTE: tx("Rate quotes"),
   PICKUP_REQUEST: tx("Pickup requests"),
 };
 const METHOD_LABEL: Record<Method, string> = { API_JSON: "JSON", API_XML: "XML", EDI_X12: "EDI" };
-const EDI_TX: Tx[] = ["LOAD_TENDER", "TENDER_RESPONSE", "SHIPMENT_STATUS", "FREIGHT_INVOICE"];
+const EDI_TX: Tx[] = ["LOAD_TENDER", "TENDER_RESPONSE", "SHIPMENT_STATUS", "FREIGHT_INVOICE", "PAYMENT_ADVICE"];
 
 interface Draft {
   method: Method | "OFF";

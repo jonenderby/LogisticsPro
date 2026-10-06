@@ -102,6 +102,8 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   };
   ctx.notifier = new Notifier(ctx);
   ctx.alerts = new AlertEngine(ctx);
+  ctx.hub.onPaymentReceived = (inv, amount) =>
+    ctx.notifier.payment(inv.carrierOrgId, [inv.createdByAccountId], { title: inv.status === "PAID" ? `Paid: ${inv.invoiceNumber}` : `Part paid: ${inv.invoiceNumber}`, body: `${ctx.store.orgs.get(inv.billTo.orgId ?? "")?.name ?? inv.billTo.address.name} reported paying $${amount.toFixed(2)}.`, loadId: inv.loadId, invoiceId: inv.id });
   ctx.hub.onLoadSaved = (prior, next) => {
     ctx.notifier.loadSaved(prior, next);
     rateConOnSave(ctx, prior, next);

@@ -1197,4 +1197,5 @@ export const es: Dictionary = {
   "Approve it first": "Apruébala primero",
   "The carrier hasn't given bank details for ACH": "El transportista no ha dado datos bancarios para ACH",
   "Already in a payment file": "Ya está en un archivo de pagos",
+  "Payments and remittance (820)": "Pagos y avisos de remesa (820)",
 };

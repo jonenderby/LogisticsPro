@@ -166,6 +166,7 @@ export function achRoutes(app: FastifyInstance, ctx: AppContext) {
       }
       const next = recordPayment(inv, { amount: e.amount, paidOn: run.effectiveDate, method: "ACH", reference: e.traceNumber }, account.id, now);
       ctx.store.invoices.set(next.id, next);
+      await ctx.hub.paymentAdvice(next, next.payments!.at(-1)!).catch(() => undefined);
       ctx.notifier.payment(inv.carrierOrgId, [inv.createdByAccountId], { title: `ACH sent: ${inv.invoiceNumber}`, body: `${ctx.store.orgs.get(run.orgId)?.name} sent ${money(e.amount)} by ACH to the account ending ${e.last4}, effective ${run.effectiveDate}. Trace ${e.traceNumber}.`, loadId: inv.loadId, invoiceId: inv.id });
     }
     const sent = { ...run, status: "SENT" as const, sentAt: now, sentByAccountId: account.id };

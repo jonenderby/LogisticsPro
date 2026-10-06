@@ -13,11 +13,13 @@ import {
   build997,
   decode204,
   decode210,
+  decode820,
   decode214,
   decode990,
   decode997,
   encode204,
   encode210,
+  encode820,
   encode214,
   encode990,
   parseInterchange,
@@ -88,12 +90,14 @@ function encodeSet(tx: TransactionType, doc: unknown, codes: ReturnType<typeof r
       return encode214(doc as CanonicalDoc<"SHIPMENT_STATUS">, codes);
     case "FREIGHT_INVOICE":
       return encode210(doc as CanonicalDoc<"FREIGHT_INVOICE">, codes);
+    case "PAYMENT_ADVICE":
+      return encode820(doc as CanonicalDoc<"PAYMENT_ADVICE">);
     default:
       throw new Error(`${tx} has no X12 mapping`);
   }
 }
 
-const SET_TO_TX: Record<string, TransactionType> = { "204": "LOAD_TENDER", "990": "TENDER_RESPONSE", "214": "SHIPMENT_STATUS", "210": "FREIGHT_INVOICE" };
+const SET_TO_TX: Record<string, TransactionType> = { "204": "LOAD_TENDER", "990": "TENDER_RESPONSE", "214": "SHIPMENT_STATUS", "210": "FREIGHT_INVOICE", "820": "PAYMENT_ADVICE" };
 
 function decodeSet(setId: string, body: Segment[], codes: ReturnType<typeof resolveCodes>): { tx: TransactionType; doc: unknown } {
   const tx = SET_TO_TX[setId];
@@ -106,6 +110,8 @@ function decodeSet(setId: string, body: Segment[], codes: ReturnType<typeof reso
       return { tx: tx!, doc: decode214(body, codes) };
     case "210":
       return { tx: tx!, doc: decode210(body, codes) };
+    case "820":
+      return { tx: tx!, doc: decode820(body) };
     default:
       throw new Error(`unsupported transaction set ${setId}`);
   }

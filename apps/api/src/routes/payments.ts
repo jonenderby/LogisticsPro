@@ -143,6 +143,8 @@ export function paymentRoutes(app: FastifyInstance, ctx: AppContext) {
     const body = parse(z.object({ amount: z.number().positive(), paidOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), method: PaymentMethod.default("ACH"), reference: z.string().max(60).optional() }), req.body);
     if ((body.paidOn ?? today()) > today()) throw new HttpError(400, "INVALID_REQUEST", "Payment date is in the future");
     const next = domain(() => recordPayment(inv, { ...body, paidOn: body.paidOn ?? today() }, account.id, ctx.now().toISOString()));
+    // Remittance advice to the carrier's systems, when they take it; a failure there doesn't undo the payment.
+    await ctx.hub.paymentAdvice(next, next.payments!.at(-1)!).catch(() => undefined);
     tellCarrier(next, next.status === "PAID" ? `Paid: ${inv.invoiceNumber}` : `Part paid: ${inv.invoiceNumber}`, `${orgName(inv.billTo.orgId)} paid ${money(body.amount)} by ${body.method}${body.reference ? ` (ref ${body.reference})` : ""}.${next.status === "PAID" ? "" : ` ${money(balance(next))} still owed.`}`);
     reply.code(201);
     return save(next);

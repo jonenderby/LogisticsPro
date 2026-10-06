@@ -84,3 +84,52 @@ describe("paying carriers by ACH", () => {
     expect(h.ctx.store.orgs.get(fleet.id)!.payoutAccount).toBeUndefined();
   });
 });
+
+describe("remittance advice (EDI 820)", () => {
+  it("records payments a payer's system reports, and sends 820s to carriers that take them", async () => {
+    const h = await harness();
+    const S = api(h, await signUp(h, "BUSINESS", "AP Annie"));
+    const acme = (await S.post("/v1/orgs", { name: "Acme Foods", kinds: ["SHIPPER"], address: NYC })).org;
+    const F = api(h, await signUp(h, "CARRIER", "Owner Otto"));
+    const fleet = (await F.post("/v1/orgs", { name: "Big Fleet", kinds: ["CARRIER"], scac: "BIGF" })).org;
+    // The carrier's own accounting system takes remittance advice as EDI.
+    await F.put(`/v1/orgs/${fleet.id}/receiving`, { channels: { PAYMENT_ADVICE: { method: "EDI_X12", transport: "VAN" } }, edi: { senderQualifier: "ZZ", senderId: "LOGISTICSPRO", receiverQualifier: "ZZ", receiverId: "BIGFLEETAR", usage: "T", ackRequested: false } });
+    const invoiceFor = async (number: string) => {
+      const load = await S.post("/v1/loads", loadBody(acme.id), 201);
+      await S.post(`/v1/loads/${load.id}/tender`, { carrierOrgId: fleet.id });
+      await F.post(`/v1/loads/${load.id}/tender-response`, { decision: "ACCEPT" });
+      for (const c of ["LOADED", "DELIVERED"]) await F.post(`/v1/loads/${load.id}/status`, { code: c });
+      const inv = (await F.post(`/v1/loads/${load.id}/invoices`, { invoiceNumber: number }, 201)).invoice;
+      await S.post(`/v1/invoices/${inv.id}/status`, { status: "APPROVED" });
+      return inv;
+    };
+    const one = await invoiceFor("INV-820-1");
+    const two = await invoiceFor("INV-820-2");
+
+    // Acme's ERP posts its remittance to Logistics Pro.
+    await S.put(`/v1/orgs/${acme.id}/partners/acme-erp`, { name: "Acme ERP", kind: "SHIPPER", channels: {} });
+    const { inboundToken } = await S.post(`/v1/orgs/${acme.id}/partners/acme-erp/inbound-token`);
+    const advice = {
+      paymentRef: "CHK 10442", paymentDate: "2026-10-06", method: "CHECK", currency: "USD", totalAmount: 7200, payerName: "Acme Foods", payeeName: "Big Fleet",
+      invoices: [{ invoiceNumber: "INV-820-1", amountPaid: 5200 }, { invoiceNumber: "INV-820-2", amountPaid: 2000 }, { invoiceNumber: "NOT-OURS", amountPaid: 1 }],
+    };
+    const before = h.van.sent.length;
+    const res = await h.app.inject({ method: "POST", url: `/v1/inbound/${acme.id}/acme-erp/payment_advice`, payload: advice, headers: { "x-lp-inbound-token": inboundToken } });
+    expect(res.statusCode, res.body).toBe(202);
+    expect(res.json().action).toBe("payment recorded on INV-820-1, INV-820-2; no open invoice for NOT-OURS");
+    expect(await S.get(`/v1/invoices/${one.id}`)).toMatchObject({ status: "PAID", payments: [{ method: "CHECK", reference: "CHK 10442", paidOn: "2026-10-06" }] });
+    expect(await S.get(`/v1/invoices/${two.id}`)).toMatchObject({ status: "PARTIALLY_PAID", balance: 3200 });
+    expect((await F.get("/v1/me/notifications")).items.map((n: { title: string }) => n.title)).toEqual(expect.arrayContaining(["Paid: INV-820-1", "Part paid: INV-820-2"]));
+    // Nothing matching is an error the ERP sees.
+    const none = await h.app.inject({ method: "POST", url: `/v1/inbound/${acme.id}/acme-erp/payment_advice`, payload: { ...advice, invoices: [{ invoiceNumber: "NOT-OURS", amountPaid: 1 }] }, headers: { "x-lp-inbound-token": inboundToken } });
+    expect(none.statusCode).toBe(404);
+
+    // Paying the rest in the app sends the carrier's system an 820.
+    await S.post(`/v1/invoices/${two.id}/payments`, { amount: 3200, method: "WIRE", reference: "FW-88" }, 201);
+    const edi = h.van.sent.slice(before).map((m) => m.body).find((b) => b.includes("ST*820"));
+    expect(edi).toBeDefined();
+    expect(edi).toContain("BPR*C*3200.00*C*FWT");
+    expect(edi).toContain("TRN*1*FW-88");
+    expect(edi).toContain("RMR*IV*INV-820-2*PI*3200.00*5200.00");
+  });
+});
