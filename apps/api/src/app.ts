@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import { As2Transport, type As2Identity, IntegrationEngine, HttpTransport, OutboxTransport, envSecrets, type SecretResolver, type Transport } from "@logisticspro/integration";
-import { type Geocoder, NominatimGeocoder, PeliasGeocoder, type RoutingProvider, StaticProvider, ValhallaProvider } from "@logisticspro/navigation";
+import { type Geocoder, HereTrafficProvider, NominatimGeocoder, PeliasGeocoder, type RoutingProvider, StaticProvider, TomTomTrafficProvider, type TrafficProvider, ValhallaProvider } from "@logisticspro/navigation";
 import Fastify, { type FastifyInstance } from "fastify";
 import { type Config, loadConfig } from "./config.js";
 import { type AppContext, toHttpError } from "./http.js";
@@ -54,6 +54,8 @@ export interface AppOptions {
   transports?: Partial<Record<"HTTPS" | "AS2" | "SFTP" | "VAN", Transport>>;
   secrets?: SecretResolver;
   routing?: RoutingProvider;
+  /** Live-traffic driving times; defaults to HERE or TomTom when LP_TRAFFIC and LP_TRAFFIC_KEY are set. */
+  traffic?: TrafficProvider;
   geocoder?: Geocoder;
   as2Identity?: As2Identity;
   /** fetch used by the AS2 transport (tests point it at another station). */
@@ -89,6 +91,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
     engine,
     hub: new IntegrationHub(store, engine, cfg, now),
     routing: opts.routing ?? (cfg.valhallaUrl ? new ValhallaProvider(cfg.valhallaUrl) : new StaticProvider()),
+    traffic: opts.traffic ?? (cfg.traffic ? (cfg.traffic.kind === "here" ? new HereTrafficProvider(cfg.traffic.apiKey) : new TomTomTrafficProvider(cfg.traffic.apiKey)) : undefined),
     geocoder: opts.geocoder ?? (cfg.geocoder ? (cfg.geocoder.kind === "nominatim" ? new NominatimGeocoder(cfg.geocoder.url) : new PeliasGeocoder(cfg.geocoder.url, { apiKey: cfg.geocoder.apiKey })) : undefined),
     as2: station,
     as2Transport,

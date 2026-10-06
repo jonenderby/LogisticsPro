@@ -17,7 +17,7 @@ describe("setup status", () => {
     const { items } = await api(h, ops).get("/v1/system/setup");
     const state = Object.fromEntries(items.map((i: { id: string; state: string }) => [i.id, i.state]));
     // The test harness runs in memory with nothing connected.
-    expect(state).toMatchObject({ database: "WARN", routing: "OFF", geocoder: "OFF", fmcsa: "OFF", files: "WARN", "public-url": "WARN" });
+    expect(state).toMatchObject({ database: "WARN", routing: "OFF", traffic: "OFF", geocoder: "OFF", fmcsa: "OFF", files: "WARN", "public-url": "WARN" });
     // Settings are named; secrets never appear.
     expect(items.find((i: { id: string }) => i.id === "sessions").settings).toEqual(["LP_JWT_SECRET"]);
     expect(JSON.stringify(items)).not.toContain("secret-for-");

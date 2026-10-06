@@ -28,13 +28,13 @@ const ROUTE_MAX_AGE_MS = 2 * 3_600_000;
  * The routed remainder of a load, scaled to how far the truck has come since
  * it was routed, so a route stays useful between refreshes.
  */
-export function routeFor(store: MemoryStore, load: Load, pos: GeoPoint, now: Date): { miles: number; minutes: number } | undefined {
+export function routeFor(store: MemoryStore, load: Load, pos: GeoPoint, now: Date): { miles: number; minutes: number; trafficDelayMinutes?: number } | undefined {
   const r = store.routeEstimates.get(load.id);
   if (!r || now.getTime() - Date.parse(r.at) > ROUTE_MAX_AGE_MS) return undefined;
   const then = haversineMiles(r.from, r.to);
   if (then <= 0) return undefined;
   const ratio = Math.min(1.2, haversineMiles(pos, r.to) / then);
-  return { miles: r.miles * ratio, minutes: r.minutes * ratio };
+  return { miles: r.miles * ratio, minutes: r.minutes * ratio, ...(r.trafficDelayMinutes !== undefined ? { trafficDelayMinutes: Math.round(r.trafficDelayMinutes * ratio) } : {}) };
 }
 
 /**

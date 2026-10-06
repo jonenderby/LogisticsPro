@@ -99,6 +99,8 @@ export interface RouteEstimate {
   to: { lat: number; lng: number };
   miles: number;
   minutes: number;
+  /** What traffic adds, when the time came from a live-traffic provider. */
+  trafficDelayMinutes?: number;
   at: string;
   source: string;
 }

@@ -1242,4 +1242,7 @@ export const es: Dictionary = {
   "Mark paid": "Marcar como pagado",
   "No pay statements yet": "Aún no hay estados de pago",
   "Your carrier's statements appear here once they are approved.": "Los estados de tu transportista aparecen aquí cuando se aprueban.",
+  "Live traffic": "Tráfico en vivo",
+  "{kind} traffic times feed ETAs every 15 minutes.": "Los tiempos con tráfico de {kind} alimentan las ETA cada 15 minutos.",
+  "ETAs don't account for traffic. Add a HERE or TomTom key.": "Las ETA no consideran el tráfico. Agrega una clave de HERE o TomTom.",
 };

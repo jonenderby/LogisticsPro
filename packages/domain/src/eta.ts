@@ -43,7 +43,7 @@ export interface EtaOptions {
   /** The driver's hours left right now; without it the driver is assumed fresh. */
   hos?: HosStart;
   /** A road route for what is left, from a routing server; replaces the road-factor estimate. */
-  route?: { miles: number; minutes: number };
+  route?: { miles: number; minutes: number; trafficDelayMinutes?: number };
 }
 
 const MIN = 60_000;
@@ -135,6 +135,7 @@ export function shipmentEta(load: Load, o: EtaOptions): ShipmentEta {
     const stopsBetween = Math.max(0, legs.length - 1);
     const computed = start + timeline.elapsedMin * MIN + stopsBetween * dwell;
     // Information, not a risk: added after the status is decided.
+    if (routed && (o.route!.trafficDelayMinutes ?? 0) >= 10) notes.push(`Traffic adds about ${ago(o.route!.trafficDelayMinutes! * MIN)}`);
     if (timeline.restarts) notes.push("Includes a 34-hour restart: the driver is out of weekly hours");
     else if (timeline.resets) notes.push(`Includes ${timeline.resets === 1 ? "a 10-hour rest" : `${timeline.resets} 10-hour rests`} under driving-hour rules`);
     out.eta = new Date(computed).toISOString();

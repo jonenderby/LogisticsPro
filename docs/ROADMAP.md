@@ -19,7 +19,6 @@ What is built and tested is described in the README. This is what remains before
 - Push notifications for corridor violations (tenders, messages and arrival alerts already push).
 - Web push for the website while it is closed (needs VAPID keys and a service worker).
 - CarPlay and Android Auto.
-- Live traffic in arrival estimates (Valhalla route times are used; they have no traffic).
 - Address type-ahead while typing stops (search exists; the New load form does not use it yet).
 - More ELD providers (Omnitracs, Verizon Connect, J.J. Keller) behind the same adapter, and testing the three built adapters against live accounts.
 - Split sleeper-berth pairings, the adverse driving conditions extension and the short-haul exception in the hours clock.

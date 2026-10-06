@@ -1,7 +1,7 @@
 import type { Account, EldProvider, Load, Message } from "@logisticspro/domain";
 import { DomainError, carrierKeyOf, loadParties, newId } from "@logisticspro/domain";
 import type { As2Identity, As2Transport, IntegrationEngine } from "@logisticspro/integration";
-import type { Geocoder, RoutingProvider } from "@logisticspro/navigation";
+import type { Geocoder, RoutingProvider, TrafficProvider } from "@logisticspro/navigation";
 import { type Capability, type ResolvedCapabilities, resolveCapabilities } from "@logisticspro/workspace";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { z } from "zod";
@@ -37,6 +37,8 @@ export interface AppContext {
   engine: IntegrationEngine;
   hub: IntegrationHub;
   routing: RoutingProvider;
+  /** Live-traffic driving times for ETAs (HERE or TomTom), when configured. */
+  traffic?: TrafficProvider;
   /** Address search; undefined when no geocoding server is configured. */
   geocoder?: Geocoder;
   /** The platform's AS2 station identity and the transport that sends from it. */

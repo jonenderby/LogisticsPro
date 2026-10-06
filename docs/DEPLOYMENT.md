@@ -11,6 +11,7 @@ The people who run a deployment see **More > Setup status** in the app. List the
 | Stored credentials | ELD keys have their own encryption key | `LP_DATA_KEY` |
 | Phone push | Push goes through Expo | `LP_PUSH`, `LP_EXPO_ACCESS_TOKEN` |
 | Truck routing | Valhalla answers | `LP_VALHALLA_URL` |
+| Live traffic | A HERE or TomTom key is set | `LP_TRAFFIC`, `LP_TRAFFIC_KEY` |
 | Address search | Nominatim or Pelias answers | `LP_GEOCODER`, `LP_GEOCODER_URL` |
 | Carrier checks | A live FMCSA key is set | `LP_FMCSA_WEBKEY` |
 | AS2 certificate | Key and certificate are set, so every server uses the same one | `LP_AS2_KEY_PEM`, `LP_AS2_CERT_PEM` |

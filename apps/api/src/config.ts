@@ -31,6 +31,8 @@ export interface Config {
   as2KeyPem?: string;
   as2CertPem?: string;
   as2Dir: string;
+  /** Live traffic for ETAs: HERE or TomTom truck routing, with its API key. */
+  traffic?: { kind: "here" | "tomtom"; apiKey: string };
   /** Address search: "pelias" or "nominatim", with its base URL. */
   geocoder?: { kind: "pelias" | "nominatim"; url: string; apiKey?: string };
   /** How long a carrier's join code stays valid before it rotates. */
@@ -80,6 +82,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     as2KeyPem: env.LP_AS2_KEY_PEM,
     as2CertPem: env.LP_AS2_CERT_PEM,
     as2Dir: env.LP_AS2_DIR ?? "./var/as2",
+    traffic: env.LP_TRAFFIC_KEY && (env.LP_TRAFFIC === "here" || env.LP_TRAFFIC === "tomtom") ? { kind: env.LP_TRAFFIC, apiKey: env.LP_TRAFFIC_KEY } : undefined,
     geocoder: env.LP_GEOCODER_URL ? { kind: env.LP_GEOCODER === "nominatim" ? "nominatim" : "pelias", url: env.LP_GEOCODER_URL, apiKey: env.LP_GEOCODER_KEY } : undefined,
     joinCodeTtlHours: Number(env.LP_JOIN_CODE_TTL_HOURS ?? 24 * 7),
     push: env.LP_PUSH === "off" ? "off" : "expo",

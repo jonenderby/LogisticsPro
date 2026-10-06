@@ -52,6 +52,9 @@ export async function setupStatus(ctx: AppContext, t: Translate = translator("en
       : routingUp
         ? item("routing", t("Truck routing"), "OK", t("Valhalla answers at {url}.", { url: cfg.valhallaUrl }), ["LP_VALHALLA_URL"])
         : item("routing", t("Truck routing"), "WARN", t("Valhalla doesn't answer at {url}.", { url: cfg.valhallaUrl }), ["LP_VALHALLA_URL"]),
+    cfg.traffic
+      ? item("traffic", t("Live traffic"), "OK", t("{kind} traffic times feed ETAs every 15 minutes.", { kind: cfg.traffic.kind === "here" ? "HERE" : "TomTom" }), ["LP_TRAFFIC", "LP_TRAFFIC_KEY"])
+      : item("traffic", t("Live traffic"), "OFF", t("ETAs don't account for traffic. Add a HERE or TomTom key."), ["LP_TRAFFIC", "LP_TRAFFIC_KEY"]),
     !cfg.geocoder
       ? item("geocoder", t("Address search"), "OFF", t("No address search. Stops need coordinates typed in."), ["LP_GEOCODER", "LP_GEOCODER_URL"])
       : geocoderUp
