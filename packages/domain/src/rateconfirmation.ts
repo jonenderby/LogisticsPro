@@ -149,6 +149,9 @@ const LABELS: Array<[keyof RateConContent, string]> = [
   ["notes", "Notes"],
 ];
 
+/** The words rateConChanges uses, for translation. */
+export const RATE_CON_CHANGE_LABELS = LABELS.map(([, label]) => label);
+
 /** What a new version changes from the last one, in words. Empty when nothing the carrier agreed to has changed. */
 export function rateConChanges(prev: RateConContent, next: RateConContent): string[] {
   return LABELS.filter(([k]) => canonicalJson(prev[k]) !== canonicalJson(next[k])).map(([, label]) => label);

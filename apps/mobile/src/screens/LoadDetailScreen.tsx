@@ -1,5 +1,5 @@
 import { ON_TIME_GRACE_MINUTES, carrierKeyOf } from "@logisticspro/domain";
-import { nextDriverAction } from "@logisticspro/workspace";
+import { nextDriverAction, tx } from "@logisticspro/workspace";
 import { RATE_CON_STATUS } from "./RateConfirmationScreen";
 import { type DocView, DocumentsSection } from "../ui/Documents";
 import { type Verdict, VettingChip } from "./CarrierCheckScreen";
@@ -43,7 +43,7 @@ interface LoadExceptionView {
 }
 const EXCEPTION_TYPES = ["DAMAGE", "SHORTAGE", "OVERAGE", "REFUSED", "OTHER"] as const;
 
-const MODE: Record<string, string> = { FTL: "Full truckload", LTL: "LTL", PARTIAL: "Partial" };
+const MODE: Record<string, string> = { FTL: tx("Full truckload"), LTL: "LTL", PARTIAL: tx("Partial") };
 
 export function LoadDetailScreen() {
   const { id } = useParams<"LoadDetail">();
@@ -145,12 +145,12 @@ export function LoadDetailScreen() {
       {rateCon?.status === "AWAITING_CARRIER" && rel.dispatcher ? <Banner tone="warning" title={t("The shipper changed this load")} message={t("Review and sign the new rate confirmation.")} /> : null}
       <Section title={t("Summary")}>
         <Row title={t("Status")} right={<StatusPill status={load.status} />} />
-        <Row title={t("Service")} value={`${MODE[load.mode]} · ${titleCase(load.service)}${load.teamRequired && load.service !== "TEAM_EXPEDITED" ? " · team" : ""}`} />
-        <Row title={t("Equipment")} value={`${titleCase(load.equipment.type)} ${load.equipment.lengthFt}'`} />
+        <Row title={t("Service")} value={`${t(MODE[load.mode]!)} · ${t(titleCase(load.service))}${load.teamRequired && load.service !== "TEAM_EXPEDITED" ? ` · ${t("team")}` : ""}`} />
+        <Row title={t("Equipment")} value={`${t(titleCase(load.equipment.type))} ${load.equipment.lengthFt}'`} />
         {load.rate ? <Row title={t("Rate")} value={money(load.rate.amount, load.rate.currency)} /> : null}
         {carrierCheck?.carrier && carrierCheck.carrier.verdict !== "NOT_CHECKED" ? <Row title={t("Carrier check")} right={<VettingChip verdict={carrierCheck.carrier.verdict} approved={carrierCheck.carrier.approved} />} onPress={() => nav.navigate("CarrierCheck", { orgId: carrierCheck.carrier!.id, payerOrgId: load.brokerOrgId ?? load.shipperOrgId })} /> : null}
-        {carrierCheck?.pickup && carrierCheck.pickup.status !== "PENDING" ? <Row title={carrierCheck.pickup.status === "VERIFIED" ? "Pickup verified by tracking" : "Pickup not verified"} subtitle={carrierCheck.pickup.detail} right={<Chip label={carrierCheck.pickup.status === "VERIFIED" ? "Verified" : "Check"} tone={carrierCheck.pickup.status === "VERIFIED" ? "success" : "warning"} />} /> : null}
-        {rateCon ? <Row title={t("Rate confirmation")} subtitle={`Version ${rateCon.version}`} right={<Chip label={RATE_CON_STATUS[rateCon.status].label} tone={RATE_CON_STATUS[rateCon.status].tone} />} onPress={() => nav.navigate("RateConfirmation", { loadId: load.id })} /> : null}
+        {carrierCheck?.pickup && carrierCheck.pickup.status !== "PENDING" ? <Row title={carrierCheck.pickup.status === "VERIFIED" ? t("Pickup verified by tracking") : t("Pickup not verified")} subtitle={carrierCheck.pickup.detail} right={<Chip label={carrierCheck.pickup.status === "VERIFIED" ? t("Verified") : t("Check")} tone={carrierCheck.pickup.status === "VERIFIED" ? "success" : "warning"} />} /> : null}
+        {rateCon ? <Row title={t("Rate confirmation")} subtitle={t("Version {n}", { n: rateCon.version })} right={<Chip label={RATE_CON_STATUS[rateCon.status].label} tone={RATE_CON_STATUS[rateCon.status].tone} />} onPress={() => nav.navigate("RateConfirmation", { loadId: load.id })} /> : null}
         {load.references.bol ? <Row title="BOL" value={load.references.bol} /> : null}
         {load.references.pro ? <Row title="PRO" value={load.references.pro} /> : null}
         {load.references.po.length ? <Row title="PO" value={load.references.po.join(", ")} /> : null}
@@ -160,8 +160,8 @@ export function LoadDetailScreen() {
         <Section title={t("Driving")} footer={t("Status updates go to your dispatcher and the shipper, in whatever format their systems use.")}>
           <Padded>
             {next ? <Button title={t(next.label)} onPress={run(() => reportStatus(load.id, next.code))} /> : null}
-            {["IN_TRANSIT", "AT_PICKUP", "DISPATCHED"].includes(load.status) ? <Button title={t("Report a delay")} variant="tonal" onPress={run(() => reportStatus(load.id, "DELAYED", { reason: "TRAFFIC" }), "Delay reported")} /> : null}
-            <Button title={load.oversize ? "Start permitted-route navigation" : "Navigate"} variant="tonal" onPress={() => nav.navigate("Navigate", { loadId: load.id })} />
+            {["IN_TRANSIT", "AT_PICKUP", "DISPATCHED"].includes(load.status) ? <Button title={t("Report a delay")} variant="tonal" onPress={run(() => reportStatus(load.id, "DELAYED", { reason: "TRAFFIC" }), t("Delay reported"))} /> : null}
+            <Button title={load.oversize ? t("Start permitted-route navigation") : t("Navigate")} variant="tonal" onPress={() => nav.navigate("Navigate", { loadId: load.id })} />
           </Padded>
         </Section>
       ) : null}
@@ -169,10 +169,10 @@ export function LoadDetailScreen() {
       {tracking ? (
         <Section title={t("Arrival")} footer={t("Estimated from the truck's latest location, the stops ahead and driving-hour rules. A recent ETA from the carrier takes precedence.")}>
           <Row title={t("Delivery")} right={<ArrivalChip eta={tracking.eta} />} />
-          <Row title={tracking.eta.etaSource === "ARRIVED" ? "Arrived" : tracking.eta.etaSource === "CARRIER" ? "ETA from carrier" : "Estimated arrival"} value={time(tracking.eta.eta)} />
+          <Row title={tracking.eta.etaSource === "ARRIVED" ? t("Arrived") : tracking.eta.etaSource === "CARRIER" ? t("ETA from carrier") : t("Estimated arrival")} value={time(tracking.eta.eta)} />
           <Row title={t("Window")} value={`${time(tracking.eta.window.start)} – ${time(tracking.eta.window.end)}`} />
           {tracking.eta.remainingMiles != null ? <Row title={t("Miles to go")} value={`${Math.round(tracking.eta.remainingMiles)}`} /> : null}
-          {tracking.truck ? <Row title={t("Truck last seen")} value={ago(tracking.truck.at)} subtitle={tracking.truck.stale ? "Location is out of date" : undefined} /> : null}
+          {tracking.truck ? <Row title={t("Truck last seen")} value={ago(tracking.truck.at, t)} subtitle={tracking.truck.stale ? t("Location is out of date") : undefined} /> : null}
           {tracking.eta.reasons.map((r) => (
             <Row key={r} title={r} />
           ))}
@@ -196,22 +196,22 @@ export function LoadDetailScreen() {
           ))}
           {stopForMiss ? (
             <Padded>
-              <Body secondary>Did the carrier miss an appointment?</Body>
-              {reportable.length > 1 ? <Segmented options={reportable.map((s) => ({ value: s.id, label: `${titleCase(s.type)} · ${s.address.city}` }))} value={stopForMiss.id} onChange={setMissStop} /> : <Body>{`${titleCase(stopForMiss.type)} at ${stopForMiss.address.city}, ${when(stopForMiss.window.start)} – ${when(stopForMiss.window.end)}`}</Body>}
-              <Segmented options={[{ value: "NO_SHOW", label: "No-show" }, { value: "LATE", label: "Arrived late" }]} value={missKind} onChange={setMissKind} />
+              <Body secondary>{t("Did the carrier miss an appointment?")}</Body>
+              {reportable.length > 1 ? <Segmented options={reportable.map((s) => ({ value: s.id, label: `${t(titleCase(s.type))} · ${s.address.city}` }))} value={stopForMiss.id} onChange={setMissStop} /> : <Body>{`${titleCase(stopForMiss.type)} at ${stopForMiss.address.city}, ${when(stopForMiss.window.start)} – ${when(stopForMiss.window.end)}`}</Body>}
+              <Segmented options={[{ value: "NO_SHOW", label: t("No-show") }, { value: "LATE", label: t("Arrived late") }]} value={missKind} onChange={setMissKind} />
               {missKind === "LATE" ? <Field label={t("Minutes late (optional)")} value={missMinutes} onChangeText={setMissMinutes} keyboardType="number-pad" /> : null}
               <Field label={t("Note (optional)")} value={missNote} onChangeText={setMissNote} multiline />
               <Button
                 title={t("Report missed appointment")}
                 variant="destructive"
                 onPress={async () => {
-                  if (!(await confirm("Report a missed appointment?", "It counts against the carrier's reliability with you and overall. The carrier can respond, and you can withdraw it later.", "Report", true))) return;
+                  if (!(await confirm(t("Report a missed appointment?"), t("It counts against the carrier's reliability with you and overall. The carrier can respond, and you can withdraw it later."), t("Report"), true))) return;
                   const minutes = parseInt(missMinutes, 10);
                   await run(async () => {
                     await api.post(`/v1/loads/${load.id}/appointment-misses`, { stopId: stopForMiss.id, kind: missKind, minutesLate: missKind === "LATE" && minutes > 0 ? minutes : undefined, note: missNote });
                     setMissNote("");
                     setMissMinutes("");
-                  }, "Missed appointment reported")();
+                  }, t("Missed appointment reported"))();
                 }}
               />
             </Padded>
@@ -219,15 +219,15 @@ export function LoadDetailScreen() {
         </Section>
       ) : null}
 
-      <Section title={t("Stops")} footer={stopTimes?.total ? `Detention so far: $${stopTimes.total.toFixed(2)} at $${stopTimes.terms.ratePerHour}/h after ${stopTimes.terms.freeHours} h free. It is added to the invoice.` : undefined}>
+      <Section title={t("Stops")} footer={stopTimes?.total ? t("Detention so far: {total} at {rate}/h after {free} h free. It is added to the invoice.", { total: `$${stopTimes.total.toFixed(2)}`, rate: `$${stopTimes.terms.ratePerHour}`, free: stopTimes.terms.freeHours }) : undefined}>
         {[...load.stops].sort((a, b) => a.sequence - b.sequence).map((s) => (
-          <Row key={s.id} title={`${titleCase(s.type)} · ${s.address.name}`} subtitle={`${s.address.line1}, ${s.address.city}, ${s.address.state} ${s.address.postalCode}\n${when(s.window.start)} – ${when(s.window.end)}${s.appointmentRef ? ` · appt ${s.appointmentRef}` : ""}${s.instructions ? `\n${s.instructions}` : ""}${visitLine(stopTimes?.stops.find((d) => d.stopId === s.id)) ? `\n${visitLine(stopTimes?.stops.find((d) => d.stopId === s.id))}` : ""}`} />
+          <Row key={s.id} title={`${t(titleCase(s.type))} · ${s.address.name}`} subtitle={`${s.address.line1}, ${s.address.city}, ${s.address.state} ${s.address.postalCode}\n${when(s.window.start)} – ${when(s.window.end)}${s.appointmentRef ? ` · ${t("appt {ref}", { ref: s.appointmentRef })}` : ""}${s.instructions ? `\n${s.instructions}` : ""}${visitLine(stopTimes?.stops.find((d) => d.stopId === s.id), t) ? `\n${visitLine(stopTimes?.stops.find((d) => d.stopId === s.id), t)}` : ""}`} />
         ))}
       </Section>
 
       <Section title={t("Freight")}>
         {load.items.map((i, n) => (
-          <Row key={n} title={i.description} subtitle={`${i.pieces} ${i.packaging} · ${i.weightLb.toLocaleString()} lb${i.freightClass ? ` · class ${i.freightClass}` : ""}${i.hazmat ? ` · HAZMAT ${i.hazmat.unNumber}` : ""}`} />
+          <Row key={n} title={i.description} subtitle={`${i.pieces} ${i.packaging} · ${i.weightLb.toLocaleString()} lb${i.freightClass ? ` · ${t("class {c}", { c: i.freightClass })}` : ""}${i.hazmat ? ` · HAZMAT ${i.hazmat.unNumber}` : ""}`} />
         ))}
         {load.oversize ? <Row title={t("Oversize")} subtitle={`${load.oversize.lengthIn}" L × ${load.oversize.widthIn}" W × ${load.oversize.heightIn}" H · ${load.oversize.grossWeightLb.toLocaleString()} lb · ${load.oversize.permits.length} permit(s)`} /> : null}
       </Section>
@@ -237,7 +237,7 @@ export function LoadDetailScreen() {
           {load.legs.map((leg) => {
             const from = load.stops.find((s) => s.id === leg.fromStopId)?.address.city;
             const to = load.stops.find((s) => s.id === leg.toStopId)?.address.city;
-            return <Row key={leg.id} title={`Leg ${leg.sequence}: ${from} → ${to}`} subtitle={`${leg.driverAccountIds.length === 2 ? "Team" : leg.driverAccountIds.length === 1 ? "Solo driver" : "Unassigned"} · ${titleCase(leg.status)}`} />;
+            return <Row key={leg.id} title={t("Leg {n}: {from} → {to}", { n: leg.sequence, from, to })} subtitle={`${leg.driverAccountIds.length === 2 ? t("Team") : leg.driverAccountIds.length === 1 ? t("Solo driver") : t("Unassigned")} · ${t(titleCase(leg.status))}`} />;
           })}
         </Section>
       ) : null}
@@ -249,10 +249,10 @@ export function LoadDetailScreen() {
       {rel.dispatcher && load.status === "TENDERED" ? (
         <Section title={t("Tender")}>
           <Padded>
-            <Body secondary>Accepting books the load to your company. The shipper receives your response in their format (API or EDI 990).</Body>
+            <Body secondary>{t("Accepting books the load to your company. The shipper receives your response in their format (API or EDI 990).")}</Body>
             <Field label={t("Your PRO number (optional)")} value={pro} onChangeText={setPro} autoCapitalize="characters" />
             <Button title={t("Accept tender")} onPress={run(() => api.post(`/v1/loads/${load.id}/tender-response`, { decision: "ACCEPT", pro: pro || undefined }))} />
-            <Button title={t("Decline")} variant="destructive" onPress={async () => { if (await confirm("Decline this tender?", "The shipper is told you have no capacity.", "Decline", true)) await run(() => api.post(`/v1/loads/${load.id}/tender-response`, { decision: "DECLINE", reason: "No capacity" }), "Tender declined", true)(); }} />
+            <Button title={t("Decline")} variant="destructive" onPress={async () => { if (await confirm(t("Decline this tender?"), t("The shipper is told you have no capacity."), t("Decline"), true)) await run(() => api.post(`/v1/loads/${load.id}/tender-response`, { decision: "DECLINE", reason: "No capacity" }), t("Tender declined"), true)(); }} />
           </Padded>
         </Section>
       ) : null}
@@ -276,29 +276,29 @@ export function LoadDetailScreen() {
             ) : null}
             {load.status === "DRAFT" ? (
               <>
-                <Button title={t("Post to load board")} onPress={run(() => api.post(`/v1/loads/${load.id}/post`), "Posted to the board")} />
-                <Segmented options={[{ value: "carrier", label: "Carrier on Logistics Pro" }, { value: "partner", label: "Integrated partner" }]} value={tenderKind} onChange={setTenderKind} />
-                <Field label={tenderKind === "carrier" ? "Carrier organization ID" : "Partner key (e.g. estes, rl-carriers)"} value={tenderTo} onChangeText={setTenderTo} autoCapitalize="none" />
+                <Button title={t("Post to load board")} onPress={run(() => api.post(`/v1/loads/${load.id}/post`), t("Posted to the board"))} />
+                <Segmented options={[{ value: "carrier", label: t("Carrier on Logistics Pro") }, { value: "partner", label: t("Integrated partner") }]} value={tenderKind} onChange={setTenderKind} />
+                <Field label={tenderKind === "carrier" ? t("Carrier organization ID") : t("Partner key (e.g. estes, rl-carriers)")} value={tenderTo} onChangeText={setTenderTo} autoCapitalize="none" />
                 <Button title={t("Tender directly")} variant="tonal" disabled={!tenderTo} onPress={run(() => api.post(`/v1/loads/${load.id}/tender`, tenderKind === "carrier" ? { carrierOrgId: tenderTo } : { partnerKey: tenderTo }))} />
               </>
             ) : null}
-            {["BOOKED", "DISPATCHED", "AT_PICKUP"].includes(load.status) && !load.shipConfirmedAt ? <Button title={t("Confirm shipment")} variant="tonal" onPress={async () => { if (await confirm("Confirm shipment?", "The load details lock for everyone once confirmed.", "Confirm")) await run(() => api.post(`/v1/loads/${load.id}/ship-confirm`), "Shipment confirmed")(); }} /> : null}
+            {["BOOKED", "DISPATCHED", "AT_PICKUP"].includes(load.status) && !load.shipConfirmedAt ? <Button title={t("Confirm shipment")} variant="tonal" onPress={async () => { if (await confirm(t("Confirm shipment?"), t("The load details lock for everyone once confirmed."), t("Confirm"))) await run(() => api.post(`/v1/loads/${load.id}/ship-confirm`), t("Shipment confirmed"))(); }} /> : null}
             {(load.carrierOrgId || load.externalCarrierKey) && !load.pickedUpAt && ["TENDERED", "BOOKED", "DISPATCHED", "AT_PICKUP"].includes(load.status) ? (
               <Button
                 title={t("Release carrier")}
                 variant="tonal"
                 accessibilityHint={t("Take the load back so you can give it to another carrier")}
                 onPress={async () => {
-                  if (await confirm("Release this carrier?", "The load comes back to you as a draft so you can tender it to another carrier. The carrier is notified. Missed appointments stay on their record only.", "Release", true)) await run(() => api.post(`/v1/loads/${load.id}/release-carrier`), "Carrier released")();
+                  if (await confirm(t("Release this carrier?"), t("The load comes back to you as a draft so you can tender it to another carrier. The carrier is notified. Missed appointments stay on their record only."), t("Release"), true)) await run(() => api.post(`/v1/loads/${load.id}/release-carrier`), t("Carrier released"))();
                 }}
               />
             ) : null}
-            {!load.pickedUpAt && load.status !== "CANCELLED" ? <Button title={t("Cancel load")} variant="destructive" onPress={async () => { if (await confirm("Cancel this load?", "The carrier is notified and the load cannot be reopened.", "Cancel load", true)) await run(() => api.post(`/v1/loads/${load.id}/cancel`))(); }} /> : null}
+            {!load.pickedUpAt && load.status !== "CANCELLED" ? <Button title={t("Cancel load")} variant="destructive" onPress={async () => { if (await confirm(t("Cancel this load?"), t("The carrier is notified and the load cannot be reopened."), t("Cancel load"), true)) await run(() => api.post(`/v1/loads/${load.id}/cancel`))(); }} /> : null}
           </Padded>
           {load.status === "POSTED"
             ? bids.map((b) => (
                 <View key={b.id}>
-                  <Row title={`${money(b.amount.amount)} · ${b.carrierName ?? "Carrier"}`} subtitle={`${titleCase(b.plan)}${b.transitHours ? ` · ${b.transitHours} h transit` : ""}${b.notes ? ` · ${b.notes}` : ""}`} right={<Button title={t("Award")} variant="tonal" onPress={run(() => api.post(`/v1/loads/${load.id}/bids/${b.id}/award`), "Awarded")} style={{ minHeight: 36 }} />} />
+                  <Row title={`${money(b.amount.amount)} · ${b.carrierName ?? t("Carrier")}`} subtitle={`${t(titleCase(b.plan))}${b.transitHours ? ` · ${b.transitHours} h transit` : ""}${b.notes ? ` · ${b.notes}` : ""}`} right={<Button title={t("Award")} variant="tonal" onPress={run(() => api.post(`/v1/loads/${load.id}/bids/${b.id}/award`), t("Awarded"))} style={{ minHeight: 36 }} />} />
                   {b.reliability || b.vetting ? (
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, paddingHorizontal: 16, paddingBottom: 12, alignItems: "center" }}>
                       {b.vetting ? <VettingChip verdict={b.vetting.verdict} approved={b.vetting.approved} onPress={() => nav.navigate("CarrierCheck", { orgId: b.carrierOrgId, payerOrgId: load.brokerOrgId ?? load.shipperOrgId })} /> : null}
@@ -313,11 +313,11 @@ export function LoadDetailScreen() {
       ) : null}
 
       {!rel.shipper && load.status === "POSTED" && bidOrgs.length ? (
-        <Section title={t("Bid")} footer={load.teamRequired ? "This load needs a team. Bid with a team or relay plan." : undefined}>
+        <Section title={t("Bid")} footer={load.teamRequired ? t("This load needs a team. Bid with a team or relay plan.") : undefined}>
           <Padded>
             <Field label={t("Your all-in rate (USD)")} value={bidAmount} onChangeText={setBidAmount} keyboardType="decimal-pad" />
-            <Segmented options={[{ value: "SOLO", label: "Solo" }, { value: "TEAM", label: "Team" }, { value: "RELAY", label: "Relay" }, { value: "CONSOLIDATED", label: "Via DC" }]} value={bidPlan} onChange={setBidPlan} />
-            <Button title={t("Place bid")} disabled={!Number(bidAmount)} onPress={run(() => api.post(`/v1/loads/${load.id}/bids`, { carrierOrgId: bidOrgs[0]!.id, amount: { amount: Number(bidAmount), currency: "USD" }, plan: bidPlan }), "Bid placed")} />
+            <Segmented options={[{ value: "SOLO", label: t("Solo") }, { value: "TEAM", label: t("Team") }, { value: "RELAY", label: t("Relay") }, { value: "CONSOLIDATED", label: t("Via DC") }]} value={bidPlan} onChange={setBidPlan} />
+            <Button title={t("Place bid")} disabled={!Number(bidAmount)} onPress={run(() => api.post(`/v1/loads/${load.id}/bids`, { carrierOrgId: bidOrgs[0]!.id, amount: { amount: Number(bidAmount), currency: "USD" }, plan: bidPlan }), t("Bid placed"))} />
           </Padded>
         </Section>
       ) : null}
@@ -333,12 +333,12 @@ export function LoadDetailScreen() {
       {load.pickedUpAt && (rel.shipper || rel.driver || rel.dispatcher) ? (
         <Section title={t("Exceptions")} footer={t("Damage reports count against the carrier's and drivers' damage-free rate with this customer.")}>
           {exceptions.map((x) => (
-            <Row key={x.id} title={`${titleCase(x.type)}${x.pieces ? ` · ${x.pieces} pcs` : ""}`} subtitle={`${x.note}\n${when(x.at)}`} />
+            <Row key={x.id} title={`${t(titleCase(x.type))}${x.pieces ? ` · ${t("{n} pcs", { n: x.pieces })}` : ""}`} subtitle={`${x.note}\n${when(x.at)}`} />
           ))}
           <Padded>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {EXCEPTION_TYPES.map((t) => (
-                <Chip key={t} label={titleCase(t)} selected={excType === t} onPress={() => setExcType(t)} />
+              {EXCEPTION_TYPES.map((type) => (
+                <Chip key={type} label={t(titleCase(type))} selected={excType === type} onPress={() => setExcType(type)} />
               ))}
             </View>
             <Field label={t("What happened")} value={excNote} onChangeText={setExcNote} multiline />
@@ -349,7 +349,7 @@ export function LoadDetailScreen() {
               onPress={run(async () => {
                 await api.post(`/v1/loads/${load.id}/exceptions`, { type: excType, note: excNote.trim() });
                 setExcNote("");
-              }, "Exception reported")}
+              }, t("Exception reported"))}
             />
           </Padded>
         </Section>

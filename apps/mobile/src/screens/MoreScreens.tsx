@@ -5,7 +5,7 @@ import { api, errorMessage } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { type StackParams, useNav } from "../navigation/types";
 import { notify } from "../ui/dialog";
-import { useMe } from "../state/MeProvider";
+import { useMe, useT } from "../state/MeProvider";
 import { Body, Button, Chip, Field, Padded, Row, Screen, Section } from "../ui/components";
 import { titleCase } from "../ui/format";
 import { type Lang, PICKABLE_LANGUAGES } from "@logisticspro/workspace";
@@ -61,6 +61,7 @@ export function MoreScreen() {
 }
 
 export function SecurityScreen() {
+  const t = useT();
   const { me } = useMe();
   const { signOut } = useAuth();
   const [code, setCode] = useState("");
@@ -68,13 +69,13 @@ export function SecurityScreen() {
   if (!me) return null;
   return (
     <Screen>
-      <Section title="Account">
-        <Row title="Name" value={me.account.name} />
-        <Row title="Email" value={me.account.email} />
-        <Row title="Profile" value={titleCase(me.account.profileType)} />
-        <Row title="Two-factor authentication" value={me.account.mfaEnabled ? "On" : "Off"} />
+      <Section title={t("Account")}>
+        <Row title={t("Name")} value={me.account.name} />
+        <Row title={t("Email")} value={me.account.email} />
+        <Row title={t("Profile")} value={titleCase(me.account.profileType)} />
+        <Row title={t("Two-factor authentication")} value={me.account.mfaEnabled ? "On" : "Off"} />
       </Section>
-      <Section title="Recovery codes" footer="Generating new codes invalidates the old ones.">
+      <Section title={t("Recovery codes")} footer={t("Generating new codes invalidates the old ones.")}>
         <Padded>
           {codes ? (
             <>
@@ -83,21 +84,21 @@ export function SecurityScreen() {
                   <Chip key={c} label={c} />
                 ))}
               </View>
-              <Button title="Copy codes" variant="tonal" onPress={() => Clipboard.setStringAsync(codes.join("\n"))} />
+              <Button title={t("Copy codes")} variant="tonal" onPress={() => Clipboard.setStringAsync(codes.join("\n"))} />
             </>
           ) : (
             <>
-              <Body secondary>Enter a code from your authenticator app to create new recovery codes.</Body>
-              <Field label="Authenticator code" value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6} textContentType="oneTimeCode" />
+              <Body secondary>{t("Enter a code from your authenticator app to create new recovery codes.")}</Body>
+              <Field label={t("Authenticator code")} value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6} textContentType="oneTimeCode" />
               <Button
-                title="Create new recovery codes"
+                title={t("Create new recovery codes")}
                 variant="tonal"
                 disabled={code.length !== 6}
                 onPress={async () => {
                   try {
                     setCodes((await api.post<{ recoveryCodes: string[] }>("/v1/auth/mfa/recovery-codes", { code })).recoveryCodes);
                   } catch (e) {
-                    notify("Couldn't create codes", errorMessage(e));
+                    notify(t("Couldn't create codes"), errorMessage(e));
                   }
                 }}
               />
@@ -106,7 +107,7 @@ export function SecurityScreen() {
         </Padded>
       </Section>
       <Section>
-        <Row title="Sign out" destructive onPress={() => void signOut()} />
+        <Row title={t("Sign out")} destructive onPress={() => void signOut()} />
       </Section>
     </Screen>
   );

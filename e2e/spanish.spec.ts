@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { bookedLoad, call, freshCode, PASSWORD, visible, world } from "./helpers";
+import { bookedLoad, call, freshCode, PASSWORD, signIn, visible, world } from "./helpers";
 
 test("a driver switches the app to Spanish @phone", async ({ page }) => {
   const w = await world();
@@ -45,4 +45,21 @@ test("a new account is in English unless Spanish is picked during setup", async 
   await page.getByRole("button", { name: "Ya los guardé" }).filter({ visible: true }).click();
   await expect(visible(page, "Requiere tu atención", true)).toBeVisible();
   await expect(visible(page, "Únete a tu transportista", true)).toBeVisible();
+});
+
+test("a shipper's office screens are in Spanish too @phone", async ({ page }) => {
+  const w = await world();
+  const late = await bookedLoad(w, [-26, -24], [-2, 1]);
+  await signIn(page, w.shipper);
+  await call("PUT", "/v1/me/preferences", { language: "es" }, w.shipper.token);
+  await page.goto("/track");
+  await expect(visible(page, "Envíos sin entregar", true)).toBeVisible();
+  await expect(visible(page, "Tarde", true).first()).toBeVisible();
+  await expect(page.locator("body")).toContainText(late.loadNumber);
+  // Longer Spanish text still fits at phone width.
+  expect(await page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")).toBeLessThanOrEqual(0);
+
+  await page.goto(`/load/${late.id}`);
+  await expect(visible(page, "Resumen", true)).toBeVisible();
+  await expect(visible(page, "Confirmación de tarifa", true).first()).toBeVisible();
 });

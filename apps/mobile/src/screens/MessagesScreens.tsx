@@ -4,7 +4,7 @@ import { FlatList, KeyboardAvoidingView, Platform, Text, TextInput, View } from 
 import { api } from "../api/client";
 import type { ThreadMessage } from "../api/types";
 import { useNav, useParams } from "../navigation/types";
-import { useMe } from "../state/MeProvider";
+import { useMe, useT } from "../state/MeProvider";
 import { Button, Chip, Empty, Row, Screen, Section } from "../ui/components";
 import { when } from "../ui/format";
 import { useTheme } from "../ui/theme";
@@ -17,6 +17,7 @@ interface Thread {
 }
 
 export function MessagesScreen() {
+  const t = useT();
   const nav = useNav();
   const [threads, setThreads] = useState<Thread[]>([]);
   const refresh = useCallback(async () => setThreads(await api.get<Thread[]>("/v1/messages/threads")), []);
@@ -28,7 +29,7 @@ export function MessagesScreen() {
   return (
     <Screen onRefresh={refresh}>
       <Section>
-        {threads.length === 0 ? <Empty title="No conversations" message="Every load has a thread shared by the driver, carrier and shipper." /> : null}
+        {threads.length === 0 ? <Empty title={t("No conversations")} message={t("Every load has a thread shared by the driver, carrier and shipper.")} /> : null}
         {threads.map((t) => (
           <Row key={t.loadId} title={t.loadNumber} subtitle={t.last.body} value={when(t.last.createdAt)} right={t.unread ? <Chip label={String(t.unread)} tone="info" /> : undefined} onPress={() => nav.navigate("Thread", { loadId: t.loadId, title: t.loadNumber })} />
         ))}
@@ -39,6 +40,7 @@ export function MessagesScreen() {
 
 /** Load thread: free text plus status updates posted automatically by the app. */
 export function ThreadScreen() {
+  const t = useT();
   const { loadId, title } = useParams<"Thread">();
   const nav = useNav();
   const { me } = useMe();
@@ -81,9 +83,9 @@ export function ThreadScreen() {
         }}
       />
       <View style={{ flexDirection: "row", gap: 8, padding: 8, borderTopWidth: 0.5, borderTopColor: colors.separator, backgroundColor: colors.surface }}>
-        <TextInput accessibilityLabel="Message" value={draft} onChangeText={setDraft} placeholder="Message" placeholderTextColor={colors.textSecondary} multiline style={{ flex: 1, minHeight: metrics.minTouch, color: colors.text, fontSize: metrics.body, paddingHorizontal: 12, borderRadius: 20, backgroundColor: colors.background }} />
+        <TextInput accessibilityLabel={t("Message")} value={draft} onChangeText={setDraft} placeholder={t("Message")} placeholderTextColor={colors.textSecondary} multiline style={{ flex: 1, minHeight: metrics.minTouch, color: colors.text, fontSize: metrics.body, paddingHorizontal: 12, borderRadius: 20, backgroundColor: colors.background }} />
         <Button
-          title="Send"
+          title={t("Send")}
           disabled={!draft.trim()}
           onPress={async () => {
             await api.post(`/v1/loads/${loadId}/messages`, { body: draft.trim() });

@@ -3,6 +3,8 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, S
 import { Icon } from "./Icon";
 import { CONTENT_MAX_WIDTH, useLayout } from "./responsive";
 import { isIOS, useTheme } from "./theme";
+import { useT } from "../state/MeProvider";
+import { titleCase } from "./format";
 
 export function Screen({ children, onRefresh, padded = false }: { children: ReactNode; onRefresh?: () => Promise<void>; padded?: boolean }) {
   const { colors } = useTheme();
@@ -138,8 +140,10 @@ function toneColors(tone: Tone, c: ReturnType<typeof useTheme>["colors"]) {
   }
 }
 
-export function Chip({ label, tone = "neutral", selected, onPress }: { label: string; tone?: Tone; selected?: boolean; onPress?: () => void }) {
+export function Chip({ label: raw, tone = "neutral", selected, onPress }: { label: string; tone?: Tone; selected?: boolean; onPress?: () => void }) {
   const { colors, metrics } = useTheme();
+  // Labels from lookup tables (marked with tx) are translated here.
+  const label = useT()(raw);
   // A selected chip takes the selection color unless it carries its own meaning (a status tone).
   const t = toneColors(selected && tone === "neutral" ? "info" : tone, colors);
   return (
@@ -161,8 +165,10 @@ export function Banner({ tone, title, message }: { tone: Tone; title: string; me
 }
 
 /** iOS segmented control look; Material segmented buttons on Android. */
-export function Segmented<T extends string>({ options, value, onChange }: { options: Array<{ value: T; label: string }>; value: T; onChange: (v: T) => void }) {
+export function Segmented<T extends string>({ options: raw, value, onChange }: { options: Array<{ value: T; label: string }>; value: T; onChange: (v: T) => void }) {
   const { colors, metrics } = useTheme();
+  const tr = useT();
+  const options = raw.map((o) => ({ ...o, label: tr(o.label) }));
   return (
     <View accessibilityRole="tablist" style={{ flexDirection: "row", backgroundColor: isIOS ? colors.surfaceVariant : "transparent", borderRadius: isIOS ? 9 : 20, padding: isIOS ? 2 : 0, borderWidth: isIOS ? 0 : 1, borderColor: colors.separator, overflow: "hidden" }}>
       {options.map((o, i) => {
@@ -220,7 +226,8 @@ const STATUS_TONE: Record<string, Tone> = {
 };
 
 export function StatusPill({ status }: { status: string }) {
-  return <Chip label={status.replace(/_/g, " ")} tone={STATUS_TONE[status] ?? "neutral"} />;
+  const t = useT();
+  return <Chip label={t(titleCase(status)).toUpperCase()} tone={STATUS_TONE[status] ?? "neutral"} />;
 }
 
 /** A settings row with a platform switch (UISwitch on iOS, Material switch on Android). */

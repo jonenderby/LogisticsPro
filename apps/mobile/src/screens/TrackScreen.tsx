@@ -1,9 +1,10 @@
+import { tx } from "@logisticspro/workspace";
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { api } from "../api/client";
 import { useNav } from "../navigation/types";
-import { useMe } from "../state/MeProvider";
+import { useMe, useT } from "../state/MeProvider";
 import { Banner, Body, Chip, Empty, Row, Screen, Section, Segmented, type Tone } from "../ui/components";
 import { FleetMap } from "../ui/FleetMap";
 import type { MapMarker } from "../ui/FleetMap.types";
@@ -46,14 +47,15 @@ function Tiles({ items }: { items: Array<{ label: string; value: number; tone: T
 }
 
 const STATE: Record<FleetDriver["state"], { label: string; tone: Tone }> = {
-  ON_LOAD: { label: "On a load", tone: "info" },
-  AVAILABLE: { label: "Available", tone: "success" },
-  OFFLINE: { label: "Offline", tone: "neutral" },
-  OTHER_CARRIER: { label: "Other carrier", tone: "neutral" },
+  ON_LOAD: { label: tx("On a load"), tone: "info" },
+  AVAILABLE: { label: tx("Available"), tone: "success" },
+  OFFLINE: { label: tx("Offline"), tone: "neutral" },
+  OTHER_CARRIER: { label: tx("Other carrier"), tone: "neutral" },
 };
 
 /** Shippers and 3PLs: every undelivered shipment with its ETA and arrival status. */
 function Shipments() {
+  const t = useT();
   const nav = useNav();
   const { wide } = useLayout();
   const { colors, metrics, dark } = useTheme();
@@ -63,34 +65,34 @@ function Shipments() {
   usePolling(load);
   if (!data) return null;
   const list = data.shipments.filter((s) => filter === "ALL" || s.eta.status === filter);
-  const markers: MapMarker[] = data.shipments.filter((s) => s.truck).map((s) => ({ id: s.id, geo: s.truck!.geo, color: ARRIVAL[s.eta.status].color, title: s.loadNumber, subtitle: `${ARRIVAL[s.eta.status].label} · ${s.destination}` }));
+  const markers: MapMarker[] = data.shipments.filter((s) => s.truck).map((s) => ({ id: s.id, geo: s.truck!.geo, color: ARRIVAL[s.eta.status].color, title: s.loadNumber, subtitle: `${t(ARRIVAL[s.eta.status].label)} · ${s.destination}` }));
   return (
     <>
       <Tiles items={(["LATE", "AT_RISK", "ON_TIME", "EARLY"] as Arrival[]).map((k) => ({ label: ARRIVAL[k].label, value: data.summary[k], tone: ARRIVAL[k].tone }))} />
       {markers.length ? (
-        <Section title="Trucks moving your freight">
+        <Section title={t("Trucks moving your freight")}>
           <FleetMap markers={markers} height={wide ? 380 : 260} dark={dark} onSelect={(id) => nav.navigate("LoadDetail", { id })} />
         </Section>
       ) : null}
       <View style={{ marginHorizontal: 16, marginTop: 16 }}>
-        <Segmented options={[{ value: "ALL", label: `All ${data.shipments.length}` }, ...(["LATE", "AT_RISK", "ON_TIME", "EARLY"] as Arrival[]).map((k) => ({ value: k, label: ARRIVAL[k].label }))]} value={filter} onChange={(v) => setFilter(v as typeof filter)} />
+        <Segmented options={[{ value: "ALL", label: t("All {n}", { n: data.shipments.length }) }, ...(["LATE", "AT_RISK", "ON_TIME", "EARLY"] as Arrival[]).map((k) => ({ value: k, label: ARRIVAL[k].label }))]} value={filter} onChange={(v) => setFilter(v as typeof filter)} />
       </View>
-      <Section title="Undelivered shipments" footer="ETAs use the truck's latest location, the stops still ahead and driving-hour rules; a recent ETA from the carrier takes precedence.">
-        {list.length === 0 ? <Empty title="Nothing here" message="Shipments appear once they are posted or tendered." /> : null}
+      <Section title={t("Undelivered shipments")} footer={t("ETAs use the truck's latest location, the stops still ahead and driving-hour rules; a recent ETA from the carrier takes precedence.")}>
+        {list.length === 0 ? <Empty title={t("Nothing here")} message={t("Shipments appear once they are posted or tendered.")} /> : null}
         {list.map((s) =>
           wide ? (
             <Pressable key={s.id} accessibilityRole="link" onPress={() => nav.navigate("LoadDetail", { id: s.id })} style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => ({ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: colors.separator, backgroundColor: hovered || pressed ? colors.surfaceVariant : "transparent" })}>
               <Text style={{ width: 110, color: colors.primary, fontWeight: "600", fontSize: metrics.callout }}>{s.loadNumber}</Text>
               <Text style={{ flex: 2, color: colors.text, fontSize: metrics.callout }}>{`${s.origin} → ${s.destination}`}</Text>
               <Text style={{ flex: 1.2, color: colors.text, fontSize: metrics.callout }}>{s.carrierName ?? "—"}</Text>
-              <Text style={{ flex: 2.6, color: colors.text, fontSize: metrics.callout }}>{etaLine(s.eta)}</Text>
+              <Text style={{ flex: 2.6, color: colors.text, fontSize: metrics.callout }}>{etaLine(s.eta, t)}</Text>
               <View style={{ width: 90 }}>
                 <ArrivalChip eta={s.eta} />
               </View>
               <Text style={{ flex: 2, color: colors.textSecondary, fontSize: metrics.caption }}>{s.eta.reasons[0]}</Text>
             </Pressable>
           ) : (
-            <Row key={s.id} title={`${s.loadNumber} · ${s.origin} → ${s.destination}`} subtitle={`${etaLine(s.eta)}\n${s.carrierName ? `${s.carrierName} · ` : ""}${s.eta.reasons[0] ?? ""}`} right={<ArrivalChip eta={s.eta} />} onPress={() => nav.navigate("LoadDetail", { id: s.id })} />
+            <Row key={s.id} title={`${s.loadNumber} · ${s.origin} → ${s.destination}`} subtitle={`${etaLine(s.eta, t)}\n${s.carrierName ? `${s.carrierName} · ` : ""}${s.eta.reasons[0] ?? ""}`} right={<ArrivalChip eta={s.eta} />} onPress={() => nav.navigate("LoadDetail", { id: s.id })} />
           ),
         )}
       </Section>
@@ -100,6 +102,7 @@ function Shipments() {
 
 /** Carriers: every truck under the carrier's umbrella. */
 function Fleet() {
+  const t = useT();
   const nav = useNav();
   const { wide } = useLayout();
   const { dark } = useTheme();
@@ -108,7 +111,7 @@ function Fleet() {
   usePolling(load);
   if (!data) return null;
   const color = (d: FleetDriver) => (d.load ? ARRIVAL[d.load.eta.status].color : d.state === "AVAILABLE" ? "#5B7BB5" : "#9E9EA3");
-  const markers: MapMarker[] = data.drivers.filter((d) => d.position).map((d) => ({ id: d.accountId, geo: d.position!.geo, color: color(d), title: d.name, subtitle: d.load ? `${d.load.loadNumber} · ${ARRIVAL[d.load.eta.status].label}` : d.state === "AVAILABLE" ? "Available" : `Last seen ${ago(d.position!.at)}` }));
+  const markers: MapMarker[] = data.drivers.filter((d) => d.position).map((d) => ({ id: d.accountId, geo: d.position!.geo, color: color(d), title: d.name, subtitle: d.load ? `${d.load.loadNumber} · ${t(ARRIVAL[d.load.eta.status].label)}` : d.state === "AVAILABLE" ? t("Available") : t("Last seen {ago}", { ago: ago(d.position!.at, t) }) }));
   const openDriver = (id: string) => {
     const d = data.drivers.find((x) => x.accountId === id);
     if (d?.load) nav.navigate("LoadDetail", { id: d.load.id });
@@ -117,23 +120,23 @@ function Fleet() {
     <>
       <Tiles
         items={[
-          { label: "On a load", value: data.trucks.onLoad, tone: "info" },
-          { label: "Available", value: data.trucks.available, tone: "success" },
-          { label: "Offline", value: data.trucks.offline, tone: "neutral" },
-          ...(data.trucks.otherCarrier ? [{ label: "With another carrier", value: data.trucks.otherCarrier, tone: "neutral" as Tone }] : []),
-          { label: "Late", value: data.summary.LATE, tone: "danger" },
-          { label: "At risk", value: data.summary.AT_RISK, tone: "warning" },
+          { label: t("On a load"), value: data.trucks.onLoad, tone: "info" },
+          { label: t("Available"), value: data.trucks.available, tone: "success" },
+          { label: t("Offline"), value: data.trucks.offline, tone: "neutral" },
+          ...(data.trucks.otherCarrier ? [{ label: t("With another carrier"), value: data.trucks.otherCarrier, tone: "neutral" as Tone }] : []),
+          { label: t("Late"), value: data.summary.LATE, tone: "danger" },
+          { label: t("At risk"), value: data.summary.AT_RISK, tone: "warning" },
         ]}
       />
-      <Section title={`${data.name} · ${data.trucks.total} trucks`}>
-        {markers.length ? <FleetMap markers={markers} height={wide ? 420 : 280} dark={dark} onSelect={openDriver} /> : <Empty title="No locations yet" message="Drivers' positions appear while they have a load and the app open." />}
+      <Section title={`${data.name} · ${t("{n} trucks", { n: data.trucks.total })}`}>
+        {markers.length ? <FleetMap markers={markers} height={wide ? 420 : 280} dark={dark} onSelect={openDriver} /> : <Empty title={t("No locations yet")} message={t("Drivers' positions appear while they have a load and the app open.")} />}
       </Section>
-      <Section title="Drivers">
+      <Section title={t("Drivers")}>
         {data.drivers.map((d) => (
           <Row
             key={d.accountId}
             title={d.name}
-            subtitle={d.load ? `${d.load.loadNumber} · ${d.load.origin} → ${d.load.destination}\n${etaLine(d.load.eta)}${d.load.eta.reasons[0] ? `\n${d.load.eta.reasons[0]}` : ""}` : d.state === "OTHER_CARRIER" ? "Driving a load for another carrier they work with" : `${d.state === "AVAILABLE" ? "Available" : "Offline"} · last seen ${ago(d.position?.at)}`}
+            subtitle={d.load ? `${d.load.loadNumber} · ${d.load.origin} → ${d.load.destination}\n${etaLine(d.load.eta, t)}${d.load.eta.reasons[0] ? `\n${d.load.eta.reasons[0]}` : ""}` : d.state === "OTHER_CARRIER" ? t("Driving a load for another carrier they work with") : `${t(d.state === "AVAILABLE" ? "Available" : "Offline")} · ${t("last seen {ago}", { ago: ago(d.position?.at, t) })}`}
             right={d.load ? <ArrivalChip eta={d.load.eta} /> : <Chip label={STATE[d.state].label} tone={STATE[d.state].tone} />}
             onPress={d.load ? () => nav.navigate("LoadDetail", { id: d.load!.id }) : undefined}
           />
@@ -155,6 +158,7 @@ function usePolling(fn: () => Promise<void>) {
 }
 
 export function TrackScreen() {
+  const t = useT();
   const { has } = useMe();
   const shipper = has("SHIP") || has("BROKER");
   const carrier = has("DISPATCH");
@@ -162,16 +166,16 @@ export function TrackScreen() {
   useEffect(() => setView(shipper ? "shipments" : "fleet"), [shipper]);
   const nav = useNav();
   useEffect(() => nav.setOptions({ title: shipper ? "Tracking" : "Fleet" }), [nav, shipper]);
-  if (!shipper && !carrier) return <Screen><Banner tone="info" title="Tracking is for carriers, shippers and 3PLs" /></Screen>;
+  if (!shipper && !carrier) return <Screen><Banner tone="info" title={t("Tracking is for carriers, shippers and 3PLs")} /></Screen>;
   return (
     <Screen>
       {shipper && carrier ? (
         <View style={{ marginHorizontal: 16, marginTop: 8 }}>
-          <Segmented options={[{ value: "shipments", label: "Shipments" }, { value: "fleet", label: "Fleet" }]} value={view} onChange={setView} />
+          <Segmented options={[{ value: "shipments", label: t("Shipments") }, { value: "fleet", label: t("Fleet") }]} value={view} onChange={setView} />
         </View>
       ) : null}
       {view === "shipments" ? <Shipments /> : <Fleet />}
-      <Body secondary style={{ margin: 16, fontSize: 12 }}>Updates every 30 seconds.</Body>
+      <Body secondary style={{ margin: 16, fontSize: 12 }}>{t("Updates every 30 seconds.")}</Body>
     </Screen>
   );
 }

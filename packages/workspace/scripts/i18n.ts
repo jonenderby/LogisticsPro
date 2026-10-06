@@ -13,6 +13,7 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import * as domain from "@logisticspro/domain";
 import { LANGUAGES, type Lang, type LanguageInfo } from "@logisticspro/domain";
 import { buildWorkspace, resolveCapabilities } from "../src/index.js";
 import { DICTIONARIES, hasTranslation } from "../src/i18n.js";
@@ -53,10 +54,10 @@ export const TABLE_TEXT = [
   "Today", "Loads", "Track", "Navigate", "Board", "Money", "More",
 ];
 
-/** Every string literal in the first argument of t(...) or tr(...), ternaries included, comparisons skipped. */
+/** Every string literal in the first argument of t(...), tr(...) or tx(...), ternaries included, comparisons skipped. */
 export function keysIn(source: string): string[] {
   const out: string[] = [];
-  const call = /\b(?:t|tr)\(/g;
+  const call = /\b(?:t|tr|tx)\(/g;
   let m: RegExpExecArray | null;
   while ((m = call.exec(source))) {
     let i = m.index + m[0].length;
@@ -100,6 +101,16 @@ function workspaceTitles(): string[] {
 }
 
 const unique = (xs: string[]) => [...new Set(xs)];
+
+/** The app shows code values as words: t(titleCase("DRY_VAN")) is "Dry Van". Every enum in the domain, as words. */
+export function enumLabels(): string[] {
+  const words = (code: string) => code.toLowerCase().replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return unique(
+    (Object.values(domain) as unknown[])
+      .filter((v): v is { options: string[] } => !!v && typeof v === "object" && Array.isArray((v as { options?: unknown }).options))
+      .flatMap((e) => e.options.filter((o) => typeof o === "string" && /^[A-Z][A-Z0-9_]*$/.test(o) && /[A-Z]{2}/.test(o)).map(words)),
+  );
+}
 const read = (f: string) => readFileSync(join(ROOT, f), "utf8");
 
 /** Text that must be translated before a language ships. */
@@ -117,7 +128,7 @@ export function allKeys(): string[] {
   };
   walk("apps/mobile/src");
   walk("apps/api/src");
-  return unique([...requiredKeys(), ...files.flatMap((f) => keysIn(read(f)))]);
+  return unique([...requiredKeys(), ...files.flatMap((f) => keysIn(read(f))), ...enumLabels(), ...domain.RATE_CON_CHANGE_LABELS]);
 }
 
 export const missing = (lang: Lang, keys: string[]) => keys.filter((k) => !hasTranslation(lang, k));

@@ -34,6 +34,13 @@ export function translate(lang: Lang | undefined, text: string, params?: Params)
 
 export const translator = (lang?: Lang): Translate => (text, params) => translate(lang, text, params);
 
+/**
+ * Marks text kept in a lookup table, outside any component, for
+ * translation. It returns the text unchanged; translate it where it's shown
+ * with t(TABLE[key]). The translation tool finds tx("...") like t("...").
+ */
+export const tx = (text: string): string => text;
+
 /** Is this text translated into `lang`? English always is. */
 export function hasTranslation(lang: Lang, text: string): boolean {
   if (lang === "en") return true;

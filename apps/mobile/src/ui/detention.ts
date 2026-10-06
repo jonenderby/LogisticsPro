@@ -1,4 +1,5 @@
 import { formatMinutes } from "@logisticspro/domain";
+import { type Translate, translator } from "@logisticspro/workspace";
 
 export interface StopDetentionView {
   stopId: string;
@@ -19,13 +20,14 @@ export interface DetentionView {
   total: number;
 }
 
-const t = (iso: string) => new Date(iso).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
+const at = (iso: string) => new Date(iso).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
+const en = translator("en");
 
 /** "Arrived Tue 12:40 PM · left 4:10 PM · detention 1 h 15 min, $100.00" */
-export function visitLine(v?: StopDetentionView): string {
+export function visitLine(v?: StopDetentionView, t: Translate = en): string {
   if (!v?.arrivedAt) return "";
-  const parts = [`Arrived ${t(v.arrivedAt)}`, v.departedAt ? `left ${t(v.departedAt)}` : "still there"];
-  if (v.billableMinutes) parts.push(`detention ${formatMinutes(v.billableMinutes)}, $${v.amount.toFixed(2)}${v.atStop ? " so far" : ""}`);
+  const parts = [t("Arrived {time}", { time: at(v.arrivedAt) }), v.departedAt ? t("left {time}", { time: at(v.departedAt) }) : t("still there")];
+  if (v.billableMinutes) parts.push(t(v.atStop ? "detention {time}, {amount} so far" : "detention {time}, {amount}", { time: formatMinutes(v.billableMinutes), amount: `$${v.amount.toFixed(2)}` }));
   else if (v.note) parts.push(v.note);
-  return `${parts.join(" · ")}${v.source === "GEOFENCE" ? " (truck location)" : ""}`;
+  return `${parts.join(" · ")}${v.source === "GEOFENCE" ? ` ${t("(truck location)")}` : ""}`;
 }

@@ -1,5 +1,6 @@
 import "leaflet/dist/leaflet.css";
 import { useEffect } from "react";
+import { useT } from "../state/MeProvider";
 import { CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from "react-leaflet";
 import { View } from "react-native";
 import { type FleetMapProps, TILE_ATTRIBUTION, TILE_URL } from "./FleetMap.types";
@@ -16,8 +17,9 @@ function FitBounds({ markers }: Pick<FleetMapProps, "markers">) {
 
 /** Website: Leaflet map with one colored dot per truck. */
 export function FleetMap({ markers, height, dark, onSelect }: FleetMapProps) {
+  const t = useT();
   return (
-    <View style={{ height, overflow: "hidden" }} accessibilityLabel={`Map with ${markers.length} trucks`}>
+    <View style={{ height, overflow: "hidden" }} accessibilityLabel={t("Map with {n} trucks", { n: markers.length })}>
       <MapContainer center={[39.5, -96]} zoom={4} style={{ height: "100%", width: "100%", background: dark ? "#1d2024" : "#e5e7eb" }} scrollWheelZoom={false}>
         <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
         <FitBounds markers={markers} />

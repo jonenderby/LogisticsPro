@@ -7,6 +7,7 @@ import { useParams } from "../navigation/types";
 import { notify } from "../ui/dialog";
 import { Banner, Body, Button, Chip, Field, Padded, Row, Screen, Section } from "../ui/components";
 import { parseCoords, titleCase } from "../ui/format";
+import { useT } from "../state/MeProvider";
 
 interface Driver {
   id: string;
@@ -21,6 +22,7 @@ interface Transit {
 
 /** Assign drivers or two-driver teams per leg, and break long hauls into relays. */
 export function DispatchScreen() {
+  const t = useT();
   const { loadId } = useParams<"Dispatch">();
   const [load, setLoad] = useState<LoadDetail>();
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -55,18 +57,18 @@ export function DispatchScreen() {
       await fn();
       await refresh();
     } catch (e) {
-      notify("Couldn't update dispatch", errorMessage(e));
+      notify(t("Couldn't update dispatch"), errorMessage(e));
     }
   };
 
   return (
     <Screen onRefresh={refresh}>
-      {team ? <Banner tone="warning" title="Team required" message="Assign two drivers to every leg of this expedited load." /> : null}
+      {team ? <Banner tone="warning" title={t("Team required")} message={t("Assign two drivers to every leg of this expedited load.")} /> : null}
       {transit ? (
-        <Section title="Transit estimate" footer="Hours-of-service estimate: 11 h driving per shift with a 10 h reset for a solo driver.">
-          <Row title="Distance" value={`${transit.miles.toLocaleString()} mi`} />
-          <Row title="Solo driver" value={`${Math.round(transit.solo.totalHours)} h`} />
-          <Row title="Team" value={`${Math.round(transit.team.totalHours)} h`} />
+        <Section title={t("Transit estimate")} footer={t("Hours-of-service estimate: 11 h driving per shift with a 10 h reset for a solo driver.")}>
+          <Row title={t("Distance")} value={`${transit.miles.toLocaleString()} mi`} />
+          <Row title={t("Solo driver")} value={`${Math.round(transit.solo.totalHours)} h`} />
+          <Row title={t("Team")} value={`${Math.round(transit.team.totalHours)} h`} />
         </Section>
       ) : null}
       {legs.map((leg) => {
@@ -82,23 +84,23 @@ export function DispatchScreen() {
                   return <Chip key={d.id} label={`${d.name}${s !== null && s !== undefined ? ` · ${s}%` : ""}`} selected={sel.includes(d.id)} onPress={() => toggle(leg.id, d.id)} />;
                 })}
               </View>
-              {drivers.length === 0 ? <Body secondary>No drivers yet. Share your join code under Business.</Body> : <Body secondary>Scores show each driver's record with this customer (or overall if they have not run for them yet).</Body>}
-              <Button title={sel.length === 2 ? "Assign team" : "Assign driver"} disabled={sel.length === 0 || leg.status === "COMPLETED"} onPress={act(() => api.post(`/v1/loads/${load.id}/legs/${leg.id}/assign`, { driverAccountIds: sel }))} />
+              {drivers.length === 0 ? <Body secondary>{t("No drivers yet. Share your join code under Business.")}</Body> : <Body secondary>{t("Scores show each driver's record with this customer (or overall if they have not run for them yet).")}</Body>}
+              <Button title={t(sel.length === 2 ? "Assign team" : "Assign driver")} disabled={sel.length === 0 || leg.status === "COMPLETED"} onPress={act(() => api.post(`/v1/loads/${load.id}/legs/${leg.id}/assign`, { driverAccountIds: sel }))} />
             </Padded>
           </Section>
         );
       })}
       {["BOOKED", "DISPATCHED"].includes(load.status) ? (
-        <Section title="Add a relay" footer="The truck stops here and a fresh driver or team takes the trailer the rest of the way.">
+        <Section title={t("Add a relay")} footer={t("The truck stops here and a fresh driver or team takes the trailer the rest of the way.")}>
           <Padded>
-            <Field label="Relay location name" value={relay.name} onChangeText={(t) => setRelay({ ...relay, name: t })} />
-            <Field label="Street address" value={relay.line1} onChangeText={(t) => setRelay({ ...relay, line1: t })} />
-            <Field label="City" value={relay.city} onChangeText={(t) => setRelay({ ...relay, city: t })} />
-            <Field label="State" value={relay.state} maxLength={2} autoCapitalize="characters" onChangeText={(t) => setRelay({ ...relay, state: t.toUpperCase() })} />
+            <Field label={t("Relay location name")} value={relay.name} onChangeText={(t) => setRelay({ ...relay, name: t })} />
+            <Field label={t("Street address")} value={relay.line1} onChangeText={(t) => setRelay({ ...relay, line1: t })} />
+            <Field label={t("City")} value={relay.city} onChangeText={(t) => setRelay({ ...relay, city: t })} />
+            <Field label={t("State")} value={relay.state} maxLength={2} autoCapitalize="characters" onChangeText={(t) => setRelay({ ...relay, state: t.toUpperCase() })} />
             <Field label="ZIP" value={relay.postalCode} keyboardType="number-pad" onChangeText={(t) => setRelay({ ...relay, postalCode: t })} />
-            <Field label="Coordinates" value={relay.coords} placeholder="36.1447, -86.7341" onChangeText={(t) => setRelay({ ...relay, coords: t })} />
+            <Field label={t("Coordinates")} value={relay.coords} placeholder="36.1447, -86.7341" onChangeText={(t) => setRelay({ ...relay, coords: t })} />
             <Button
-              title="Add relay point"
+              title={t("Add relay point")}
               variant="tonal"
               disabled={!relay.city || !relay.state || !relay.postalCode}
               onPress={act(() => api.post(`/v1/loads/${load.id}/relay`, { points: [{ address: { name: relay.name || `${relay.city} relay`, line1: relay.line1 || "Relay point", city: relay.city, state: relay.state, postalCode: relay.postalCode, country: "US", geo: parseCoords(relay.coords) } }] }))}

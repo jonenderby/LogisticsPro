@@ -12,6 +12,10 @@ describe("languages", () => {
     expect(missing(code as Lang, keys)).toEqual([]);
   });
 
+  it("has Spanish on every screen, office screens included", () => {
+    expect(missing("es", allKeys())).toEqual([]);
+  });
+
   it("has a dictionary for every language, and only finished languages can be picked", () => {
     for (const l of LANGUAGES) if (l.code !== "en") expect(DICTIONARIES[l.code as Exclude<Lang, "en">]).toBeDefined();
     expect(PICKABLE_LANGUAGES.every((l) => !l.draft)).toBe(true);

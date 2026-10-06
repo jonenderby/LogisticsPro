@@ -4,6 +4,10 @@ import { api, errorMessage } from "../api/client";
 import { Button, Chip, Field, Padded, Row } from "./components";
 import { notify } from "./dialog";
 import { when } from "./format";
+import { useT } from "../state/MeProvider";
+import { type Translate, translator } from "@logisticspro/workspace";
+
+const en = translator("en");
 
 export interface MissView {
   id: string;
@@ -24,13 +28,15 @@ export interface MissView {
   dispute?: { note: string; at: string };
 }
 
-export const missTitle = (m: MissView) => `${m.stopType === "PICKUP" ? "Pickup" : "Delivery"} ${m.kind === "NO_SHOW" ? "no-show" : `late${m.minutesLate ? ` by ${m.minutesLate} min` : ""}`}`;
+export const missTitle = (m: MissView, t: Translate = en) =>
+  t(m.kind === "NO_SHOW" ? "{stop} no-show" : m.minutesLate ? "{stop} late by {n} min" : "{stop} late", { stop: t(m.stopType === "PICKUP" ? "Pickup" : "Delivery"), n: m.minutesLate ?? 0 });
 
 /**
  * One missed appointment. The business that reported it can withdraw it;
  * the carrier charged with it can respond.
  */
 export function MissRow({ miss, canWithdraw, canDispute, showLoad, onChanged }: { miss: MissView; canWithdraw?: boolean; canDispute?: boolean; showLoad?: boolean; onChanged: () => unknown }) {
+  const t = useT();
   const [disputing, setDisputing] = useState(false);
   const [note, setNote] = useState("");
   const act = (path: string, body?: unknown) => async () => {
@@ -39,31 +45,31 @@ export function MissRow({ miss, canWithdraw, canDispute, showLoad, onChanged }: 
       setDisputing(false);
       await onChanged();
     } catch (e) {
-      notify("Couldn't complete that", errorMessage(e));
+      notify(t("Couldn't complete that"), errorMessage(e));
     }
   };
   const open = !miss.withdrawnAt;
   return (
     <View>
       <Row
-        title={`${missTitle(miss)}${showLoad ? ` · ${miss.loadNumber}` : ""}`}
+        title={`${missTitle(miss, t)}${showLoad ? ` · ${miss.loadNumber}` : ""}`}
         subtitle={[
-          `${miss.stopCity ? `${miss.stopCity} · ` : ""}appointment ${when(miss.appointmentAt)}`,
-          `Reported by ${miss.businessName} against ${miss.carrierName}${miss.note ? `: ${miss.note}` : ""}`,
-          miss.dispute ? `Carrier response: ${miss.dispute.note}` : "",
+          `${miss.stopCity ? `${miss.stopCity} · ` : ""}${t("appointment {time}", { time: when(miss.appointmentAt) })}`,
+          `${t("Reported by {business} against {carrier}", { business: miss.businessName, carrier: miss.carrierName })}${miss.note ? `: ${miss.note}` : ""}`,
+          miss.dispute ? t("Carrier response: {note}", { note: miss.dispute.note }) : "",
         ]
           .filter(Boolean)
           .join("\n")}
-        right={<Chip label={open ? (miss.dispute ? "Disputed" : "Counts") : "Withdrawn"} tone={open ? (miss.dispute ? "warning" : "danger") : "neutral"} />}
+        right={<Chip label={t(open ? (miss.dispute ? "Disputed" : "Counts") : "Withdrawn")} tone={open ? (miss.dispute ? "warning" : "danger") : "neutral"} />}
       />
       {open && (canWithdraw || (canDispute && !miss.dispute)) ? (
         <Padded>
-          {canWithdraw ? <Button title="Withdraw report" variant="tonal" onPress={act(`/v1/appointment-misses/${miss.id}/withdraw`)} /> : null}
-          {canDispute && !miss.dispute && !disputing ? <Button title="Dispute" variant="tonal" onPress={() => setDisputing(true)} /> : null}
+          {canWithdraw ? <Button title={t("Withdraw report")} variant="tonal" onPress={act(`/v1/appointment-misses/${miss.id}/withdraw`)} /> : null}
+          {canDispute && !miss.dispute && !disputing ? <Button title={t("Dispute")} variant="tonal" onPress={() => setDisputing(true)} /> : null}
           {disputing ? (
             <>
-              <Field label="What happened?" value={note} onChangeText={setNote} multiline hint="The customer sees this. The ding counts until they withdraw it." />
-              <Button title="Send response" disabled={!note.trim()} onPress={act(`/v1/appointment-misses/${miss.id}/dispute`, { note })} />
+              <Field label={t("What happened?")} value={note} onChangeText={setNote} multiline hint={t("The customer sees this. The ding counts until they withdraw it.")} />
+              <Button title={t("Send response")} disabled={!note.trim()} onPress={act(`/v1/appointment-misses/${miss.id}/dispute`, { note })} />
             </>
           ) : null}
         </Padded>

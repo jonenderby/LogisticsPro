@@ -5,7 +5,7 @@ import * as Clipboard from "expo-clipboard";
 import { api, errorMessage } from "../api/client";
 import { notify } from "../ui/dialog";
 import { useNav } from "../navigation/types";
-import { useMe } from "../state/MeProvider";
+import { useMe, useT } from "../state/MeProvider";
 import { Banner, Body, Button, Chip, Field, Padded, Row, Screen, Section } from "../ui/components";
 import { parseCoords, titleCase } from "../ui/format";
 import { DriverNetworkSection, ReliabilitySections } from "./NetworkScreens";
@@ -23,6 +23,7 @@ const KINDS: Array<{ value: Kind; label: string }> = [
 
 /** A trucker who registers a carrier becomes an owner-operator: driving and carrier tools appear together. */
 export function RegisterCompanyScreen() {
+  const t = useT();
   const { me, refresh } = useMe();
   const nav = useNav();
   const [name, setName] = useState("");
@@ -32,20 +33,20 @@ export function RegisterCompanyScreen() {
   const [dot, setDot] = useState("");
   return (
     <Screen>
-      <Section title="Company" footer="Your SCAC identifies you in EDI and carrier APIs. Carriers need one to exchange data with shippers' systems.">
+      <Section title={t("Company")} footer={t("Your SCAC identifies you in EDI and carrier APIs. Carriers need one to exchange data with shippers' systems.")}>
         <Padded>
-          <Field label="Legal name" value={name} onChangeText={setName} textContentType="organizationName" />
-          <Body secondary>What does the company do? Pick all that apply.</Body>
+          <Field label={t("Legal name")} value={name} onChangeText={setName} textContentType="organizationName" />
+          <Body secondary>{t("What does the company do? Pick all that apply.")}</Body>
           <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
             {KINDS.map((k) => (
               <Chip key={k.value} label={k.label} selected={kinds.includes(k.value)} onPress={() => setKinds(kinds.includes(k.value) ? kinds.filter((x) => x !== k.value) : [...kinds, k.value])} />
             ))}
           </View>
           <Field label="SCAC" value={scac} onChangeText={(t) => setScac(t.toUpperCase())} maxLength={4} autoCapitalize="characters" />
-          <Field label="MC number" value={mc} onChangeText={setMc} />
-          <Field label="USDOT number" value={dot} onChangeText={setDot} keyboardType="number-pad" />
+          <Field label={t("MC number")} value={mc} onChangeText={setMc} />
+          <Field label={t("USDOT number")} value={dot} onChangeText={setDot} keyboardType="number-pad" />
           <Button
-            title="Register company"
+            title={t("Register company")}
             disabled={!name || kinds.length === 0}
             onPress={async () => {
               try {
@@ -53,7 +54,7 @@ export function RegisterCompanyScreen() {
                 await refresh();
                 nav.goBack();
               } catch (e) {
-                notify("Couldn't register", errorMessage(e));
+                notify(t("Couldn't register"), errorMessage(e));
               }
             }}
           />
@@ -70,22 +71,23 @@ interface OrgDetail {
 
 /** Free time at each stop, then an hourly rate; used for detention on every load and invoice. */
 function DetentionTermsSection({ orgId, terms, onSaved }: { orgId: string; terms?: { freeHours: number; ratePerHour: number }; onSaved: () => unknown }) {
+  const t = useT();
   const [free, setFree] = useState(String(terms?.freeHours ?? 2));
   const [rate, setRate] = useState(String(terms?.ratePerHour ?? 75));
   const dirty = Number(free) !== (terms?.freeHours ?? 2) || Number(rate) !== (terms?.ratePerHour ?? 75);
   return (
-    <Section title="Detention" footer="The clock starts at the appointment, or at arrival if later, and runs until the truck leaves. A truck that arrives after its appointment does not earn detention. Stop times come from the truck's location and the driver's taps.">
+    <Section title={t("Detention")} footer={t("The clock starts at the appointment, or at arrival if later, and runs until the truck leaves. A truck that arrives after its appointment does not earn detention. Stop times come from the truck's location and the driver's taps.")}>
       <Padded>
         <View style={{ flexDirection: "row", gap: 8 }}>
           <View style={{ flex: 1 }}>
-            <Field label="Free hours" value={free} onChangeText={setFree} keyboardType="decimal-pad" />
+            <Field label={t("Free hours")} value={free} onChangeText={setFree} keyboardType="decimal-pad" />
           </View>
           <View style={{ flex: 1 }}>
-            <Field label="Rate per hour (USD)" value={rate} onChangeText={setRate} keyboardType="decimal-pad" />
+            <Field label={t("Rate per hour (USD)")} value={rate} onChangeText={setRate} keyboardType="decimal-pad" />
           </View>
         </View>
         <Button
-          title="Save detention terms"
+          title={t("Save detention terms")}
           variant="tonal"
           disabled={!dirty || Number.isNaN(Number(free)) || !Number(rate)}
           onPress={async () => {
@@ -93,7 +95,7 @@ function DetentionTermsSection({ orgId, terms, onSaved }: { orgId: string; terms
               await api.put(`/v1/orgs/${orgId}/detention`, { freeHours: Number(free), ratePerHour: Number(rate) });
               await onSaved();
             } catch (e) {
-              notify("Couldn't save", errorMessage(e));
+              notify(t("Couldn't save"), errorMessage(e));
             }
           }}
         />
@@ -103,6 +105,7 @@ function DetentionTermsSection({ orgId, terms, onSaved }: { orgId: string; terms
 }
 
 export function BusinessScreen() {
+  const t = useT();
   const { me, orgsWithRole } = useMe();
   const nav = useNav();
   const adminOrgs = orgsWithRole("OWNER", "ADMIN");
@@ -128,9 +131,9 @@ export function BusinessScreen() {
   if (!orgId) {
     return (
       <Screen>
-        <Banner tone="info" title="No company yet" message="Register a company to manage drivers, distribution centers and integrations." />
+        <Banner tone="info" title={t("No company yet")} message={t("Register a company to manage drivers, distribution centers and integrations.")} />
         <View style={{ margin: 16 }}>
-          <Button title="Register company" onPress={() => nav.navigate("RegisterCompany")} />
+          <Button title={t("Register company")} onPress={() => nav.navigate("RegisterCompany")} />
         </View>
       </Screen>
     );
@@ -140,7 +143,7 @@ export function BusinessScreen() {
       await fn();
       await refresh();
     } catch (e) {
-      notify("Couldn't save", errorMessage(e));
+      notify(t("Couldn't save"), errorMessage(e));
     }
   };
   const isCarrier = detail?.org.kinds.includes("CARRIER");
@@ -155,14 +158,14 @@ export function BusinessScreen() {
       ) : null}
       {detail ? (
         <>
-          <Section title="Company">
+          <Section title={t("Company")}>
             <Row title={detail.org.name} subtitle={detail.org.kinds.map(titleCase).join(" · ")} />
             {detail.org.scac ? <Row title="SCAC" value={detail.org.scac} /> : null}
             {detail.org.mcNumber ? <Row title="MC" value={detail.org.mcNumber} /> : null}
-            <Row title="Organization ID" subtitle="Shippers use this to tender to you directly" value="Copy" onPress={() => Clipboard.setStringAsync(detail.org.id)} chevron={false} />
-            <Row title="Integrations (API & EDI)" onPress={() => nav.navigate("Integrations")} />
+            <Row title={t("Organization ID")} subtitle={t("Shippers use this to tender to you directly")} value="Copy" onPress={() => Clipboard.setStringAsync(detail.org.id)} chevron={false} />
+            <Row title={t("Integrations (API & EDI)")} onPress={() => nav.navigate("Integrations")} />
           </Section>
-          <Section title="People">
+          <Section title={t("People")}>
             {detail.members.map((m) => (
               <Row
                 key={m.account.id}
@@ -171,11 +174,11 @@ export function BusinessScreen() {
                 right={
                   m.roles.includes("OWNER") ? undefined : (
                     <Button
-                      title="Remove"
+                      title={t("Remove")}
                       variant="plain"
                       style={{ minHeight: 36 }}
                       onPress={async () => {
-                        if (await confirm(`Remove ${m.account.name}?`, "They lose access to this company's loads.", "Remove", true)) await act(() => api.post(`/v1/orgs/${orgId}/members/${m.account.id}/remove`))();
+                        if (await confirm(t("Remove {name}?", { name: m.account.name }), t("They lose access to this company's loads."), t("Remove"), true)) await act(() => api.post(`/v1/orgs/${orgId}/members/${m.account.id}/remove`))();
                       }}
                     />
                   )
@@ -183,13 +186,13 @@ export function BusinessScreen() {
               />
             ))}
             <Padded>
-              <Field label="Add by email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" hint="They need a Logistics Pro account first." />
+              <Field label={t("Add by email")} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" hint={t("They need a Logistics Pro account first.")} />
               <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
                 {(["DRIVER", "DISPATCHER", "BILLING", "ADMIN"] as const).map((r) => (
                   <Chip key={r} label={titleCase(r)} selected={role === r} onPress={() => setRole(r)} />
                 ))}
               </View>
-              <Button title="Add person" variant="tonal" disabled={!email} onPress={act(async () => { await api.post(`/v1/orgs/${orgId}/members`, { email, roles: [role] }); setEmail(""); })} />
+              <Button title={t("Add person")} variant="tonal" disabled={!email} onPress={act(async () => { await api.post(`/v1/orgs/${orgId}/members`, { email, roles: [role] }); setEmail(""); })} />
             </Padded>
           </Section>
           {isCarrier ? <DriverNetworkSection orgId={orgId} onChange={refresh} /> : null}
@@ -200,19 +203,19 @@ export function BusinessScreen() {
           {detail.org.kinds.some((k) => k === "SHIPPER" || k === "BROKER_3PL") ? <PayerTermsSection key={`p-${orgId}-${detail.org.payerTerms?.termsDays ?? 30}`} orgId={orgId} terms={detail.org.payerTerms} onSaved={refresh} /> : null}
           {detail.org.kinds.some((k) => k === "SHIPPER" || k === "BROKER_3PL") ? <VettingPolicySection key={`v-${orgId}-${JSON.stringify(detail.org.vetting ?? {})}`} orgId={orgId} policy={detail.org.vetting} onSaved={refresh} /> : null}
           {isCarrier ? (
-            <Section title="Distribution centers" footer="Route LTL shipments through a DC to combine loads headed to the same area.">
+            <Section title={t("Distribution centers")} footer={t("Route LTL shipments through a DC to combine loads headed to the same area.")}>
               {detail.org.distributionCenters.map((d) => (
                 <Row key={d.id} title={d.name} subtitle={`${d.address.city}, ${d.address.state}`} />
               ))}
               <Padded>
-                <Field label="Name" value={dc.name} onChangeText={(t) => setDc({ ...dc, name: t })} />
-                <Field label="Street address" value={dc.line1} onChangeText={(t) => setDc({ ...dc, line1: t })} />
-                <Field label="City" value={dc.city} onChangeText={(t) => setDc({ ...dc, city: t })} />
-                <Field label="State" value={dc.state} maxLength={2} autoCapitalize="characters" onChangeText={(t) => setDc({ ...dc, state: t.toUpperCase() })} />
+                <Field label={t("Name")} value={dc.name} onChangeText={(t) => setDc({ ...dc, name: t })} />
+                <Field label={t("Street address")} value={dc.line1} onChangeText={(t) => setDc({ ...dc, line1: t })} />
+                <Field label={t("City")} value={dc.city} onChangeText={(t) => setDc({ ...dc, city: t })} />
+                <Field label={t("State")} value={dc.state} maxLength={2} autoCapitalize="characters" onChangeText={(t) => setDc({ ...dc, state: t.toUpperCase() })} />
                 <Field label="ZIP" value={dc.postalCode} keyboardType="number-pad" onChangeText={(t) => setDc({ ...dc, postalCode: t })} />
-                <Field label="Coordinates (optional)" value={dc.coords} placeholder="40.7066, -74.1567" hint="Found from the address when left blank" onChangeText={(t) => setDc({ ...dc, coords: t })} />
+                <Field label={t("Coordinates (optional)")} value={dc.coords} placeholder="40.7066, -74.1567" hint={t("Found from the address when left blank")} onChangeText={(t) => setDc({ ...dc, coords: t })} />
                 <Button
-                  title="Add distribution center"
+                  title={t("Add distribution center")}
                   variant="tonal"
                   disabled={!dc.name || !dc.city || !dc.state}
                   onPress={act(() => api.post(`/v1/orgs/${orgId}/distribution-centers`, { name: dc.name, address: { name: dc.name, line1: dc.line1 || dc.name, city: dc.city, state: dc.state, postalCode: dc.postalCode, country: "US" }, geo: parseCoords(dc.coords) }))}

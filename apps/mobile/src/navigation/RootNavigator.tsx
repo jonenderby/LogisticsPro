@@ -1,3 +1,4 @@
+import { tx } from "@logisticspro/workspace";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { DarkTheme, DefaultTheme, NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -57,26 +58,26 @@ const ROOTS: Record<string, { name: TabRoot; component: ComponentType }> = {
 
 /** Screens every tab can push, so the tab bar stays put while drilling in. */
 const SHARED: Array<{ name: keyof StackParams; component: ComponentType; title: string }> = [
-  { name: "LoadDetail", component: LoadDetailScreen, title: "Load" },
-  { name: "Thread", component: ThreadScreen, title: "Messages" },
-  { name: "NewLoad", component: NewLoadScreen, title: "New load" },
-  { name: "Dispatch", component: DispatchScreen, title: "Plan dispatch" },
-  { name: "SendInvoice", component: SendInvoiceScreen, title: "Send invoice" },
-  { name: "Integrations", component: IntegrationsScreen, title: "Integrations" },
-  { name: "PartnerEdit", component: PartnerEditScreen, title: "Partner" },
-  { name: "RegisterCompany", component: RegisterCompanyScreen, title: "Register company" },
-  { name: "Security", component: SecurityScreen, title: "Sign-in & security" },
-  { name: "JoinCarrier", component: JoinCarrierScreen, title: "Join a carrier" },
-  { name: "Reliability", component: ReliabilityScreen, title: "My reliability" },
-  { name: "Alerts", component: AlertsScreen, title: "Arrival alerts" },
-  { name: "Hours", component: HoursScreen, title: "Hours of service" },
-  { name: "FuelTax", component: FuelTaxScreen, title: "Fuel tax (IFTA)" },
-  { name: "Notifications", component: NotificationsScreen, title: "Notifications" },
-  { name: "RateConfirmation", component: RateConfirmationScreen, title: "Rate confirmation" },
-  { name: "InvoiceDetail", component: InvoiceDetailScreen, title: "Invoice" },
-  { name: "CarrierCheck", component: CarrierCheckScreen, title: "Carrier check" },
-  { name: "Signature", component: SignatureScreen, title: "Delivery signature" },
-  { name: "Insights", component: InsightsScreen, title: "Insights" },
+  { name: "LoadDetail", component: LoadDetailScreen, title: tx("Load") },
+  { name: "Thread", component: ThreadScreen, title: tx("Messages") },
+  { name: "NewLoad", component: NewLoadScreen, title: tx("New load") },
+  { name: "Dispatch", component: DispatchScreen, title: tx("Plan dispatch") },
+  { name: "SendInvoice", component: SendInvoiceScreen, title: tx("Send invoice") },
+  { name: "Integrations", component: IntegrationsScreen, title: tx("Integrations") },
+  { name: "PartnerEdit", component: PartnerEditScreen, title: tx("Partner") },
+  { name: "RegisterCompany", component: RegisterCompanyScreen, title: tx("Register company") },
+  { name: "Security", component: SecurityScreen, title: tx("Sign-in & security") },
+  { name: "JoinCarrier", component: JoinCarrierScreen, title: tx("Join a carrier") },
+  { name: "Reliability", component: ReliabilityScreen, title: tx("My reliability") },
+  { name: "Alerts", component: AlertsScreen, title: tx("Arrival alerts") },
+  { name: "Hours", component: HoursScreen, title: tx("Hours of service") },
+  { name: "FuelTax", component: FuelTaxScreen, title: tx("Fuel tax (IFTA)") },
+  { name: "Notifications", component: NotificationsScreen, title: tx("Notifications") },
+  { name: "RateConfirmation", component: RateConfirmationScreen, title: tx("Rate confirmation") },
+  { name: "InvoiceDetail", component: InvoiceDetailScreen, title: tx("Invoice") },
+  { name: "CarrierCheck", component: CarrierCheckScreen, title: tx("Carrier check") },
+  { name: "Signature", component: SignatureScreen, title: tx("Delivery signature") },
+  { name: "Insights", component: InsightsScreen, title: tx("Insights") },
 ];
 
 function stackFor(root: TabRoot) {

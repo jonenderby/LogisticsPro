@@ -13,7 +13,9 @@ The choice is saved on the account, so the server also uses it for:
 
 ## What is translated
 
-Spanish covers account setup and what drivers use first: Today, hours of service, driving mode (including the spoken read-out), navigation, documents and scanning, the delivery signature, the Loads filters, the tabs and the More menu. Office screens (dispatch, billing, integrations, insights) are still in English; their text falls back to English automatically.
+Spanish covers every screen: account setup, everything drivers use (Today, hours of service, driving mode with the spoken read-out, navigation, documents, the delivery signature) and the office screens (load details, dispatch, tracking, the load board, money and invoices, rate confirmations, carrier checks, fuel tax, ELD, integrations, insights, alerts, notifications, business and network settings). Screen titles, status words and button groups are translated too.
+
+Some things stay as they are in every language: company, place and people names, notes people type, the standard clauses on a rate confirmation (the signed agreement is in English), and explanations the server writes, such as ETA reasons, carrier-check details and error messages.
 
 ## Adding a language
 
@@ -38,9 +40,11 @@ Languages are listed once, in `packages/domain/src/languages.ts`. The server's v
 
    **Required** text is what drivers use and account setup. All of it must be translated before a language ships.
 
-4. Ship it: remove `draft: true` from its line in `languages.ts`. From then on, the tests fail if any required text is missing, so new driver text can't ship untranslated.
+4. Ship it: remove `draft: true` from its line in `languages.ts`. From then on, the tests fail if any required text is missing, so new driver text can't ship untranslated. Office text can follow later; until then it shows in English.
 
-The tool finds text by reading the code for `t("...")`, so there is no list of keys to maintain.
+Spanish has a stricter test: every piece of text in the app must be translated, so a new screen can't ship in English only.
+
+The tool finds text by reading the code for `t("...")`, `tx("...")` and status words from the domain, so there is no list of keys to maintain.
 
 ## Adding text
 
@@ -52,6 +56,13 @@ const t = useT();
 <Text>{t("Next load {n}", { n: load.loadNumber })}</Text>
 ```
 
-Then run `npm run i18n` to see which languages need it. On the server, `translator(account.language)` does the same. Office screens that still use plain strings stay English in every language until their text is wrapped in `t()`.
+Then run `npm run i18n` to see which languages need it, and add the Spanish to `locales/es.ts`. On the server, `translator(account.language)` does the same.
+
+A few helpers keep this short:
+
+- Text in a lookup table outside a component is marked with `tx("...")`, which does nothing at runtime but lets the tool find it. Translate it where it is shown: `t(STATUS[s].label)`.
+- `Chip` and `Segmented` translate their labels themselves, and `StatusPill` shows any status code as translated words.
+- For a status code from the domain, `t(titleCase(code))` shows it as words. The tool picks up every domain status automatically.
+- Helpers outside components take the translator as an argument, for example `ago(iso, t)`, `etaLine(eta, t)` and `visitLine(stop, t)`.
 
 API: `language` (any listed code, default `"en"`) on `POST /v1/auth/register`, and `PUT /v1/me/preferences` with `{ "language": "es" }`.

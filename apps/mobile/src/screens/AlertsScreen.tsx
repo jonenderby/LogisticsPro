@@ -9,6 +9,7 @@ import { ARRIVAL, type Arrival } from "../ui/arrival";
 import { Banner, Body, Button, Chip, Empty, Field, Padded, Row, Screen, Section, ToggleRow } from "../ui/components";
 import { confirm, notify } from "../ui/dialog";
 import { when } from "../ui/format";
+import { useT } from "../state/MeProvider";
 
 type Status = Exclude<Arrival, "UNKNOWN">;
 interface Prefs {
@@ -48,6 +49,7 @@ const display = (t: string) => new Date(`2000-01-01T${t}:00`).toLocaleTimeString
  * and/or a summary at set local times.
  */
 export function AlertsScreen() {
+  const t = useT();
   const nav = useNav();
   const [prefs, setPrefs] = useState<Prefs>();
   const [inbox, setInbox] = useState<InboxItem[]>([]);
@@ -75,7 +77,7 @@ export function AlertsScreen() {
   if (!prefs.eligible) {
     return (
       <Screen>
-        <Banner tone="info" title="Arrival alerts are for shippers, 3PLs and dispatchers" message="Drivers see their own loads on Today." />
+        <Banner tone="info" title={t("Arrival alerts are for shippers, 3PLs and dispatchers")} message={t("Drivers see their own loads on Today.")} />
       </Screen>
     );
   }
@@ -88,9 +90,9 @@ export function AlertsScreen() {
   const setSchedule = (s: Partial<NonNullable<Prefs["schedule"]>>) => change({ schedule: { ...schedule, ...s } });
   const toggleStatus = (s: Status) => change({ statuses: prefs.statuses.includes(s) ? prefs.statuses.filter((x) => x !== s) : [...prefs.statuses, s] });
   const addTime = () => {
-    const t = normalizeTime(newTime);
-    if (!validTime(t)) return notify("Use a 24-hour time", "For example 07:00 or 15:30.");
-    if (!schedule.times.includes(t)) setSchedule({ times: [...schedule.times, t].sort() });
+    const time = normalizeTime(newTime);
+    if (!validTime(time)) return notify(t("Use a 24-hour time"), t("For example 07:00 or 15:30."));
+    if (!schedule.times.includes(time)) setSchedule({ times: [...schedule.times, time].sort() });
     setNewTime("");
   };
   const canSave = prefs.statuses.length > 0 && (prefs.instant || (scheduleOn && schedule.times.length > 0 && schedule.days.length > 0));
@@ -103,24 +105,24 @@ export function AlertsScreen() {
       // Ask for permission at the moment it is needed, not at launch.
       if (IS_WEB) {
         if (browserNotifications.permission() === "default") setBrowserPerm(await browserNotifications.request());
-        notify("Alerts saved", "New alerts pop up while this site is open and always wait in the list below.");
+        notify(t("Alerts saved"), t("New alerts pop up while this site is open and always wait in the list below."));
         return;
       }
       const push = await registerForPush(true);
       if (push.ok) {
         setPrefs((p) => (p ? { ...p, devices: Math.max(p.devices, 1) } : p));
-        notify("Alerts saved", "This phone will get push notifications.");
-      } else notify("Alerts saved", push.reason);
+        notify(t("Alerts saved"), t("This phone will get push notifications."));
+      } else notify(t("Alerts saved"), push.reason);
     } catch (e) {
-      notify("Couldn't save alerts", errorMessage(e));
+      notify(t("Couldn't save alerts"), errorMessage(e));
     }
   };
 
   return (
     <Screen onRefresh={load}>
-      {!prefs.enabled ? <Banner tone="info" title="Alerts are off" message="Choose what you want to hear about, then save." /> : null}
+      {!prefs.enabled ? <Banner tone="info" title={t("Alerts are off")} message={t("Choose what you want to hear about, then save.")} /> : null}
 
-      <Section title="Alert me when a shipment is" footer="Pick any combination, for example late and at risk.">
+      <Section title={t("Alert me when a shipment is")} footer={t("Pick any combination, for example late and at risk.")}>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, padding: 16 }}>
           {STATUSES.map((s) => (
             <Chip key={s} label={prefs.statuses.includes(s) ? `✓ ${ARRIVAL[s].label}` : ARRIVAL[s].label} tone={prefs.statuses.includes(s) ? ARRIVAL[s].tone : "neutral"} selected={prefs.statuses.includes(s)} onPress={() => toggleStatus(s)} />
@@ -128,9 +130,9 @@ export function AlertsScreen() {
         </View>
       </Section>
 
-      <Section title="When" footer={`Times are in ${prefs.timeZone}.`}>
-        <ToggleRow title="Right away" subtitle="A push the moment the app decides a shipment has become one of these" value={prefs.instant} onChange={(v) => change({ instant: v })} />
-        <ToggleRow title="On a schedule" subtitle="A summary of every shipment in these statuses at set times" value={scheduleOn} onChange={(v) => { setScheduleOn(v); setDirty(true); }} />
+      <Section title={t("When")} footer={t("Times are in {zone}.", { zone: prefs.timeZone })}>
+        <ToggleRow title={t("Right away")} subtitle={t("A push the moment the app decides a shipment has become one of these")} value={prefs.instant} onChange={(v) => change({ instant: v })} />
+        <ToggleRow title={t("On a schedule")} subtitle={t("A summary of every shipment in these statuses at set times")} value={scheduleOn} onChange={(v) => { setScheduleOn(v); setDirty(true); }} />
         {scheduleOn ? (
           <Padded>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -138,9 +140,9 @@ export function AlertsScreen() {
                 <Chip key={t} label={`${display(t)}  ✕`} selected onPress={() => setSchedule({ times: schedule.times.filter((x) => x !== t) })} />
               ))}
             </View>
-            <Field label="Add a time (24-hour, e.g. 15:30)" value={newTime} onChangeText={setNewTime} onSubmitEditing={addTime} autoCapitalize="none" />
-            <Button title="Add time" variant="tonal" disabled={!newTime.trim() || schedule.times.length >= 6} onPress={addTime} />
-            <Body secondary>Days</Body>
+            <Field label={t("Add a time (24-hour, e.g. 15:30)")} value={newTime} onChangeText={setNewTime} onSubmitEditing={addTime} autoCapitalize="none" />
+            <Button title={t("Add time")} variant="tonal" disabled={!newTime.trim() || schedule.times.length >= 6} onPress={addTime} />
+            <Body secondary>{t("Days")}</Body>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
               {DAYS.map((d, i) => (
                 <Chip key={d} label={d} selected={schedule.days.includes(i)} onPress={() => setSchedule({ days: schedule.days.includes(i) ? schedule.days.filter((x) => x !== i) : [...schedule.days, i].sort() })} />
@@ -148,20 +150,20 @@ export function AlertsScreen() {
             </View>
           </Padded>
         ) : null}
-        {scheduleOn ? <ToggleRow title="Skip empty summaries" subtitle="Don't send a summary when nothing matches" value={schedule.skipWhenEmpty} onChange={(v) => setSchedule({ skipWhenEmpty: v })} /> : null}
+        {scheduleOn ? <ToggleRow title={t("Skip empty summaries")} subtitle={t("Don't send a summary when nothing matches")} value={schedule.skipWhenEmpty} onChange={(v) => setSchedule({ skipWhenEmpty: v })} /> : null}
         <Padded>
-          <Field label="Time zone" value={prefs.timeZone} onChangeText={(v) => change({ timeZone: v.trim() })} autoCapitalize="none" hint="IANA name, e.g. America/Chicago" />
+          <Field label={t("Time zone")} value={prefs.timeZone} onChangeText={(v) => change({ timeZone: v.trim() })} autoCapitalize="none" hint={t("IANA name, e.g. America/Chicago")} />
         </Padded>
       </Section>
 
       <Padded>
-        <Button title={prefs.enabled ? "Save changes" : "Turn on alerts"} disabled={!canSave || (prefs.enabled && !dirty)} onPress={save} />
+        <Button title={prefs.enabled ? t("Save changes") : t("Turn on alerts")} disabled={!canSave || (prefs.enabled && !dirty)} onPress={save} />
         {prefs.enabled ? (
           <Button
-            title="Turn off alerts"
+            title={t("Turn off alerts")}
             variant="destructive"
             onPress={async () => {
-              if (!(await confirm("Turn off arrival alerts?", "You will stop getting pushes and summaries. Today still shows late and at-risk shipments.", "Turn off", true))) return;
+              if (!(await confirm(t("Turn off arrival alerts?"), t("You will stop getting pushes and summaries. Today still shows late and at-risk shipments."), t("Turn off"), true))) return;
               await api.delete("/v1/me/alert-preferences");
               await load();
             }}
@@ -169,24 +171,24 @@ export function AlertsScreen() {
         ) : null}
       </Padded>
 
-      <Section title={IS_WEB ? "This browser" : "Devices"} footer={IS_WEB ? "Browsers show alerts only while this site is open. Install the phone app for push when it is closed." : undefined}>
+      <Section title={IS_WEB ? t("This browser") : t("Devices")} footer={IS_WEB ? t("Browsers show alerts only while this site is open. Install the phone app for push when it is closed.") : undefined}>
         {IS_WEB ? (
           <Row
-            title="Browser notifications"
-            value={browserPerm === "granted" ? "On" : browserPerm === "denied" ? "Blocked" : browserPerm === "unsupported" ? "Not supported" : "Off"}
-            right={browserPerm === "default" ? <Button title="Allow" variant="tonal" onPress={async () => setBrowserPerm(await browserNotifications.request())} style={{ minHeight: 36 }} /> : undefined}
+            title={t("Browser notifications")}
+            value={t(browserPerm === "granted" ? "On" : browserPerm === "denied" ? "Blocked" : browserPerm === "unsupported" ? "Not supported" : "Off")}
+            right={browserPerm === "default" ? <Button title={t("Allow")} variant="tonal" onPress={async () => setBrowserPerm(await browserNotifications.request())} style={{ minHeight: 36 }} /> : undefined}
           />
         ) : (
-          <Row title="Phones getting push" value={String(prefs.devices)} right={<Button title="Use this phone" variant="tonal" onPress={async () => { const r = await registerForPush(true); if (r.ok) await load(); else notify("Push is not available", r.reason); }} style={{ minHeight: 36 }} />} />
+          <Row title={t("Phones getting push")} value={String(prefs.devices)} right={<Button title={t("Use this phone")} variant="tonal" onPress={async () => { const r = await registerForPush(true); if (r.ok) await load(); else notify(t("Push is not available"), r.reason); }} style={{ minHeight: 36 }} />} />
         )}
         {prefs.enabled ? (
           <Padded>
             <Button
-              title="Send a test alert"
+              title={t("Send a test alert")}
               variant="tonal"
               onPress={async () => {
                 const r = await api.post<{ devices: number }>("/v1/me/alert-preferences/test");
-                notify("Test sent", r.devices ? `Sent to ${r.devices} phone${r.devices === 1 ? "" : "s"}.` : "No phones are registered, so it went to the list below only.");
+                notify(t("Test sent"), r.devices ? t(r.devices === 1 ? "Sent to 1 phone." : "Sent to {n} phones.", { n: r.devices }) : t("No phones are registered, so it went to the list below only."));
                 await load();
               }}
             />
@@ -194,14 +196,14 @@ export function AlertsScreen() {
         ) : null}
       </Section>
 
-      <Section title="Recent alerts">
-        {inbox.length === 0 ? <Empty title="No alerts yet" message="Alerts appear here as well as on your phone." /> : null}
+      <Section title={t("Recent alerts")}>
+        {inbox.length === 0 ? <Empty title={t("No alerts yet")} message={t("Alerts appear here as well as on your phone.")} /> : null}
         {inbox.filter((i) => ["ARRIVAL", "SUMMARY", "TEST"].includes(i.kind)).map((i) => (
           <Row
             key={i.id}
             title={i.title}
             subtitle={`${i.body}\n${when(i.at)}`}
-            right={i.status ? <Chip label={ARRIVAL[i.status].label} tone={ARRIVAL[i.status].tone} /> : i.kind === "SUMMARY" ? <Chip label="Summary" /> : undefined}
+            right={i.status ? <Chip label={ARRIVAL[i.status].label} tone={ARRIVAL[i.status].tone} /> : i.kind === "SUMMARY" ? <Chip label={t("Summary")} /> : undefined}
             onPress={i.loadId ? () => nav.navigate("LoadDetail", { id: i.loadId! }) : undefined}
           />
         ))}

@@ -45,11 +45,11 @@ export function LoadsScreen() {
       ) : null}
       {canCreate ? (
         <View style={{ marginHorizontal: 16, marginTop: 12 }}>
-          <Button title="New load" variant="tonal" onPress={() => nav.navigate("NewLoad")} />
+          <Button title={t("New load")} variant="tonal" onPress={() => nav.navigate("NewLoad")} />
         </View>
       ) : null}
       <Section>
-        {loads.length === 0 ? <Empty title="No loads yet" message="Loads you drive, dispatch or ship appear here." /> : null}
+        {loads.length === 0 ? <Empty title={t("No loads yet")} message={t("Loads you drive, dispatch or ship appear here.")} /> : null}
         {wide && loads.length ? (
           <LoadsTable loads={loads} onOpen={(id) => nav.navigate("LoadDetail", { id })} />
         ) : (

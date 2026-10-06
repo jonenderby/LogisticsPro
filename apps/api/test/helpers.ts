@@ -16,10 +16,16 @@ export interface Harness {
 /** One station identity for all tests (RSA key generation is slow). */
 export const STATION = as2.generateAs2Identity("LOGISTICSPRO");
 
+/**
+ * The clock tests run on unless they set their own: the morning of the day
+ * loadBody's pickup window opens, so the fixtures' dates never fall into the past.
+ */
+export const TEST_NOW = "2026-10-06T12:00:00Z";
+
 export async function harness(opts: Parameters<typeof buildApp>[0] = {}): Promise<Harness> {
   const https = new MemoryTransport();
   const van = new MemoryTransport();
-  const { app, ctx } = await buildApp({ transports: { HTTPS: https, VAN: van, SFTP: van }, secrets: (ref) => `secret-for-${ref}`, as2Identity: STATION, push: new MemoryPushSender(), ...opts, config: { alertIntervalSeconds: 0, databaseUrl: undefined, ...opts.config } });
+  const { app, ctx } = await buildApp({ transports: { HTTPS: https, VAN: van, SFTP: van }, secrets: (ref) => `secret-for-${ref}`, as2Identity: STATION, push: new MemoryPushSender(), now: () => new Date(TEST_NOW), ...opts, config: { alertIntervalSeconds: 0, databaseUrl: undefined, ...opts.config } });
   return { app, ctx, https, van, sent: () => [...https.sent, ...van.sent] };
 }
 

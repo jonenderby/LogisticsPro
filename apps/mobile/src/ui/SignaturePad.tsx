@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { type LayoutChangeEvent, PanResponder, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
+import { useT } from "../state/MeProvider";
 import { useTheme } from "./theme";
 
 export interface Signature {
@@ -17,6 +18,7 @@ const toPath = (s: Array<[number, number]>) => s.map(([x, y], i) => `${i ? "L" :
  */
 export function SignaturePad({ value, onChange, height = 180 }: { value: Signature; onChange: (s: Signature) => void; height?: number }) {
   const { colors } = useTheme();
+  const t = useT();
   const [size, setSize] = useState({ width: 0, height });
   const live = useRef<Array<[number, number]> | null>(null);
   const latest = useRef(value);
@@ -50,8 +52,8 @@ export function SignaturePad({ value, onChange, height = 180 }: { value: Signatu
 
   return (
     <View
-      accessibilityLabel="Signature box"
-      accessibilityHint="Sign here with your finger"
+      accessibilityLabel={t("Signature box")}
+      accessibilityHint={t("Sign here with your finger")}
       onLayout={(e: LayoutChangeEvent) => setSize({ width: e.nativeEvent.layout.width, height })}
       style={{ height, borderRadius: 12, borderWidth: 1, borderColor: colors.separator, backgroundColor: "#fff", overflow: "hidden" }}
       {...responder.panHandlers}

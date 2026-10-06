@@ -119,7 +119,7 @@ export function AuthFlow() {
     const help = t(PROFILES.find((p) => p.value === profileType)!.help);
     return (
       <Shell title={t("Create account")}>
-        <Text style={{ color: colors.textSecondary, marginBottom: 6 }}>Language / Idioma</Text>
+        <Text style={{ color: colors.textSecondary, marginBottom: 6 }}>{t("Language / Idioma")}</Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
           {PICKABLE_LANGUAGES.map((l) => (
             <Chip key={l.code} label={l.name} selected={l.code === lang} onPress={() => setLang(l.code as Lang)} />

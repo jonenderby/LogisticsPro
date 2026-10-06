@@ -2,7 +2,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useState } from "react";
 import { Platform, Share, View } from "react-native";
 import { api, errorMessage } from "../api/client";
-import { useMe } from "../state/MeProvider";
+import { useMe, useT } from "../state/MeProvider";
 import { Body, Button, Chip, Empty, Field, Padded, Row, Screen, Section, Segmented } from "../ui/components";
 import { notify } from "../ui/dialog";
 
@@ -48,6 +48,7 @@ const n = (v?: number) => (v === undefined ? "–" : v.toLocaleString(undefined,
  * ready to file, and can export it.
  */
 export function FuelTaxScreen() {
+  const t = useT();
   const { me, orgsWithRole, has } = useMe();
   const carriers = (me?.orgs ?? []).filter((o) => o.kinds.includes("CARRIER"));
   const [orgId, setOrgId] = useState(carriers[0]?.id);
@@ -72,7 +73,7 @@ export function FuelTaxScreen() {
       void load();
     }, [load]),
   );
-  if (!orgId) return <Screen><Empty title="Fuel tax is for carriers" message="Join or register a trucking company first." /></Screen>;
+  if (!orgId) return <Screen><Empty title={t("Fuel tax is for carriers")} message={t("Join or register a trucking company first.")} /></Screen>;
 
   const add = async () => {
     try {
@@ -80,7 +81,7 @@ export function FuelTaxScreen() {
       setForm({ ...form, gallons: "", amount: "", vendor: "" });
       await load();
     } catch (e) {
-      notify("Couldn't save the fuel purchase", errorMessage(e));
+      notify(t("Couldn't save the fuel purchase"), errorMessage(e));
     }
   };
   const exportCsv = async () => {
@@ -109,13 +110,13 @@ export function FuelTaxScreen() {
 
       {office && report ? (
         <>
-          <Section title={`IFTA ${report.quarter.replace("-", " ")}`} footer={`${report.from} to ${report.to}. Miles come from the trucks' location trails; taxable gallons are each place's miles divided by the fleet's miles per gallon, less fuel bought there. Check against your ELD records before filing.`}>
-            <Row title="Total miles" value={n(report.totalMiles)} />
-            <Row title="Fuel bought" value={`${n(report.totalGallons)} gal`} />
-            <Row title="Fleet miles per gallon" value={report.mpg ? n(report.mpg) : "Enter fuel to work it out"} />
+          <Section title={`IFTA ${report.quarter.replace("-", " ")}`} footer={t("{from} to {to}. Miles come from the trucks' location trails; taxable gallons are each place's miles divided by the fleet's miles per gallon, less fuel bought there. Check against your ELD records before filing.", { from: report.from, to: report.to })}>
+            <Row title={t("Total miles")} value={n(report.totalMiles)} />
+            <Row title={t("Fuel bought")} value={`${n(report.totalGallons)} gal`} />
+            <Row title={t("Fleet miles per gallon")} value={report.mpg ? n(report.mpg) : t("Enter fuel to work it out")} />
           </Section>
-          <Section title="By state and province">
-            {report.rows.length === 0 ? <Empty title="No miles this quarter yet" /> : null}
+          <Section title={t("By state and province")}>
+            {report.rows.length === 0 ? <Empty title={t("No miles this quarter yet")} /> : null}
             {report.rows.map((r) => (
               <Row
                 key={r.jurisdiction}
@@ -126,11 +127,11 @@ export function FuelTaxScreen() {
             ))}
             {report.rows.length ? (
               <Padded>
-                <Button title="Export CSV" variant="tonal" onPress={exportCsv} />
+                <Button title={t("Export CSV")} variant="tonal" onPress={exportCsv} />
               </Padded>
             ) : null}
           </Section>
-          <Section title="By truck">
+          <Section title={t("By truck")}>
             {report.vehicles.map((v) => (
               <Row key={v.vehicle} title={v.label} value={`${n(v.miles)} mi · ${n(v.gallons)} gal`} />
             ))}
@@ -138,44 +139,44 @@ export function FuelTaxScreen() {
         </>
       ) : null}
 
-      <Section title="Log fuel" footer="Enter each fill-up from the receipt. The state or province is where you bought it.">
+      <Section title={t("Log fuel")} footer={t("Enter each fill-up from the receipt. The state or province is where you bought it.")}>
         <Padded>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <View style={{ flex: 1 }}>
-              <Field label="Date" value={form.date} onChangeText={(v) => setForm({ ...form, date: v })} autoCapitalize="none" hint="YYYY-MM-DD" />
+              <Field label={t("Date")} value={form.date} onChangeText={(v) => setForm({ ...form, date: v })} autoCapitalize="none" hint="YYYY-MM-DD" />
             </View>
             <View style={{ flex: 1 }}>
-              <Field label="State or province" value={form.jurisdiction} onChangeText={(v) => setForm({ ...form, jurisdiction: v })} autoCapitalize="characters" maxLength={2} hint="e.g. TX, ON" />
+              <Field label={t("State or province")} value={form.jurisdiction} onChangeText={(v) => setForm({ ...form, jurisdiction: v })} autoCapitalize="characters" maxLength={2} hint={t("e.g. TX, ON")} />
             </View>
           </View>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <View style={{ flex: 1 }}>
-              <Field label="Gallons" value={form.gallons} onChangeText={(v) => setForm({ ...form, gallons: v })} keyboardType="decimal-pad" />
+              <Field label={t("Gallons")} value={form.gallons} onChangeText={(v) => setForm({ ...form, gallons: v })} keyboardType="decimal-pad" />
             </View>
             <View style={{ flex: 1 }}>
-              <Field label="Total paid (USD, optional)" value={form.amount} onChangeText={(v) => setForm({ ...form, amount: v })} keyboardType="decimal-pad" />
+              <Field label={t("Total paid (USD, optional)")} value={form.amount} onChangeText={(v) => setForm({ ...form, amount: v })} keyboardType="decimal-pad" />
             </View>
           </View>
-          <Field label="Truck stop (optional)" value={form.vendor} onChangeText={(v) => setForm({ ...form, vendor: v })} />
-          {trucks.length ? <Body secondary style={{ marginBottom: 6 }}>Truck</Body> : null}
+          <Field label={t("Truck stop (optional)")} value={form.vendor} onChangeText={(v) => setForm({ ...form, vendor: v })} />
+          {trucks.length ? <Body secondary style={{ marginBottom: 6 }}>{t("Truck")}</Body> : null}
           {trucks.length ? (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }} accessibilityLabel="Truck">
-              {drives ? <Chip label="The truck I'm driving" selected={!truck} onPress={() => setTruck(undefined)} /> : null}
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }} accessibilityLabel={t("Truck")}>
+              {drives ? <Chip label={t("The truck I'm driving")} selected={!truck} onPress={() => setTruck(undefined)} /> : null}
               {trucks.map((t) => (
                 <Chip key={t.vehicle} label={t.label} selected={truck === t.vehicle} onPress={() => setTruck(t.vehicle)} />
               ))}
             </View>
           ) : null}
-          <Button title="Add fuel purchase" disabled={!Number(form.gallons) || form.jurisdiction.trim().length !== 2 || (!drives && !truck)} onPress={add} />
+          <Button title={t("Add fuel purchase")} disabled={!Number(form.gallons) || form.jurisdiction.trim().length !== 2 || (!drives && !truck)} onPress={add} />
         </Padded>
       </Section>
-      <Section title={office ? "Fuel purchases" : "Your fuel purchases"}>
-        {fuel.length === 0 ? <Empty title="None this quarter" /> : null}
+      <Section title={office ? t("Fuel purchases") : t("Your fuel purchases")}>
+        {fuel.length === 0 ? <Empty title={t("None this quarter")} /> : null}
         {fuel.map((p) => (
           <Row key={p.id} title={`${n(p.gallons)} gal · ${p.jurisdiction}`} subtitle={`${p.date}${office && p.vehicleLabel ? ` · ${p.vehicleLabel}` : ""}${p.vendor ? ` · ${p.vendor}` : ""}${p.amount ? ` · $${p.amount.toFixed(2)}` : ""}`} />
         ))}
       </Section>
-      {!office ? <Body secondary style={{ margin: 16 }}>Your company's owner or billing team files the quarterly report.</Body> : null}
+      {!office ? <Body secondary style={{ margin: 16 }}>{t("Your company's owner or billing team files the quarterly report.")}</Body> : null}
     </Screen>
   );
 }
