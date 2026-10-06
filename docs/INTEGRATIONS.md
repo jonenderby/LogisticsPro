@@ -51,6 +51,25 @@ AS2 partners send to the central station at `POST /as2`. For HTTPS instead, issu
 
 Inbound tenders create loads for the receiving carrier, statuses update loads, tender responses book or release loads, and invoices land in the bill-to party's Money screen.
 
+## Onboarding a partner
+
+Each partner's page under **Integrations** has an **Onboarding** checklist:
+
+| Item | Done when |
+|---|---|
+| Settings | Every enabled channel is complete (endpoint, EDI ids, AS2 details, field map covers every required field) |
+| Credentials | Every secret a channel names (`LP_SECRET_<NAME>`) is set on the server; missing ones are named |
+| Test: one per channel that goes to the partner | The test was delivered; for EDI with acknowledgments, the partner's 997 came back |
+| Received: one per channel that comes from the partner | The partner sent at least one, test or real |
+| Partner can send to you | An inbound token is issued, or the partner uses AS2 or a VAN |
+| Live | The partner was marked live (EDI in production mode) |
+
+**Send test messages** sends a document marked TEST on each channel that goes to the partner (for a carrier: tenders, pickup requests, rate quotes and remittance; for a customer: tender responses, statuses and invoices), EDI in test mode. The partner answers TEST shipments and invoices as it would real ones; those replies are recorded for onboarding and never applied to loads. **Go live** works only when every other item is done; **Back to test mode** reverses it for recertification.
+
+Field maps can be edited per API channel as JSON (partner field name to standard field). Saving a partner keeps its credentials' type, headers and test or production mode.
+
+API: `GET /v1/orgs/:id/partners/:key/onboarding`, `POST /v1/orgs/:id/partners/:key/test`, `/go-live` and `/back-to-test`.
+
 ## Top 25 carriers
 
 Ranks are from the Transport Topics 2026 Top 100 For-Hire Carriers list where a rank was confirmed. The list is completed with the largest LTL and truckload carriers from the 2026 TT segment rankings. "Documented" means the carrier's own developer portal or API guide describes the capability. "Reported" means third-party EDI networks or integrators describe it. "Assumed" means standard EDI support that must be confirmed during onboarding. Every carrier API requires an account, keys or an approval step with that carrier.

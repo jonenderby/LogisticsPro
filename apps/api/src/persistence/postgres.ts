@@ -35,6 +35,8 @@ create table if not exists lp_log (
 );
 create index if not exists lp_log_key_at on lp_log (collection, key, at);
 create sequence if not exists lp_load_number_block minvalue 0 start 0;
+-- EDI interchange and group control numbers: unique across servers and restarts.
+create sequence if not exists lp_edi_control_block minvalue 0 start 0;
 create table if not exists lp_files (
   id text primary key,
   bytes bytea not null,
@@ -85,6 +87,8 @@ export class PgPersistence implements ChangeSink {
   private leaderTimer?: ReturnType<typeof setInterval>;
   private numbers: number[] = [];
   private refilling?: Promise<void>;
+  private ediNumbers: number[] = [];
+  private ediRefilling?: Promise<void>;
   private closed = false;
 
   /** Connections that hold record locks, apart from the ones that write, so waiting for a lock never starves a write. */
@@ -107,6 +111,7 @@ export class PgPersistence implements ChangeSink {
     opts.store.attach(p);
     await p.listen();
     await p.refillNumbers(2);
+    await p.refillEdi(2);
     opts.store.useLoadNumbers(() => p.nextLoadNumber());
     await p.tryLead();
     p.leaderTimer = setInterval(() => void p.tryLead(), 15_000);
@@ -446,6 +451,31 @@ export class PgPersistence implements ChangeSink {
       }
     })();
     return this.refilling;
+  }
+
+  // ------------------------------------------------------------- EDI control numbers
+
+  /** The next EDI control number, from blocks reserved in the database so no two servers or restarts reuse one. */
+  nextEdiControl(): number {
+    const n = this.ediNumbers.shift();
+    if (this.ediNumbers.length < LOAD_NUMBER_BLOCK / 2) void this.refillEdi(1);
+    if (n === undefined) throw new Error("No EDI control numbers reserved yet; try again");
+    return n;
+  }
+
+  private refillEdi(blocks: number): Promise<void> {
+    this.ediRefilling ??= (async () => {
+      try {
+        for (let b = 0; b < blocks; b++) {
+          const { rows } = await this.pool.query<{ block: string }>("select nextval('lp_edi_control_block') as block");
+          const start = 1 + Number(rows[0]!.block) * LOAD_NUMBER_BLOCK;
+          for (let i = 0; i < LOAD_NUMBER_BLOCK; i++) this.ediNumbers.push(start + i);
+        }
+      } finally {
+        this.ediRefilling = undefined;
+      }
+    })();
+    return this.ediRefilling;
   }
 
   // ------------------------------------------------------------- files

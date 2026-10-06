@@ -1,6 +1,6 @@
 import type { Account, EldProvider, Load, Message } from "@logisticspro/domain";
 import { DomainError, carrierKeyOf, loadParties, newId } from "@logisticspro/domain";
-import type { As2Identity, As2Transport, IntegrationEngine } from "@logisticspro/integration";
+import type { As2Identity, As2Transport, IntegrationEngine, SecretResolver } from "@logisticspro/integration";
 import type { Geocoder, RoutingProvider, TrafficProvider } from "@logisticspro/navigation";
 import { type Capability, type ResolvedCapabilities, resolveCapabilities } from "@logisticspro/workspace";
 import type { FastifyReply, FastifyRequest } from "fastify";
@@ -35,6 +35,8 @@ export interface AppContext {
   store: MemoryStore;
   tokens: Tokens;
   engine: IntegrationEngine;
+  /** Resolves partner credential names (LP_SECRET_*); used to check they are set, never to show them. */
+  secrets: SecretResolver;
   hub: IntegrationHub;
   routing: RoutingProvider;
   /** Live-traffic driving times for ETAs (HERE or TomTom), when configured. */

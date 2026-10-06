@@ -1,7 +1,7 @@
 import { type InboundEdiResult, as2 } from "@logisticspro/integration";
 import type { FastifyInstance } from "fastify";
 import { type AppContext, authenticate } from "../http.js";
-import { type AppliedDoc, applyEdi, shipmentIdOf } from "../services/inbound.js";
+import { applyAcks, type AppliedDoc, applyEdi, shipmentIdOf } from "../services/inbound.js";
 import type { StoredProfile } from "../store.js";
 
 const unquote = (v: unknown) => String(v ?? "").trim().replace(/^"(.*)"$/, "$1");
@@ -81,6 +81,7 @@ export function as2Routes(app: FastifyInstance, ctx: AppContext) {
       return owner ?? { error: `Several businesses trade with ${from} under interchange id ${receiver}; give each a distinct EDI interchange id` };
     };
     const applied: AppliedDoc[] = await applyEdi(ctx, raw, result, profileFor, "AS2");
+    applyAcks(ctx, result.acks, (t) => candidates.some((p) => p.ownerOrgId === t.ownerOrgId && p.key === t.partnerKey));
     reply.header("x-lp-results", JSON.stringify(applied).slice(0, 2000));
 
     // The 997 goes back as its own AS2 message, after this response.

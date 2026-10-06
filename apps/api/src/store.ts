@@ -9,6 +9,8 @@ export interface StoredProfile extends PartnerProfile {
   /** sha256 of the token partners send on inbound requests. */
   inboundTokenHash?: string;
   updatedAt: string;
+  /** When the business marked this partner live (EDI switched to production). */
+  liveAt?: string;
 }
 
 export interface PushToken {

@@ -42,8 +42,10 @@ Not yet supported: asynchronous MDNs, AS2 compression, RSASSA-PSS/RSA-OAEP, and 
 
 1. Exchange AS2 ids, URLs and certificates.
 2. Set the partner profile's interchange ids (`EDI ids`) and pick AS2 for each EDI transaction.
-3. Send test files with the profile's usage set to `T` (test). Confirm MDNs and 997s both ways.
-4. Switch usage to `P` (production).
+3. Under **Integrations > partner > Onboarding**, **Send test messages**: each channel that goes to the partner gets a TEST document in test mode (ISA15 `T`). The partner's 997 marks each test acknowledged, and their replies to TEST shipments are recorded without touching real loads.
+4. **Go live** once every item is done: usage switches to `P` (production). See [INTEGRATIONS.md](INTEGRATIONS.md#onboarding-a-partner).
+
+Interchange and group control numbers come from a database sequence, so they never repeat across restarts or servers. Each inbound 997 is matched to the interchange it acknowledges, which is then marked acknowledged or rejected (with the partner's error) in the transmissions log.
 
 ## VAN and SFTP
 

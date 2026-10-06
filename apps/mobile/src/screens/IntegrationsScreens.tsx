@@ -1,4 +1,4 @@
-import { tx } from "@logisticspro/workspace";
+import { type Translate, tx } from "@logisticspro/workspace";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import * as Linking from "expo-linking";
@@ -23,7 +23,9 @@ interface As2In {
 interface ChannelIn {
   method: Method;
   transport?: string;
-  endpoint?: { url: string; auth?: { type: string; secretRef?: string; header?: string } };
+  endpoint?: { url: string; httpMethod?: string; headers?: Record<string, string>; auth?: { type: string; secretRef?: string; header?: string } };
+  fieldMap?: Record<string, string>;
+  xmlRoot?: string;
 }
 interface Profile {
   key: string;
@@ -64,20 +66,40 @@ interface Draft {
   url: string;
   secretRef: string;
   transport: EdiTransport;
+  /** Partner field name to canonical field, as JSON text. */
+  fieldMap: string;
+  /** The saved channel, so settings this screen doesn't show (auth type, headers) are kept. */
+  base?: ChannelIn;
 }
 
 function draftsFrom(p: Profile | undefined, txs: Tx[]): Record<Tx, Draft> {
   return Object.fromEntries(txs.map((tx) => {
     const ch = p?.channels[tx];
-    return [tx, { method: ch?.method ?? "OFF", url: ch?.endpoint?.url ?? "", secretRef: ch?.endpoint?.auth?.secretRef ?? "", transport: (ch?.method === "EDI_X12" && ch.transport !== "HTTPS" ? ch.transport : "AS2") as EdiTransport }];
+    return [tx, { method: ch?.method ?? "OFF", url: ch?.endpoint?.url ?? "", secretRef: ch?.endpoint?.auth?.secretRef ?? "", transport: (ch?.method === "EDI_X12" && ch.transport !== "HTTPS" ? ch.transport : "AS2") as EdiTransport, fieldMap: ch?.fieldMap && Object.keys(ch.fieldMap).length ? JSON.stringify(ch.fieldMap, null, 2) : "", base: ch }];
   })) as Record<Tx, Draft>;
 }
 
-function toChannels(drafts: Record<Tx, Draft>) {
+/** Channels to save. Throws (naming the transaction) when a field map isn't valid JSON of strings. */
+function toChannels(drafts: Record<Tx, Draft>, t: Translate) {
   const out: Partial<Record<Tx, ChannelIn>> = {};
   for (const [tx, d] of Object.entries(drafts) as Array<[Tx, Draft]>) {
     if (d.method === "OFF") continue;
-    out[tx] = d.method === "EDI_X12" ? { method: d.method, transport: d.transport } : { method: d.method, transport: "HTTPS", endpoint: { url: d.url, auth: d.secretRef ? { type: "bearer", secretRef: d.secretRef } : { type: "none" } } };
+    if (d.method === "EDI_X12") {
+      out[tx] = { method: d.method, transport: d.transport };
+      continue;
+    }
+    let fieldMap: Record<string, string> | undefined;
+    if (d.fieldMap.trim()) {
+      try {
+        fieldMap = JSON.parse(d.fieldMap) as Record<string, string>;
+        if (typeof fieldMap !== "object" || Array.isArray(fieldMap) || Object.values(fieldMap).some((v) => typeof v !== "string")) throw new Error();
+      } catch {
+        throw new Error(t("The field map for {tx} isn't valid. Use JSON like {example}.", { tx: t(TX_LABEL[tx]), example: '{"loadRef": "shipmentId"}' }));
+      }
+    }
+    const baseAuth = d.base?.endpoint?.auth;
+    const auth = !d.secretRef ? { type: "none" } : baseAuth?.secretRef === d.secretRef ? baseAuth : { type: "bearer", secretRef: d.secretRef };
+    out[tx] = { method: d.method, transport: "HTTPS", endpoint: { ...d.base?.endpoint, url: d.url, auth }, ...(fieldMap ? { fieldMap } : {}), ...(d.base?.xmlRoot ? { xmlRoot: d.base.xmlRoot } : {}) };
   }
   return out;
 }
@@ -109,6 +131,7 @@ function ChannelEditor({ txs, drafts, setDrafts, supported }: { txs: Tx[]; draft
                 <>
                   <Field label={t("Endpoint URL")} value={d.url} onChangeText={(url) => setDrafts({ ...drafts, [tx]: { ...d, url } })} autoCapitalize="none" keyboardType="url" />
                   <Field label={t("Secret name (optional)")} value={d.secretRef} onChangeText={(s) => setDrafts({ ...drafts, [tx]: { ...d, secretRef: s } })} autoCapitalize="none" hint={t("Name of the API token stored on the server, never the token itself")} />
+                  <Field label={t("Field map (optional)")} value={d.fieldMap} onChangeText={(m) => setDrafts({ ...drafts, [tx]: { ...d, fieldMap: m } })} multiline autoCapitalize="none" autoCorrect={false} placeholder='{"loadRef": "shipmentId"}' hint={t("The partner's field names, each pointing at a standard field. Leave empty to send the standard shape.")} />
                 </>
               ) : null}
             </Padded>
@@ -226,7 +249,7 @@ export function IntegrationsScreen() {
           title={t("Save receiving preferences")}
           onPress={async () => {
             try {
-              await api.put(`/v1/orgs/${orgId}/receiving`, { channels: toChannels(drafts), edi: usesEdi ? { receiverQualifier: ediQual, receiverId: ediId } : undefined, as2: usesAs2(drafts) ? as2Payload(as2In) : undefined });
+              await api.put(`/v1/orgs/${orgId}/receiving`, { channels: toChannels(drafts, t), edi: usesEdi ? { receiverQualifier: ediQual, receiverId: ediId } : undefined, as2: usesAs2(drafts) ? as2Payload(as2In) : undefined });
               await refresh();
               notify(t("Saved"));
             } catch (e) {
@@ -319,7 +342,8 @@ export function PartnerEditScreen() {
           title={t("Save partner")}
           onPress={async () => {
             try {
-              await api.put(`/v1/orgs/${orgId}/partners/${key}`, { name: profile.name, kind: profile.kind, scac: scac || undefined, catalogCode: profile.catalogCode, channels: toChannels(drafts), edi: usesEdi ? { receiverQualifier: ediQual, receiverId: ediId } : undefined, as2: usesAs2(drafts) ? as2Payload(as2In) : undefined });
+              // Keep test or production mode as it is; Onboarding below changes it.
+              await api.put(`/v1/orgs/${orgId}/partners/${key}`, { name: profile.name, kind: profile.kind, scac: scac || undefined, catalogCode: profile.catalogCode, channels: toChannels(drafts, t), edi: usesEdi ? { receiverQualifier: ediQual, receiverId: ediId, ...(profile.edi?.usage ? { usage: profile.edi.usage } : {}) } : undefined, as2: usesAs2(drafts) ? as2Payload(as2In) : undefined });
               await refresh();
             } catch (e) {
               notify(t("Couldn't save"), errorMessage(e));
@@ -328,6 +352,7 @@ export function PartnerEditScreen() {
         />
         <Button title={t(profile.inboundEnabled ? "Rotate inbound token" : "Let this partner send to us")} variant="tonal" onPress={async () => setToken((await api.post<{ inboundToken: string }>(`/v1/orgs/${orgId}/partners/${key}/inbound-token`)).inboundToken)} />
       </View>
+      <OnboardingSection orgId={orgId} partnerKey={key} />
       {token ? (
         <Section title={t("Inbound connection")} footer={t("Share these with the partner once. The token is not shown again.")}>
           <Padded>
@@ -339,5 +364,64 @@ export function PartnerEditScreen() {
         </Section>
       ) : null}
     </Screen>
+  );
+}
+
+interface OnboardingItem {
+  id: string;
+  title: string;
+  state: "DONE" | "TODO" | "PROBLEM";
+  detail?: string;
+}
+const ITEM_TITLE: Record<string, string> = { settings: tx("Settings"), credentials: tx("Credentials"), inbound: tx("Partner can send to you"), live: tx("Live") };
+const STEP: Record<OnboardingItem["state"], { label: string; tone: "success" | "neutral" | "danger" }> = {
+  DONE: { label: tx("Done"), tone: "success" },
+  TODO: { label: tx("To do"), tone: "neutral" },
+  PROBLEM: { label: tx("Problem"), tone: "danger" },
+};
+
+/**
+ * Bringing the partner live: credentials, a test message on each channel
+ * (EDI in test mode, acknowledged by the partner's 997), the partner's own
+ * test replies, then production.
+ */
+function OnboardingSection({ orgId, partnerKey }: { orgId: string; partnerKey: string }) {
+  const t = useT();
+  const [status, setStatus] = useState<{ items: OnboardingItem[]; ready: boolean; live: boolean }>();
+  const [busy, setBusy] = useState(false);
+  const base = `/v1/orgs/${orgId}/partners/${partnerKey}`;
+  const load = useCallback(async () => setStatus(await api.get<{ items: OnboardingItem[]; ready: boolean; live: boolean }>(`${base}/onboarding`).catch(() => undefined)), [base]);
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
+  if (!status) return null;
+  const itemTitle = (i: OnboardingItem) => {
+    const [kind, txn] = i.id.split(":") as [string, Tx | undefined];
+    if (txn && TX_LABEL[txn]) return t(kind === "test" ? "Test: {tx}" : "Received: {tx}", { tx: t(TX_LABEL[txn]) });
+    return t(ITEM_TITLE[kind] ?? i.title);
+  };
+  const act = (fn: () => Promise<unknown>) => async () => {
+    setBusy(true);
+    try {
+      await fn();
+      await load();
+    } catch (e) {
+      notify(t("Couldn't do that"), errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Section title={t("Onboarding")} footer={status.live ? t("Live. Real messages go in production mode.") : t("Test messages are marked TEST and go in EDI test mode. Ask the partner to answer them; their replies never touch real loads.")}>
+      {status.items.map((i) => (
+        <Row key={i.id} title={itemTitle(i)} subtitle={i.detail && t(i.detail)} right={<Chip label={STEP[i.state].label} tone={STEP[i.state].tone} />} />
+      ))}
+      <Padded>
+        {!status.live ? <Button title={t("Send test messages")} variant="tonal" loading={busy} onPress={act(() => api.post(`${base}/test`, {}))} /> : null}
+        {!status.live ? <Button title={t("Go live")} disabled={!status.ready || busy} onPress={act(() => api.post(`${base}/go-live`, {}))} /> : <Button title={t("Back to test mode")} variant="plain" onPress={act(() => api.post(`${base}/back-to-test`, {}))} />}
+      </Padded>
+    </Section>
   );
 }

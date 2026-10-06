@@ -23,7 +23,8 @@ import { z } from "zod";
 import { type AppContext, HttpError, authenticate, getLoad, me, parse, requireOrgCap } from "../http.js";
 import { newOpaqueToken, sha256 } from "../security/tokens.js";
 import { RECEIVING } from "../services/hub.js";
-import { applyEdi, recordInbound } from "../services/inbound.js";
+import { applyAcks, applyEdi, isTestDoc, recordInbound } from "../services/inbound.js";
+import { onboardingStatus, sendTests } from "../services/onboarding.js";
 import type { StoredProfile } from "../store.js";
 
 const ProfileInput = z.object({
@@ -68,12 +69,15 @@ export function integrationRoutes(app: FastifyInstance, ctx: AppContext) {
 
   const save = (orgId: string, key: string, body: z.infer<typeof ProfileInput>): StoredProfile => {
     const prior = ctx.store.profile(orgId, key);
+    const edi = body.edi ? (EdiSettings.parse({ senderId: ctx.cfg.ediSenderId, ...body.edi }) as PartnerProfile["edi"]) : undefined;
     const profile: StoredProfile = {
       key,
       ownerOrgId: orgId,
       ...body,
-      edi: body.edi ? (EdiSettings.parse({ senderId: ctx.cfg.ediSenderId, ...body.edi }) as PartnerProfile["edi"]) : undefined,
+      edi,
       inboundTokenHash: prior?.inboundTokenHash,
+      // Setting EDI to production by hand counts as going live; back to test mode is not live.
+      liveAt: edi?.usage === "P" ? (prior?.liveAt ?? ctx.now().toISOString()) : edi ? undefined : prior?.liveAt,
       updatedAt: ctx.now().toISOString(),
     };
     ctx.store.profiles.set(`${orgId}:${key}`, profile);
@@ -113,6 +117,45 @@ export function integrationRoutes(app: FastifyInstance, ctx: AppContext) {
     requireOrgCap(ctx, account.id, orgId, "MANAGE_INTEGRATIONS");
     const body = parse(ProfileInput.omit({ kind: true, name: true }).extend({ name: z.string().default("Our ERP") }), req.body);
     return redact(save(orgId, RECEIVING, { ...body, kind: "ERP" }));
+  });
+
+  // ------------------------------------------------------------ onboarding
+
+  const partner = (req: { params: unknown }, accountId: string) => {
+    const { orgId, key } = req.params as { orgId: string; key: string };
+    requireOrgCap(ctx, accountId, orgId, "MANAGE_INTEGRATIONS");
+    const p = ctx.store.profile(orgId, key);
+    if (!p || key === RECEIVING) throw new HttpError(404, "NOT_FOUND", "Partner not configured");
+    return p;
+  };
+
+  /** What is set up with this partner, what is left, and whether it is live. */
+  app.get("/v1/orgs/:orgId/partners/:key/onboarding", auth, async (req) => onboardingStatus(ctx, partner(req, me(ctx, req).id)));
+
+  /** Send a test message on each channel that goes to the partner; EDI goes in test mode (ISA15 T). */
+  app.post("/v1/orgs/:orgId/partners/:key/test", auth, async (req) => {
+    const p = partner(req, me(ctx, req).id);
+    const { transactions } = parse(z.object({ transactions: z.array(TransactionType).optional() }), req.body ?? {});
+    const sent = await sendTests(ctx, p, transactions);
+    return { sent: sent.map((t) => ({ transaction: t.transaction, method: t.method, status: t.status, error: t.error, control: t.control })), onboarding: onboardingStatus(ctx, p) };
+  });
+
+  /** Switch to production once every test has gone through and the partner can reach us. */
+  app.post("/v1/orgs/:orgId/partners/:key/go-live", auth, async (req) => {
+    const p = partner(req, me(ctx, req).id);
+    const status = onboardingStatus(ctx, p);
+    const open = status.items.filter((i) => i.id !== "live" && i.state !== "DONE");
+    if (open.length) throw new HttpError(409, "NOT_READY", `Finish first: ${open.map((i) => i.title).join(", ")}`, { items: open });
+    const live: StoredProfile = { ...p, edi: p.edi ? { ...p.edi, usage: "P" } : undefined, liveAt: ctx.now().toISOString(), updatedAt: ctx.now().toISOString() };
+    ctx.store.profiles.set(`${p.ownerOrgId}:${p.key}`, live);
+    return onboardingStatus(ctx, live);
+  });
+
+  app.post("/v1/orgs/:orgId/partners/:key/back-to-test", auth, async (req) => {
+    const p = partner(req, me(ctx, req).id);
+    const test: StoredProfile = { ...p, edi: p.edi ? { ...p.edi, usage: "T" } : undefined, liveAt: undefined, updatedAt: ctx.now().toISOString() };
+    ctx.store.profiles.set(`${p.ownerOrgId}:${p.key}`, test);
+    return onboardingStatus(ctx, test);
   });
 
   /** Issue (or rotate) the token a partner uses to post inbound API/EDI to us. */
@@ -184,6 +227,7 @@ export function integrationRoutes(app: FastifyInstance, ctx: AppContext) {
     const raw = typeof req.body === "string" ? req.body : "";
     const result = ctx.engine.parseEdi(raw, (profile.edi?.codeOverrides ?? {}) as never);
     const applied = await applyEdi(ctx, raw, result, () => profile, "HTTPS");
+    applyAcks(ctx, result.acks, (t) => t.ownerOrgId === profile.ownerOrgId && t.partnerKey === profile.key);
     for (const err of result.errors) recordInbound(ctx, profile, "LOAD_TENDER", "EDI_X12", "HTTPS", raw, "REJECTED", `set ${err.setControl} (${err.setId}): ${err.message}`);
     reply.header("x-lp-results", JSON.stringify(applied).slice(0, 2000));
     if (result.ack997) {
@@ -206,6 +250,11 @@ export function integrationRoutes(app: FastifyInstance, ctx: AppContext) {
     } catch (e) {
       recordInbound(ctx, profile, tx, method, "HTTPS", raw, "REJECTED", (e as Error).message);
       throw new HttpError(422, "INVALID_DOCUMENT", (e as Error).message);
+    }
+    if (isTestDoc(doc)) {
+      recordInbound(ctx, profile, tx, method, "HTTPS", raw, "RECEIVED", undefined, { test: "true" });
+      reply.code(202);
+      return { action: "test received" };
     }
     const r = await ctx.hub.applyInbound(profile.ownerOrgId, profile.key, tx, doc, "API");
     recordInbound(ctx, profile, tx, method, "HTTPS", raw, "RECEIVED", undefined, r.loadId ? { loadId: r.loadId } : {});

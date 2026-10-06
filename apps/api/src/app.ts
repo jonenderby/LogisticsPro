@@ -79,9 +79,19 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   const outbox = new OutboxTransport(cfg.ediOutboxDir);
   const station = opts.as2Identity ?? loadAs2Identity(cfg, (m) => console.warn(m));
   const as2Transport = new As2Transport(() => station, { fetch: opts.as2Fetch, receiptUrl: `${cfg.publicUrl}/as2` });
+  // Interchange and group control numbers must never repeat for a partner, so with a database they come from it.
+  let ediCounter = 0;
+  const controlNumbers = {
+    next: () => {
+      const n = persistence ? persistence.nextEdiControl() : ++ediCounter;
+      return { interchange: n, group: n, transaction: 1 };
+    },
+  };
+  const secrets = opts.secrets ?? envSecrets;
   const engine = new IntegrationEngine({
+    controlNumbers,
     transports: { HTTPS: new HttpTransport(), AS2: as2Transport, SFTP: outbox, VAN: outbox, ...opts.transports },
-    secrets: opts.secrets ?? envSecrets,
+    secrets,
     now,
   });
   const ctx: AppContext = {
@@ -89,6 +99,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
     store,
     tokens: new Tokens(cfg),
     engine,
+    secrets,
     hub: new IntegrationHub(store, engine, cfg, now),
     routing: opts.routing ?? (cfg.valhallaUrl ? new ValhallaProvider(cfg.valhallaUrl) : new StaticProvider()),
     traffic: opts.traffic ?? (cfg.traffic ? (cfg.traffic.kind === "here" ? new HereTrafficProvider(cfg.traffic.apiKey) : new TomTomTrafficProvider(cfg.traffic.apiKey)) : undefined),

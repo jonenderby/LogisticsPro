@@ -61,6 +61,8 @@ export interface Transmission {
   contentType: string;
   payload: string;
   control?: string;
+  /** The functional group's control number, which a 997 acknowledges. */
+  groupControl?: string;
   response?: TransportResult;
   error?: string;
   refs: Record<string, string>;
@@ -192,7 +194,7 @@ export class IntegrationEngine {
       return { ...base, method: ch0?.method ?? "API_JSON", transport: ch0?.transport ?? "HTTPS", status: "FAILED", contentType: "", payload: "", error: e instanceof ValidationError ? e.message : (e as Error).message };
     }
     const transport = this.opts.transports[ch.transport];
-    const record = { ...base, method: rendered.method, transport: ch.transport, contentType: rendered.contentType, payload: rendered.body, control: rendered.control ? String(rendered.control.interchange).padStart(9, "0") : undefined };
+    const record = { ...base, method: rendered.method, transport: ch.transport, contentType: rendered.contentType, payload: rendered.body, control: rendered.control ? String(rendered.control.interchange).padStart(9, "0") : undefined, groupControl: rendered.control ? String(rendered.control.group) : undefined };
     if (!transport) return { ...record, status: "FAILED", error: `no ${ch.transport} transport configured` };
     try {
       const headers = ch.endpoint ? { ...ch.endpoint.headers, ...(await authHeaders(ch.endpoint.auth, this.opts.secrets)) } : {};
