@@ -2,7 +2,8 @@ import { toPublicAccount } from "@logisticspro/domain";
 import { hosFor, onTeamTruck } from "../services/hos.js";
 import { buildFeed, buildWorkspace } from "@logisticspro/workspace";
 import type { FastifyInstance } from "fastify";
-import { type AppContext, authenticate, canSeeLoad, capsOf, me } from "../http.js";
+import { z } from "zod";
+import { type AppContext, authenticate, canSeeLoad, capsOf, me, parse } from "../http.js";
 import { UNDELIVERED, etaFor } from "../services/tracking.js";
 
 /**
@@ -11,6 +12,15 @@ import { UNDELIVERED, etaFor } from "../services/tracking.js";
  * across every role you hold.
  */
 export function meRoutes(app: FastifyInstance, ctx: AppContext) {
+  /** Personal settings: the app's language (which also sets the Today feed's and push notifications'). */
+  app.put("/v1/me/preferences", { preHandler: authenticate(ctx) }, async (req) => {
+    const account = me(ctx, req);
+    const { language } = parse(z.object({ language: z.enum(["en", "es"]) }), req.body);
+    const next = { ...account, language };
+    ctx.store.accounts.set(account.id, next);
+    return toPublicAccount(next);
+  });
+
   app.get("/v1/me", { preHandler: authenticate(ctx) }, async (req) => {
     const account = me(ctx, req);
     const caps = capsOf(ctx, account.id);
@@ -48,7 +58,7 @@ export function meRoutes(app: FastifyInstance, ctx: AppContext) {
       capabilities: [...caps.all].sort(),
       ownerOperator: caps.ownerOperator,
       workspace: buildWorkspace(caps),
-      feed: buildFeed(caps, { accountId: account.id, loads, boardLoads, bids, invoices, unreadByLoad, joinRequests, arrivalAlerts, rateConsToSign, now: ctx.now().toISOString() }),
+      feed: buildFeed(caps, { accountId: account.id, loads, boardLoads, bids, invoices, unreadByLoad, joinRequests, arrivalAlerts, rateConsToSign, now: ctx.now().toISOString(), lang: account.language }),
       hos: caps.all.has("DRIVE") ? { ...hosFor(ctx.store, account.id, ctx.now()), teamTruck: onTeamTruck(ctx.store, account.id) } : undefined,
     };
   });

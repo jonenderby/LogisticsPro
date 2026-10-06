@@ -1,4 +1,5 @@
 import { type Load, type Message, carrierKeyOf, newId } from "@logisticspro/domain";
+import { translator } from "@logisticspro/workspace";
 import { type AppContext, capsOf } from "../http.js";
 import type { InboxItem, NotificationSettings } from "../store.js";
 import type { PushMessage } from "./push.js";
@@ -159,8 +160,10 @@ export class Notifier {
   /** The truck reached a stop: ask the driver to confirm with one tap. */
   atStop(driverIds: string[], load: Load, stopName: string, kind: "PICKUP" | "DELIVERY"): void {
     const pushes: PushMessage[] = [];
-    for (const id of driverIds)
-      pushes.push(...this.deliver(id, { kind: "STOP", target: "LOAD", loadId: load.id, title: `You're at ${stopName}`, body: `Tap to mark ${kind === "PICKUP" ? "arrived at pickup" : "arrived at delivery"} for ${load.loadNumber}.` }));
+    for (const id of driverIds) {
+      const t = translator(this.ctx.store.accounts.get(id)?.language);
+      pushes.push(...this.deliver(id, { kind: "STOP", target: "LOAD", loadId: load.id, title: t("You're at {stop}", { stop: stopName }), body: t(kind === "PICKUP" ? "Tap to mark arrived at pickup for {n}." : "Tap to mark arrived at delivery for {n}.", { n: load.loadNumber }) }));
+    }
     void this.send(pushes);
   }
 

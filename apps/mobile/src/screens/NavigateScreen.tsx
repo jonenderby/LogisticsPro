@@ -11,6 +11,7 @@ import { Banner, Button, Empty, Field, Screen } from "../ui/components";
 import { miles } from "../ui/format";
 import { useTheme } from "../ui/theme";
 import { MapPanel } from "./nav/MapPanel";
+import { useT } from "../state/MeProvider";
 
 type Plan =
   | { mode: "STANDARD"; route: Route }
@@ -30,6 +31,7 @@ function KeepAwake() {
  * notifies dispatch.
  */
 export function NavigateScreen() {
+  const t = useT();
   const params = useParams<"Navigate">();
   const nav = useNav();
   const { colors, metrics, dark } = useTheme();
@@ -62,7 +64,7 @@ export function NavigateScreen() {
 
   const position = async () => {
     const perm = await Location.requestForegroundPermissionsAsync();
-    if (!perm.granted) throw new Error("Location permission is needed for navigation. Turn it on in Settings.");
+    if (!perm.granted) throw new Error(t("Location permission is needed for navigation. Turn it on in Settings."));
     const p = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.BestForNavigation });
     return { lat: p.coords.latitude, lng: p.coords.longitude };
   };
@@ -107,8 +109,8 @@ export function NavigateScreen() {
   const addressSearch = (
     <>
       <View style={{ marginHorizontal: 16, marginTop: 16 }}>
-        <Field label="Go to an address" value={query} onChangeText={setQuery} placeholder="Truck stop, shop or street address" returnKeyType="search" onSubmitEditing={search} />
-        <Button title="Search" variant="tonal" disabled={query.trim().length < 3} onPress={search} />
+        <Field label={t("Go to an address")} value={query} onChangeText={setQuery} placeholder={t("Truck stop, shop or street address")} returnKeyType="search" onSubmitEditing={search} />
+        <Button title={t("Search")} variant="tonal" disabled={query.trim().length < 3} onPress={search} />
       </View>
       {results.length ? (
         <View style={{ marginTop: 8 }}>
@@ -143,13 +145,13 @@ export function NavigateScreen() {
           break;
         case "CORRIDOR_VIOLATION":
           Vibration.vibrate([0, 600, 250, 600, 250, 600]);
-          setAlerts((a) => [`Off the permitted route by ${e.deviationM} m. Dispatch${e.notify.includes("ESCORT") ? " and escorts were" : " was"} notified. Follow the arrow back.`, ...a].slice(0, 4));
+          setAlerts((a) => [t(e.notify.includes("ESCORT") ? "Off the permitted route by {m} m. Dispatch and escorts were notified. Follow the arrow back." : "Off the permitted route by {m} m. Dispatch was notified. Follow the arrow back.", { m: e.deviationM }), ...a].slice(0, 4));
           void report({ startedAt: fix.at, maxDeviationM: e.deviationM, firstPoint: { lat: fix.lat, lng: fix.lng } });
           break;
         case "RETURNED_TO_CORRIDOR": {
           const v = (s as OversizeNavigationSession).violations.at(-1);
           if (v) void report(v);
-          setAlerts((a) => [`Back on the permitted route after ${Math.round(e.outsideForS / 60)} min.`, ...a].slice(0, 4));
+          setAlerts((a) => [t("Back on the permitted route after {n} min.", { n: Math.round(e.outsideForS / 60) }), ...a].slice(0, 4));
           break;
         }
         case "CORRIDOR_WARNING":
@@ -157,10 +159,10 @@ export function NavigateScreen() {
           break;
         case "WRONG_DIRECTION":
           Vibration.vibrate([0, 400, 200, 400]);
-          setAlerts((a) => ["You are driving the wrong way on the permitted route.", ...a].slice(0, 4));
+          setAlerts((a) => [t("You are driving the wrong way on the permitted route."), ...a].slice(0, 4));
           break;
         case "RESTRICTION_AHEAD":
-          setAlerts((a) => [`${e.restriction.description} in ${miles(e.distanceM)}${e.clears ? "" : ". YOUR LOAD DOES NOT CLEAR — stop and call dispatch."}`, ...a].slice(0, 4));
+          setAlerts((a) => [`${e.restriction.description} · ${miles(e.distanceM)}${e.clears ? "" : `. ${t("YOUR LOAD DOES NOT CLEAR — stop and call dispatch.")}`}`, ...a].slice(0, 4));
           if (!e.clears) Vibration.vibrate([0, 800, 300, 800]);
           break;
         case "TRAVEL_WINDOW_CLOSED":
@@ -200,8 +202,8 @@ export function NavigateScreen() {
   if (!load && !plan) {
     return (
       <Screen>
-        <Empty title="No load to navigate" message="Loads assigned to you appear here when they are dispatched." action={<Button title="View loads" variant="tonal" onPress={() => nav.navigate("Loads", { filter: "driving" })} />} />
-        {error ? <Banner tone="danger" title="Couldn't plan the trip" message={error} /> : null}
+        <Empty title={t("No load to navigate")} message={t("Loads assigned to you appear here when they are dispatched.")} action={<Button title={t("View loads")} variant="tonal" onPress={() => nav.navigate("Loads", { filter: "driving" })} />} />
+        {error ? <Banner tone="danger" title={t("Couldn't plan the trip")} message={error} /> : null}
         {addressSearch}
       </Screen>
     );
@@ -210,10 +212,10 @@ export function NavigateScreen() {
   if (!plan && load) {
     return (
       <Screen>
-        <Banner tone={load.oversize ? "warning" : "info"} title={load.oversize ? "Oversize load: strict permitted-route navigation" : `Navigate ${load.loadNumber}`} message={load.oversize ? "You will be held to the state permit route. Rerouting is disabled and leaving the route alerts dispatch." : "Truck-legal routing that respects height, weight and hazmat restrictions."} />
-        {error ? <Banner tone="danger" title="Couldn't plan the trip" message={error} /> : null}
+        <Banner tone={load.oversize ? "warning" : "info"} title={load.oversize ? t("Oversize load: strict permitted-route navigation") : t("Navigate {n}", { n: load.loadNumber })} message={t(load.oversize ? "You will be held to the state permit route. Rerouting is disabled and leaving the route alerts dispatch." : "Truck-legal routing that respects height, weight and hazmat restrictions.")} />
+        {error ? <Banner tone="danger" title={t("Couldn't plan the trip")} message={error} /> : null}
         <View style={{ margin: 16 }}>
-          <Button title={load.oversize ? "Check permits and route" : "Plan route"} onPress={prepare} />
+          <Button title={t(load.oversize ? "Check permits and route" : "Plan route")} onPress={prepare} />
         </View>
         {load.oversize ? null : addressSearch}
       </Screen>
@@ -232,23 +234,23 @@ export function NavigateScreen() {
       <View accessibilityLiveRegion="polite" style={{ padding: 14, backgroundColor: off ? colors.danger : plan.mode === "OVERSIZE" ? colors.warningContainer : colors.primary }}>
         {off && state?.guidance ? (
           <Text style={{ color: "#fff", fontSize: 22, fontWeight: "700" }}>
-            Return to route: head {compass(state.guidance.bearingDeg)} for {miles(state.guidance.distanceM)}
+            {t("Return to route: head {dir} for {distance}", { dir: t(compass(state.guidance.bearingDeg)), distance: miles(state.guidance.distanceM) })}
           </Text>
         ) : state?.nextManeuver ? (
           <Text style={{ color: plan.mode === "OVERSIZE" ? colors.warning : colors.onPrimary, fontSize: 22, fontWeight: "700" }}>
             {miles(state.distanceToManeuverM ?? 0)} · {state.nextManeuver.instruction}
           </Text>
         ) : (
-          <Text style={{ color: plan.mode === "OVERSIZE" ? colors.warning : colors.onPrimary, fontSize: 20, fontWeight: "700" }}>{plan.mode === "OVERSIZE" ? "Permitted route only · rerouting disabled" : destination ?? load?.loadNumber}</Text>
+          <Text style={{ color: plan.mode === "OVERSIZE" ? colors.warning : colors.onPrimary, fontSize: 20, fontWeight: "700" }}>{plan.mode === "OVERSIZE" ? t("Permitted route only · rerouting disabled") : destination ?? load?.loadNumber}</Text>
         )}
-        {state?.status === "DRIFTING" ? <Text style={{ color: colors.warning, fontWeight: "600" }}>Drifting toward the edge of the permitted corridor</Text> : null}
+        {state?.status === "DRIFTING" ? <Text style={{ color: colors.warning, fontWeight: "600" }}>{t("Drifting toward the edge of the permitted corridor")}</Text> : null}
       </View>
       {blocked ? (
         <View>
           {plan.conflicts.map((c, i) => (
             <Banner key={i} tone="danger" title={c.kind.replace(/_/g, " ")} message={c.message} />
           ))}
-          <Banner tone="warning" title="Resolve with dispatch before departing" message="Navigation unlocks when the permits and route check out." />
+          <Banner tone="warning" title={t("Resolve with dispatch before departing")} message={t("Navigation unlocks when the permits and route check out.")} />
         </View>
       ) : null}
       {alerts.map((a, i) => (
@@ -260,9 +262,9 @@ export function NavigateScreen() {
       <View style={{ flexDirection: "row", alignItems: "center", padding: 12, gap: 12, backgroundColor: colors.surface }}>
         <View style={{ flex: 1 }}>
           <Text style={{ color: colors.text, fontSize: metrics.title, fontWeight: "700" }}>{state ? miles(state.remainingM) : miles(plan.mode === "STANDARD" ? plan.route.distanceM : 0)}</Text>
-          <Text style={{ color: colors.textSecondary }}>{eta ? `Arrive ${eta}` : plan.mode === "OVERSIZE" ? `${plan.escortsRequired} escort(s) required` : "Ready"}</Text>
+          <Text style={{ color: colors.textSecondary }}>{eta ? t("Arrive {time}", { time: eta }) : plan.mode === "OVERSIZE" ? t("{n} escort(s) required", { n: plan.escortsRequired }) : t("Ready")}</Text>
         </View>
-        {tracking ? <Button title="End" variant="destructive" onPress={stop} /> : <Button title="Start" disabled={blocked} onPress={start} />}
+        {tracking ? <Button title={t("End")} variant="destructive" onPress={stop} /> : <Button title={t("Start")} disabled={blocked} onPress={start} />}
       </View>
     </View>
   );

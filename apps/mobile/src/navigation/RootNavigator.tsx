@@ -19,7 +19,7 @@ import { NewLoadScreen } from "../screens/NewLoadScreen";
 import { TodayScreen } from "../screens/TodayScreen";
 import { TrackScreen } from "../screens/TrackScreen";
 import { AuthFlow } from "../screens/auth/AuthFlow";
-import { MeProvider, useMe } from "../state/MeProvider";
+import { MeProvider, useMe, useT } from "../state/MeProvider";
 import { useLocationSharing } from "../state/useLocationSharing";
 import { type OpenTarget, useBrowserAlerts, usePushNotifications, useReportTimeZone } from "../state/notifications";
 import { AlertsScreen } from "../screens/AlertsScreen";
@@ -81,16 +81,17 @@ const SHARED: Array<{ name: keyof StackParams; component: ComponentType; title: 
 
 function stackFor(root: TabRoot) {
   return function TabStack() {
+    const tr = useT();
     const others = Object.values(ROOTS).filter((r) => r.name !== root);
     return (
       <Stack.Navigator screenOptions={{ headerLargeTitle: isIOS, headerTransparent: false }}>
-        <Stack.Screen name={root} component={ROOTS[root.toLowerCase()]!.component} />
+        <Stack.Screen name={root} component={ROOTS[root.toLowerCase()]!.component} options={{ title: tr(root) }} />
         {SHARED.map((s) => (
-          <Stack.Screen key={s.name} name={s.name} component={s.component} options={{ title: s.title, headerLargeTitle: false }} />
+          <Stack.Screen key={s.name} name={s.name} component={s.component} options={{ title: tr(s.title), headerLargeTitle: false }} />
         ))}
         {/* Destinations that overflowed into More are reachable from any tab. */}
         {others.map((r) => (
-          <Stack.Screen key={r.name} name={r.name} component={r.component} options={{ headerLargeTitle: false }} />
+          <Stack.Screen key={r.name} name={r.name} component={r.component} options={{ title: tr(r.name), headerLargeTitle: false }} />
         ))}
       </Stack.Navigator>
     );
@@ -117,7 +118,7 @@ const EXTRA_ICONS: Record<string, { ios: string; android: string }> = {
 const navigationRef = createNavigationContainerRef<Record<string, object | undefined>>();
 
 function AppNavigation() {
-  const { me } = useMe();
+  const { me, t: tr } = useMe();
   useLocationSharing();
   // A tapped notification opens its load or thread; one that launched the app waits until navigation is ready.
   const pendingLoad = useRef<OpenTarget | undefined>(undefined);
@@ -145,10 +146,10 @@ function AppNavigation() {
     const primary = me.workspace.tabs.filter((t) => t.id !== "more");
     const more = me.workspace.tabs.find((t) => t.id === "more")!;
     const extra = wide
-      ? me.workspace.more.filter((m) => ROOTS[m.id] && !primary.some((p) => p.id === m.id)).map((m) => ({ id: m.id as typeof more.id, title: m.title, icon: EXTRA_ICONS[m.id]! }))
+      ? me.workspace.more.filter((m) => ROOTS[m.id] && !primary.some((p) => p.id === m.id)).map((m) => ({ id: m.id as typeof more.id, title: tr(m.title), icon: EXTRA_ICONS[m.id]! }))
       : [];
     return [...primary, ...extra, more].map((t) => ({ ...t, root: ROOTS[t.id]!.name }));
-  }, [me, wide]);
+  }, [me, wide, tr]);
   const linking = useMemo(() => buildLinking(tabs, Object.values(ROOTS).map((r) => r.name)), [tabs]);
   if (tabs[0]) firstTab.current = `${tabs[0].root}Tab`;
 
@@ -189,7 +190,7 @@ function AppNavigation() {
             key={t.id}
             name={`${t.root}Tab`}
             component={STACKS[t.root]}
-            options={{ title: t.title, tabBarIcon: ({ color, size }) => <Icon ios={t.icon.ios} android={t.icon.android} color={color} size={size} /> }}
+            options={{ title: tr(t.title), tabBarIcon: ({ color, size }) => <Icon ios={t.icon.ios} android={t.icon.android} color={color} size={size} /> }}
           />
         ))}
       </Tabs.Navigator>

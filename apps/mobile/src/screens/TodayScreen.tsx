@@ -25,7 +25,7 @@ const HAT: Record<ActionItem["hat"], { label: string; tone: Tone }> = {
  * they are driving next to tenders and invoices for their company.
  */
 export function TodayScreen() {
-  const { me, refresh, error } = useMe();
+  const { me, refresh, error, t } = useMe();
   const nav = useNav();
   const { colors, metrics } = useTheme();
   const { wide } = useLayout();
@@ -40,7 +40,7 @@ export function TodayScreen() {
           await refresh();
           return;
         case "ship-confirm":
-          if (await confirm("Confirm shipment?", "The load details lock for everyone once confirmed.", "Confirm")) {
+          if (await confirm(t("Confirm shipment?"), t("The load details lock for everyone once confirmed."), t("Confirm"))) {
             await api.post(`/v1/loads/${item.loadId}/ship-confirm`);
             await refresh();
           }
@@ -67,7 +67,7 @@ export function TodayScreen() {
           return nav.navigate("LoadDetail", { id: item.loadId! });
       }
     } catch (e) {
-      notify("Couldn't update", errorMessage(e));
+      notify(t("Couldn't update"), errorMessage(e));
     }
   };
 
@@ -80,7 +80,7 @@ export function TodayScreen() {
 
   return (
     <Screen onRefresh={refresh}>
-      {error ? <Banner tone="danger" title="Offline" message={error} /> : null}
+      {error ? <Banner tone="danger" title={t("Offline")} message={error} /> : null}
       <Text style={{ color: colors.textSecondary, fontSize: metrics.body, marginHorizontal: 16, marginTop: 8 }}>
         {me.account.name}
         {me.orgs.length ? ` · ${me.orgs.map((o) => o.name).join(", ")}` : ""}
@@ -88,26 +88,26 @@ export function TodayScreen() {
       {me.workspace.quickActions.length ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginHorizontal: 16, marginTop: 12 }}>
           {me.workspace.quickActions.map((q) => (
-            <Button key={q.id} title={q.title} variant="tonal" onPress={() => quick(q.id)} style={{ minHeight: 40, paddingHorizontal: 14 }} />
+            <Button key={q.id} title={t(q.title)} variant="tonal" onPress={() => quick(q.id)} style={{ minHeight: 40, paddingHorizontal: 14 }} />
           ))}
         </View>
       ) : null}
       {me.capabilities.includes("REGISTER_COMPANY") ? (
-        <Section title="Get started">
+        <Section title={t("Get started")}>
           <View style={{ padding: 16, gap: 8 }}>
-            <Text style={{ color: colors.text, fontSize: metrics.body }}>Register your company to dispatch, bid on loads, ship freight or connect your ERP.</Text>
-            <Button title="Register company" onPress={() => nav.navigate("RegisterCompany")} />
+            <Text style={{ color: colors.text, fontSize: metrics.body }}>{t("Register your company to dispatch, bid on loads, ship freight or connect your ERP.")}</Text>
+            <Button title={t("Register company")} onPress={() => nav.navigate("RegisterCompany")} />
           </View>
         </Section>
       ) : null}
       {me.hos ? (
-        <Section title="Hours of service">
+        <Section title={t("Hours of service")}>
           <HosSummary hos={me.hos} onStatus={setDuty} />
-          <Row title="Hours, limits and duty log" onPress={() => nav.navigate("Hours")} />
+          <Row title={t("Hours, limits and duty log")} onPress={() => nav.navigate("Hours")} />
         </Section>
       ) : null}
-      <Section title="Needs your attention" bare={wide}>
-        {me.feed.length === 0 ? <Empty title="You're all caught up" message="New tenders, loads and invoices show up here." /> : null}
+      <Section title={t("Needs your attention")} bare={wide}>
+        {me.feed.length === 0 ? <Empty title={t("You're all caught up")} message={t("New tenders, loads and invoices show up here.")} /> : null}
         <View style={wide ? { flexDirection: "row", flexWrap: "wrap", gap: 12 } : undefined}>
           {me.feed.map((item) => (
             <View
@@ -118,7 +118,7 @@ export function TodayScreen() {
                 wide ? { flexBasis: "48%", flexGrow: 1, backgroundColor: colors.surface, borderRadius: metrics.radius, borderWidth: 0.5, borderColor: colors.separator } : null,
               ]}
             >
-              <Chip label={HAT[item.hat].label} tone={HAT[item.hat].tone} />
+              <Chip label={t(HAT[item.hat].label)} tone={HAT[item.hat].tone} />
               <Text accessibilityRole="header" style={{ color: colors.text, fontSize: metrics.body, fontWeight: "600" }} onPress={() => item.loadId && nav.navigate("LoadDetail", { id: item.loadId })}>
                 {item.title}
               </Text>

@@ -51,7 +51,7 @@ export class ValhallaProvider implements RoutingProvider {
     private readonly opts: { fetch?: FetchLike; headers?: Record<string, string> } = {},
   ) {}
 
-  async route(waypoints: GeoPoint[], truck: TruckProfile): Promise<Route> {
+  async route(waypoints: GeoPoint[], truck: TruckProfile, opts: { language?: string } = {}): Promise<Route> {
     const body = {
       locations: waypoints.map((p) => ({ lat: p.lat, lon: p.lng })),
       costing: "truck",
@@ -65,7 +65,7 @@ export class ValhallaProvider implements RoutingProvider {
           hazmat: !!truck.hazmat,
         },
       },
-      directions_options: { units: "kilometers" },
+      directions_options: { units: "kilometers", ...(opts.language ? { language: opts.language } : {}) },
     };
     const doFetch = this.opts.fetch ?? (globalThis.fetch as unknown as FetchLike);
     const res = await doFetch(`${this.baseUrl.replace(/\/$/, "")}/route`, { method: "POST", headers: { "content-type": "application/json", ...this.opts.headers }, body: JSON.stringify(body) });

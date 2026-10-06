@@ -27,6 +27,8 @@ export const Account = z.object({
     recoveryCodeHashes: z.array(z.string()).default([]),
   }),
   driver: DriverProfile.optional(),
+  /** The language the app, the Today feed and push notifications use. Unset: the device's. */
+  language: z.enum(["en", "es"]).optional(),
   createdAt: z.string(),
 });
 export type Account = z.infer<typeof Account>;

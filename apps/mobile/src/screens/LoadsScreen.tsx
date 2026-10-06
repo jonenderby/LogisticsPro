@@ -18,7 +18,7 @@ export function lane(l: Load) {
 
 /** One list, filtered by the hats you wear (Driving, Fleet, Shipments, Brokered) — no role switching. */
 export function LoadsScreen() {
-  const { me } = useMe();
+  const { me, t } = useMe();
   const nav = useNav();
   const params = useParams<"Loads">();
   const filters = me?.workspace.loadFilters ?? [];
@@ -40,7 +40,7 @@ export function LoadsScreen() {
     <Screen onRefresh={load}>
       {filters.length > 1 ? (
         <View style={{ marginHorizontal: 16, marginTop: 8 }}>
-          <Segmented options={[{ value: "all", label: "All" }, ...filters.map((f) => ({ value: f.id as string, label: f.title }))]} value={filter} onChange={setFilter} />
+          <Segmented options={[{ value: "all", label: t("All") }, ...filters.map((f) => ({ value: f.id as string, label: t(f.title) }))]} value={filter} onChange={setFilter} />
         </View>
       ) : null}
       {canCreate ? (

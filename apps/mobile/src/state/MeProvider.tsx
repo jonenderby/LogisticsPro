@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { type Lang, type Translate, langOf, translator } from "@logisticspro/workspace";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api } from "../api/client";
 import type { Load, MeResponse } from "../api/types";
 
@@ -10,7 +11,20 @@ interface MeApi {
   /** Org ids where I hold one of these roles. */
   orgsWithRole(...roles: string[]): string[];
   relation(load: Load): { driver: boolean; dispatcher: boolean; shipper: boolean; billing: boolean };
+  /** The app's language: the account's choice, else the device's. */
+  lang: Lang;
+  t: Translate;
+  setLanguage(lang: Lang): Promise<void>;
 }
+
+/** The device's language, for before sign-in and until the person picks one. */
+export const deviceLang = (): Lang => {
+  try {
+    return langOf(typeof navigator !== "undefined" && navigator.language ? navigator.language : Intl.DateTimeFormat().resolvedOptions().locale);
+  } catch {
+    return "en";
+  }
+};
 
 const Ctx = createContext<MeApi | undefined>(undefined);
 
@@ -31,9 +45,26 @@ export function MeProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
+  const lang: Lang = (me?.account as { language?: Lang } | undefined)?.language ?? deviceLang();
+  const t = useMemo(() => translator(lang), [lang]);
+  const setLanguage = useCallback(
+    async (language: Lang) => {
+      await api.put("/v1/me/preferences", { language });
+      await refresh();
+    },
+    [refresh],
+  );
+  // The server translates the Today feed and push notifications; tell it the device's language once.
+  useEffect(() => {
+    if (me && !(me.account as { language?: Lang }).language && deviceLang() !== "en") void setLanguage(deviceLang()).catch(() => undefined);
+  }, [me, setLanguage]);
+
   const orgsWithRole = useCallback((...roles: string[]) => (me?.orgs ?? []).filter((o) => o.roles.some((r) => roles.includes(r))).map((o) => o.id), [me]);
 
   const value: MeApi = {
+    lang,
+    t,
+    setLanguage,
     me,
     error,
     refresh,
@@ -58,4 +89,10 @@ export function useMe(): MeApi {
   const v = useContext(Ctx);
   if (!v) throw new Error("useMe outside MeProvider");
   return v;
+}
+
+/** Translate in any component, signed in or not. */
+export function useT(): Translate {
+  const v = useContext(Ctx);
+  return v?.t ?? translator(deviceLang());
 }

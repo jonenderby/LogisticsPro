@@ -8,6 +8,7 @@ import { notify } from "../ui/dialog";
 import { useMe } from "../state/MeProvider";
 import { Body, Button, Chip, Field, Padded, Row, Screen, Section } from "../ui/components";
 import { titleCase } from "../ui/format";
+import { LANGUAGES } from "@logisticspro/workspace";
 
 const TARGET: Record<string, keyof StackParams> = {
   loads: "Loads",
@@ -33,20 +34,27 @@ const TARGET: Record<string, keyof StackParams> = {
 };
 
 export function MoreScreen() {
-  const { me } = useMe();
+  const { me, t, lang, setLanguage } = useMe();
   const nav = useNav();
   if (!me) return null;
   return (
     <Screen>
       <Section>
-        <Row title={me.account.name} subtitle={`${me.account.email} · ${titleCase(me.account.profileType)}${me.ownerOperator ? " · owner-operator" : ""}`} onPress={() => nav.navigate("Security")} />
+        <Row title={me.account.name} subtitle={`${me.account.email} · ${t(titleCase(me.account.profileType))}${me.ownerOperator ? ` · ${t("owner-operator")}` : ""}`} onPress={() => nav.navigate("Security")} />
       </Section>
       <Section>
         {me.workspace.more
           .filter((m) => m.id !== "account")
           .map((m) => (
-            <Row key={m.id} title={m.title} onPress={() => nav.navigate(TARGET[m.id] as never)} />
+            <Row key={m.id} title={t(m.title)} onPress={() => nav.navigate(TARGET[m.id] as never)} />
           ))}
+      </Section>
+      <Section title={t("Language")} footer={t("Also used for your Today list and notifications.")}>
+        <View style={{ flexDirection: "row", gap: 8, padding: 16 }}>
+          {LANGUAGES.map((l) => (
+            <Chip key={l.code} label={l.name} selected={lang === l.code} onPress={() => void setLanguage(l.code).catch((e) => notify(t("Couldn't save"), errorMessage(e)))} />
+          ))}
+        </View>
       </Section>
     </Screen>
   );

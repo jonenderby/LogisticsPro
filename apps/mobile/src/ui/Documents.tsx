@@ -6,6 +6,7 @@ import { type DocKind, captureImage, pickPdf, uploadDocument } from "./capture";
 import { Button, Row, Section, Segmented } from "./components";
 import { notify } from "./dialog";
 import { titleCase, when } from "./format";
+import { useT } from "../state/MeProvider";
 
 export interface DocView {
   id: string;
@@ -45,10 +46,11 @@ function Thumb({ d }: { d: DocView }) {
 }
 
 export function DocumentRows({ docs }: { docs: DocView[] }) {
+  const t = useT();
   return (
     <>
       {docs.map((d) => (
-        <Row key={d.id} left={<Thumb d={d} />} title={d.name} subtitle={`${KIND_LABEL[d.kind] ?? titleCase(d.kind)}${d.signedBy ? ` · signed by ${d.signedBy}` : ""} · ${when(d.at)}`} onPress={d.viewUrl || /^https?:/.test(d.url) ? () => openDocument(d) : undefined} />
+        <Row key={d.id} left={<Thumb d={d} />} title={d.name} subtitle={`${KIND_LABEL[d.kind] ? t(KIND_LABEL[d.kind]!) : titleCase(d.kind)}${d.signedBy ? ` · ${t("signed by {name}", { name: d.signedBy })}` : ""} · ${when(d.at)}`} onPress={d.viewUrl || /^https?:/.test(d.url) ? () => openDocument(d) : undefined} />
       ))}
     </>
   );
@@ -59,6 +61,7 @@ export function DocumentRows({ docs }: { docs: DocView[] }) {
  * photo or PDF. The driver also collects the delivery signature here.
  */
 export function DocumentsSection({ loadId, docs, pickupStopId, deliveryStopId, onAdded, onSign }: { loadId: string; docs: DocView[]; pickupStopId?: string; deliveryStopId?: string; onAdded: () => unknown; onSign?: () => void }) {
+  const t = useT();
   const [kind, setKind] = useState<DocKind>("BOL");
   const [busy, setBusy] = useState(false);
   const add = (how: "camera" | "library" | "pdf") => async () => {
@@ -72,21 +75,21 @@ export function DocumentsSection({ loadId, docs, pickupStopId, deliveryStopId, o
       await uploadDocument(loadId, kind, `${label === "Other" ? "Document" : label}${n > 1 ? ` page ${n}` : ""}`, file, stopId);
       await onAdded();
     } catch (e) {
-      notify("Couldn't add the document", errorMessage(e));
+      notify(t("Couldn't add the document"), t(errorMessage(e)));
     } finally {
       setBusy(false);
     }
   };
   return (
-    <Section title="Documents" footer="Scans are shrunk to a readable size before they upload. Everyone on the load can open them, and they go with the invoice.">
+    <Section title={t("Documents")} footer={t("Scans are shrunk to a readable size before they upload. Everyone on the load can open them, and they go with the invoice.")}>
       <DocumentRows docs={docs} />
       <View style={{ padding: 16, gap: 8 }}>
-        {onSign ? <Button title="Get delivery signature" onPress={onSign} /> : null}
-        <Segmented options={KINDS} value={kind} onChange={setKind} />
+        {onSign ? <Button title={t("Get delivery signature")} onPress={onSign} /> : null}
+        <Segmented options={KINDS.map((k) => ({ ...k, label: t(k.label) }))} value={kind} onChange={setKind} />
         <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-          <Button title={Platform.OS === "web" ? "Take or upload a photo" : "Scan with camera"} variant="tonal" loading={busy} onPress={add("camera")} style={{ flex: 1 }} />
-          {Platform.OS !== "web" ? <Button title="Choose photo" variant="tonal" disabled={busy} onPress={add("library")} style={{ flex: 1 }} /> : null}
-          <Button title="Attach PDF" variant="tonal" disabled={busy} onPress={add("pdf")} style={{ flex: 1 }} />
+          <Button title={t(Platform.OS === "web" ? "Take or upload a photo" : "Scan with camera")} variant="tonal" loading={busy} onPress={add("camera")} style={{ flex: 1 }} />
+          {Platform.OS !== "web" ? <Button title={t("Choose photo")} variant="tonal" disabled={busy} onPress={add("library")} style={{ flex: 1 }} /> : null}
+          <Button title={t("Attach PDF")} variant="tonal" disabled={busy} onPress={add("pdf")} style={{ flex: 1 }} />
         </View>
       </View>
     </Section>

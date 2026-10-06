@@ -34,5 +34,6 @@ export function isOversize(t: TruckProfile): boolean {
 }
 
 export interface RoutingProvider {
-  route(waypoints: GeoPoint[], truck: TruckProfile, opts?: { departAt?: string; avoid?: GeoPoint[] }): Promise<Route>;
+  /** `language`: a locale such as "es-US" for the turn instructions. */
+  route(waypoints: GeoPoint[], truck: TruckProfile, opts?: { departAt?: string; avoid?: GeoPoint[]; language?: string }): Promise<Route>;
 }

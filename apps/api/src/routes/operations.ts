@@ -277,7 +277,7 @@ export function operationsRoutes(app: FastifyInstance, ctx: AppContext) {
     if (waypoints.length < 2) throw new HttpError(400, "NO_GEO", "These stops have no map location yet. Check the addresses, or ask your admin to turn on address search.");
     const hazmat = load.items.some((i) => i.hazmat);
     try {
-      const route = await ctx.routing.route(waypoints, { ...LEGAL_TRUCK, hazmat });
+      const route = await ctx.routing.route(waypoints, { ...LEGAL_TRUCK, hazmat }, { language: account.language === "es" ? "es-ES" : undefined });
       return { mode: "STANDARD", route };
     } catch (e) {
       if (e instanceof NoRouteError) throw new HttpError(422, "NO_TRUCK_ROUTE", "No truck-legal route between these stops for this vehicle");
@@ -314,7 +314,7 @@ export function operationsRoutes(app: FastifyInstance, ctx: AppContext) {
     }
     const hazmat = !!load?.items.some((i) => i.hazmat);
     try {
-      const route = await ctx.routing.route([body.from, destination.geo], { ...LEGAL_TRUCK, hazmat });
+      const route = await ctx.routing.route([body.from, destination.geo], { ...LEGAL_TRUCK, hazmat }, { language: me(ctx, req).language === "es" ? "es-ES" : undefined });
       return { mode: "STANDARD", destination, route };
     } catch (e) {
       if (e instanceof NoRouteError) throw new HttpError(422, "NO_TRUCK_ROUTE", "No truck-legal route to that address");

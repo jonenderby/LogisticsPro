@@ -1,5 +1,6 @@
 import type { Bid, Invoice, Load, Leg, StatusCode } from "@logisticspro/domain";
 import type { ResolvedCapabilities } from "./capabilities.js";
+import { type Lang, translator } from "./i18n.js";
 
 export type Hat = "DRIVING" | "DISPATCH" | "SHIPPING" | "BROKERAGE" | "BILLING" | "MESSAGES";
 
@@ -28,6 +29,8 @@ export interface FeedData {
   /** Revised rate confirmations waiting on this person's carrier to sign. */
   rateConsToSign?: Array<{ loadId: string; loadNumber: string; version: number; changes: string[] }>;
   now?: string;
+  /** Language for driver items (see i18n.ts). */
+  lang?: Lang;
 }
 
 /** The next status button a driver sees for their leg of a load. */
@@ -70,6 +73,7 @@ function myLeg(load: Load, accountId: string): Leg | undefined {
  */
 export function buildFeed(caps: ResolvedCapabilities, data: FeedData): ActionItem[] {
   const items: ActionItem[] = [];
+  const t = translator(data.lang);
   const has = (c: Parameters<typeof caps.all.has>[0]) => caps.all.has(c);
   const orgsWith = (c: Parameters<typeof caps.all.has>[0]) => [...caps.byOrg].filter(([, s]) => s.has(c)).map(([id]) => id);
   const dispatchOrgs = orgsWith("DISPATCH");
@@ -80,7 +84,7 @@ export function buildFeed(caps: ResolvedCapabilities, data: FeedData): ActionIte
   // Every trucker drives for a carrier: their own (self-employed) or one they join.
   const drivesForCarrier = [...caps.byOrg.values()].some((s) => s.has("DRIVE"));
   if (has("DRIVE") && !drivesForCarrier) {
-    items.push({ id: "onboard:carrier", hat: "DRIVING", priority: 99, title: "Join your carrier", subtitle: "Enter the join code from your carrier. Self-employed? Register your own trucking company instead.", cta: { label: "Join a carrier", action: "join-carrier" } });
+    items.push({ id: "onboard:carrier", hat: "DRIVING", priority: 99, title: t("Join your carrier"), subtitle: t("Enter the join code from your carrier. Self-employed? Register your own trucking company instead."), cta: { label: t("Join a carrier"), action: "join-carrier" } });
   }
   const manageOrgs = new Set([...orgsWith("MANAGE_ORG"), ...dispatchOrgs]);
   for (const r of data.joinRequests ?? []) {
@@ -94,19 +98,19 @@ export function buildFeed(caps: ResolvedCapabilities, data: FeedData): ActionIte
       const next = nextDriverAction(load, leg);
       if (next) {
         const active = ["AT_PICKUP", "IN_TRANSIT", "AT_DELIVERY"].includes(load.status);
-        items.push({ id: `drive:${load.id}`, hat: "DRIVING", priority: active ? 100 : 80, title: `${active ? "Current load" : "Next load"} ${load.loadNumber}`, subtitle: stopSummary(load), loadId: load.id, cta: { label: next.label, action: "status", statusCode: next.code } });
+        items.push({ id: `drive:${load.id}`, hat: "DRIVING", priority: active ? 100 : 80, title: t(active ? "Current load {n}" : "Next load {n}", { n: load.loadNumber }), subtitle: stopSummary(load), loadId: load.id, cta: { label: t(next.label), action: "status", statusCode: next.code } });
       }
     }
     // The driver who delivered is reminded to add the POD; customers often won't pay without it.
     const finalStop = [...load.stops].sort((a, b) => a.sequence - b.sequence).at(-1)?.id;
     const delivered = load.legs.some((l) => l.toStopId === finalStop && l.driverAccountIds.includes(data.accountId));
     if (has("DRIVE") && delivered && ["DELIVERED", "INVOICED"].includes(load.status) && !load.documents.some((d) => d.kind === "POD")) {
-      items.push({ id: `pod:${load.id}`, hat: "DRIVING", priority: 76, title: `Add the POD for ${load.loadNumber}`, subtitle: "Scan the signed delivery receipt so the invoice gets paid", loadId: load.id, cta: { label: "Add POD", action: "open" } });
+      items.push({ id: `pod:${load.id}`, hat: "DRIVING", priority: 76, title: t("Add the POD for {n}", { n: load.loadNumber }), subtitle: t("Scan the signed delivery receipt so the invoice gets paid"), loadId: load.id, cta: { label: t("Add POD"), action: "open" } });
     }
     if (has("INVOICE") && load.status === "DELIVERED" && !invoiced.has(load.id)) {
       const drove = load.legs.some((l) => l.driverAccountIds.includes(data.accountId));
       if ((drove && caps.ownerOperator) || (load.carrierOrgId && orgsWith("INVOICE").includes(load.carrierOrgId))) {
-        items.push({ id: `invoice:${load.id}`, hat: "BILLING", priority: 70, title: `Invoice ${load.loadNumber}`, subtitle: "Delivered. Send the invoice in the format your customer requires.", loadId: load.id, cta: { label: "Send invoice", action: "invoice" } });
+        items.push({ id: `invoice:${load.id}`, hat: "BILLING", priority: 70, title: t("Invoice {n}", { n: load.loadNumber }), subtitle: t("Delivered. Send the invoice in the format your customer requires."), loadId: load.id, cta: { label: t("Send invoice"), action: "invoice" } });
       }
     }
     if (load.carrierOrgId && dispatchOrgs.includes(load.carrierOrgId)) {
@@ -135,7 +139,7 @@ export function buildFeed(caps: ResolvedCapabilities, data: FeedData): ActionIte
       }
     }
     const unread = data.unreadByLoad?.[load.id] ?? 0;
-    if (unread > 0) items.push({ id: `msg:${load.id}`, hat: "MESSAGES", priority: 55, title: `${unread} new message${unread > 1 ? "s" : ""} on ${load.loadNumber}`, loadId: load.id, cta: { label: "Open thread", action: "messages" } });
+    if (unread > 0) items.push({ id: `msg:${load.id}`, hat: "MESSAGES", priority: 55, title: t(unread > 1 ? "{count} new messages on {n}" : "1 new message on {n}", { count: unread, n: load.loadNumber }), loadId: load.id, cta: { label: t("Open thread"), action: "messages" } });
   }
 
   for (const a of data.arrivalAlerts ?? []) {

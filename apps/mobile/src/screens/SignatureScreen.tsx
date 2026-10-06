@@ -5,6 +5,7 @@ import { reportStatus } from "../actions";
 import { api, errorMessage } from "../api/client";
 import type { Load } from "../api/types";
 import { useNav, useParams } from "../navigation/types";
+import { useT } from "../state/MeProvider";
 import { Banner, Body, Button, Field, Padded, Screen, Section } from "../ui/components";
 import { confirm, notify } from "../ui/dialog";
 import { type Signature, SignaturePad } from "../ui/SignaturePad";
@@ -14,6 +15,7 @@ import { type Signature, SignaturePad } from "../ui/SignaturePad";
  * receipt, with pieces and any damage noted, becomes the load's POD.
  */
 export function SignatureScreen() {
+  const t = useT();
   const { loadId } = useParams<"Signature">();
   const nav = useNav();
   const [load, setLoad] = useState<Load>();
@@ -26,9 +28,9 @@ export function SignatureScreen() {
     void api.get<Load>(`/v1/loads/${loadId}`).then((l) => {
       setLoad(l);
       setPieces(String(l.items.reduce((s, i) => s + i.pieces, 0)));
-      nav.setOptions({ title: `Sign for ${l.loadNumber}` });
+      nav.setOptions({ title: t("Sign for {n}", { n: l.loadNumber }) });
     });
-  }, [loadId, nav]);
+  }, [loadId, nav, t]);
   if (!load) return null;
   const total = load.items.reduce((s, i) => s + i.pieces, 0);
   const consignee = [...load.stops].sort((a, b) => a.sequence - b.sequence).filter((s) => s.type === "DELIVERY").at(-1);
@@ -46,11 +48,11 @@ export function SignatureScreen() {
         // Location is optional on the receipt.
       }
       await api.post(`/v1/loads/${loadId}/pod`, { receiverName: name.trim(), width: sig.width, height: sig.height, strokes: sig.strokes, piecesReceived: Number(pieces), exceptions: exceptions.trim() || undefined, geo });
-      if (load.status === "AT_DELIVERY" && (await confirm("Receipt saved", "Mark the load delivered now?", "Mark delivered"))) await reportStatus(loadId, "DELIVERED");
-      else notify("Receipt saved", "It's on the load as the POD.");
+      if (load.status === "AT_DELIVERY" && (await confirm(t("Receipt saved"), t("Mark the load delivered now?"), t("Mark delivered")))) await reportStatus(loadId, "DELIVERED");
+      else notify(t("Receipt saved"), t("It's on the load as the POD."));
       nav.goBack();
     } catch (e) {
-      notify("Couldn't save the receipt", errorMessage(e));
+      notify(t("Couldn't save the receipt"), errorMessage(e));
     } finally {
       setSaving(false);
     }
@@ -58,27 +60,27 @@ export function SignatureScreen() {
 
   return (
     <Screen>
-      <Banner tone="info" title={`Hand the phone to the receiver${consignee ? ` at ${consignee.address.name}` : ""}`} message={`${total} pieces · ${load.items.map((i) => i.description).join(", ")}${load.references.po.length ? ` · PO ${load.references.po.join(", ")}` : ""}`} />
-      <Section title="Received">
+      <Banner tone="info" title={consignee ? t("Hand the phone to the receiver at {place}", { place: consignee.address.name }) : t("Hand the phone to the receiver")} message={`${t("{n} pieces", { n: total })} · ${load.items.map((i) => i.description).join(", ")}${load.references.po.length ? ` · PO ${load.references.po.join(", ")}` : ""}`} />
+      <Section title={t("Received")}>
         <Padded>
-          <Field label="Receiver's name" value={name} onChangeText={setName} autoCapitalize="words" />
+          <Field label={t("Receiver's name")} value={name} onChangeText={setName} autoCapitalize="words" />
           <View style={{ flexDirection: "row", gap: 8 }}>
             <View style={{ flex: 1 }}>
-              <Field label={`Pieces received (of ${total})`} value={pieces} onChangeText={setPieces} keyboardType="number-pad" />
+              <Field label={t("Pieces received (of {n})", { n: total })} value={pieces} onChangeText={setPieces} keyboardType="number-pad" />
             </View>
           </View>
-          <Field label="Shortage, damage or other exceptions" value={exceptions} onChangeText={setExceptions} placeholder="Leave blank if received in good order" multiline />
+          <Field label={t("Shortage, damage or other exceptions")} value={exceptions} onChangeText={setExceptions} placeholder={t("Leave blank if received in good order")} multiline />
         </Padded>
       </Section>
-      <Section title="Signature">
+      <Section title={t("Signature")}>
         <Padded>
           <SignaturePad value={sig} onChange={setSig} />
-          <Body secondary style={{ marginTop: 6 }}>Sign above the line.</Body>
-          <Button title="Clear" variant="plain" disabled={!sig.strokes.length} onPress={() => setSig({ width: sig.width, height: sig.height, strokes: [] })} />
+          <Body secondary style={{ marginTop: 6 }}>{t("Sign above the line.")}</Body>
+          <Button title={t("Clear")} variant="plain" disabled={!sig.strokes.length} onPress={() => setSig({ width: sig.width, height: sig.height, strokes: [] })} />
         </Padded>
       </Section>
       <Padded>
-        <Button title="Save signed receipt" loading={saving} disabled={name.trim().length < 2 || !sig.strokes.length || Number.isNaN(Number(pieces))} onPress={save} />
+        <Button title={t("Save signed receipt")} loading={saving} disabled={name.trim().length < 2 || !sig.strokes.length || Number.isNaN(Number(pieces))} onPress={save} />
       </Padded>
     </Screen>
   );
