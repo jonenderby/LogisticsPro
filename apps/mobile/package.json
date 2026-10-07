@@ -1,0 +1,52 @@
+{
+  "name": "@logisticspro/mobile",
+  "version": "0.1.0",
+  "main": "index.ts",
+  "private": true,
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "build:web": "expo export --platform web --output-dir ../../dist/web"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~57.0.16",
+    "@logisticspro/domain": "*",
+    "@logisticspro/workspace": "*",
+    "@react-navigation/bottom-tabs": "^7.20.0",
+    "@react-navigation/native": "^7.5.0",
+    "@react-navigation/native-stack": "^7.20.0",
+    "expo": "~57.0.26",
+    "expo-clipboard": "~57.0.2",
+    "expo-constants": "~57.0.20",
+    "expo-device": "~57.0.2",
+    "expo-document-picker": "~57.0.3",
+    "expo-image-manipulator": "~57.0.20",
+    "expo-image-picker": "~57.0.20",
+    "expo-linking": "~57.0.11",
+    "expo-location": "~57.0.20",
+    "expo-notifications": "~57.0.21",
+    "expo-secure-store": "~57.0.4",
+    "expo-speech": "~57.0.3",
+    "expo-status-bar": "~57.0.1",
+    "expo-symbols": "~57.0.3",
+    "expo-task-manager": "~57.0.21",
+    "leaflet": "^1.9.4",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-leaflet": "^5.0.0",
+    "react-native": "0.86.3",
+    "react-native-maps": "1.27.2",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-svg": "15.15.4",
+    "react-native-web": "~0.21.0"
+  },
+  "devDependencies": {
+    "@types/leaflet": "^1.9.22",
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  }
+}

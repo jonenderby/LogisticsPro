@@ -1,0 +1,356 @@
+import {
+  Address,
+  Contact,
+  EquipmentType,
+  LineItem,
+  type Load,
+  Mode,
+  Money,
+  Oversize,
+  PaymentTerms,
+  ServiceLevel,
+  TimeWindow,
+  awardBid,
+  loadParties,
+  newId,
+  placeBid,
+  refineLoad,
+  refinementLock,
+  shipConfirm,
+  transition,
+  matchLoad,
+  rankMatches,
+} from "@logisticspro/domain";
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+import { geocodeStops } from "../services/geocode.js";
+import { carrierProfile } from "../services/reliability.js";
+import { approvalKey, requireEligible, vettingFor } from "../services/vetting.js";
+import { currentHosClock } from "../services/hos.js";
+import { documentViews } from "./documents.js";
+import { archivedLoadsFor } from "../services/archive.js";
+import { type AppContext, HttpError, authenticate, canShip, capsOf, getLoad, hasOrgCap, isDriverOn, me, parse, postMessage, requireOrgCap, saveLoad } from "../http.js";
+
+const StopInput = z.object({
+  type: z.enum(["PICKUP", "DELIVERY"]),
+  address: Address,
+  window: TimeWindow,
+  contact: Contact.optional(),
+  instructions: z.string().max(500).optional(),
+  appointmentRef: z.string().max(30).optional(),
+});
+
+const LoadInput = z.object({
+  shipperOrgId: z.string(),
+  brokerOrgId: z.string().optional(),
+  mode: Mode,
+  service: ServiceLevel.default("STANDARD"),
+  equipment: z.object({ type: EquipmentType, lengthFt: z.number().positive().default(53), tempMinF: z.number().optional(), tempMaxF: z.number().optional() }),
+  references: z.object({ bol: z.string().optional(), po: z.array(z.string()).default([]), shipperRef: z.string().optional() }).default({ po: [] }),
+  stops: z.array(StopInput).min(2),
+  items: z.array(LineItem).min(1),
+  oversize: Oversize.optional(),
+  accessorials: z.array(z.string()).default([]),
+  rate: Money.optional(),
+  billTo: z.object({ orgId: z.string().optional(), address: Address }).optional(),
+  paymentTerms: PaymentTerms.default("PREPAID"),
+  teamRequired: z.boolean().default(false),
+  notes: z.string().max(500).optional(),
+});
+
+const Refinement = z.object({
+  stops: z.array(StopInput.extend({ id: z.string().optional() })).min(2).optional(),
+  items: z.array(LineItem).min(1).optional(),
+  references: z.object({ bol: z.string().optional(), po: z.array(z.string()).default([]), shipperRef: z.string().optional(), pro: z.string().optional() }).optional(),
+  accessorials: z.array(z.string()).optional(),
+  equipment: LoadInput.shape.equipment.optional(),
+  oversize: Oversize.optional(),
+  notes: z.string().max(500).optional(),
+  service: ServiceLevel.optional(),
+  teamRequired: z.boolean().optional(),
+});
+
+function withStopIds(stops: Array<z.infer<typeof StopInput> & { id?: string }>) {
+  return stops.map((s, i) => ({ ...s, id: s.id ?? newId("stop"), sequence: i + 1 }));
+}
+
+export function loadRoutes(app: FastifyInstance, ctx: AppContext) {
+  const auth = { preHandler: authenticate(ctx) };
+
+  app.post("/v1/loads", auth, async (req, reply) => {
+    const account = me(ctx, req);
+    const body = parse(LoadInput, req.body);
+    if (!ctx.store.orgs.has(body.shipperOrgId)) throw new HttpError(404, "NOT_FOUND", "Shipper organization not found");
+    if (body.brokerOrgId) requireOrgCap(ctx, account.id, body.brokerOrgId, "BROKER");
+    else requireOrgCap(ctx, account.id, body.shipperOrgId, "SHIP");
+    if (!body.stops.some((s) => s.type === "PICKUP") || body.stops[body.stops.length - 1]!.type !== "DELIVERY") {
+      throw new HttpError(400, "INVALID_REQUEST", "A load needs a pickup and must end with a delivery");
+    }
+    const shipper = ctx.store.orgs.get(body.shipperOrgId)!;
+    const now = ctx.now().toISOString();
+    const geo = await geocodeStops(ctx, body.stops);
+    const load: Load = {
+      id: newId("load"),
+      loadNumber: ctx.store.nextLoadNumber(),
+      version: 1,
+      status: "DRAFT",
+      ...body,
+      teamRequired: body.teamRequired || body.service === "TEAM_EXPEDITED",
+      references: { ...body.references },
+      stops: withStopIds(geo.stops),
+      billTo: body.billTo ?? { orgId: shipper.id, address: shipper.address ?? body.stops[0]!.address },
+      legs: [],
+      events: [],
+      documents: [],
+      createdByAccountId: account.id,
+      createdAt: now,
+      updatedAt: now,
+    };
+    saveLoad(ctx, load);
+    reply.code(201);
+    return geo.warnings.length ? { ...load, warnings: geo.warnings } : load;
+  });
+
+  app.get("/v1/loads", auth, async (req) => {
+    const account = me(ctx, req);
+    const { filter, status } = req.query as { filter?: string; status?: string };
+    const caps = capsOf(ctx, account.id);
+    const orgsWith = (c: Parameters<typeof caps.all.has>[0]) => new Set([...caps.byOrg].filter(([, s]) => s.has(c)).map(([id]) => id));
+    const myOrgs = new Set(ctx.store.membershipsOf(account.id).map((m) => m.orgId));
+    // Open board loads belong on /v1/board unless you are a party to them.
+    let loads = ctx.store.loadsOf(account.id).filter((l) => l.status !== "POSTED" || loadParties(l).some((o) => myOrgs.has(o)));
+    if (filter === "driving") loads = loads.filter((l) => isDriverOn(l, account.id));
+    if (filter === "dispatch") loads = loads.filter((l) => !!l.carrierOrgId && orgsWith("DISPATCH").has(l.carrierOrgId));
+    if (filter === "shipments") loads = loads.filter((l) => orgsWith("SHIP").has(l.shipperOrgId) && !l.brokerOrgId);
+    if (filter === "brokered") loads = loads.filter((l) => !!l.brokerOrgId && orgsWith("BROKER").has(l.brokerOrgId));
+    if (status) loads = loads.filter((l) => status.split(",").includes(l.status));
+    return loads.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  });
+
+  /** Older finished loads, kept in the database rather than memory. Newest first; page with `before`. */
+  app.get("/v1/loads/history", auth, async (req) => {
+    const account = me(ctx, req);
+    const q = parse(z.object({ q: z.string().trim().max(100).optional(), before: z.string().max(40).optional(), limit: z.coerce.number().int().min(1).max(200).default(50) }), req.query ?? {});
+    const loads = await archivedLoadsFor(ctx, account.id, { q: q.q || undefined, before: q.before, limit: q.limit });
+    return { loads, next: loads.length === q.limit ? loads[loads.length - 1]!.updatedAt : undefined };
+  });
+
+  app.get("/v1/loads/:id", auth, async (req) => {
+    const account = me(ctx, req);
+    const load = getLoad(ctx, account.id, (req.params as { id: string }).id);
+    return { ...load, documents: documentViews(ctx, load.documents), refinement: refinementLock(load) };
+  });
+
+  /** Shipper/broker refinement. Open until pickup or ship confirm; carriers get a 204 change. */
+  app.patch("/v1/loads/:id", auth, async (req) => {
+    const account = me(ctx, req);
+    const load = getLoad(ctx, account.id, (req.params as { id: string }).id);
+    if (!canShip(ctx, account.id, load)) throw new HttpError(403, "FORBIDDEN", "Only the shipper or broker can change this load");
+    const body = parse(Refinement, req.body);
+    const { stops: rawStops, references, ...rest } = body;
+    const stops = rawStops ? (await geocodeStops(ctx, rawStops)).stops : undefined;
+    const patch = { ...rest, ...(stops ? { stops: withStopIds(stops) } : {}), ...(references ? { references: { ...load.references, ...references } } : {}) };
+    const { load: next, changed } = refineLoad(load, patch, ctx.now().toISOString());
+    if (changed.length === 0) return { load, changed, transmissions: [] };
+    saveLoad(ctx, next, account.id);
+    let transmissions: unknown[] = [];
+    if ((next.carrierOrgId || next.externalCarrierKey) && ["TENDERED", "BOOKED", "DISPATCHED", "AT_PICKUP"].includes(next.status)) {
+      postMessage(ctx, next, { senderAccountId: account.id, kind: "SYSTEM", body: `Load updated by shipper: ${changed.join(", ")}` });
+      transmissions = await ctx.hub.tender(next, "CHANGE");
+    }
+    return { load: next, changed, transmissions };
+  });
+
+  app.post("/v1/loads/:id/ship-confirm", auth, async (req) => {
+    const account = me(ctx, req);
+    const load = getLoad(ctx, account.id, (req.params as { id: string }).id);
+    if (!canShip(ctx, account.id, load)) throw new HttpError(403, "FORBIDDEN", "Only the shipper or broker can confirm shipment");
+    const next = saveLoad(ctx, shipConfirm(load, ctx.now().toISOString()));
+    postMessage(ctx, next, { senderAccountId: account.id, kind: "SYSTEM", body: "Shipper confirmed the shipment. Load details are now locked." });
+    return next;
+  });
+
+  app.post("/v1/loads/:id/cancel", auth, async (req) => {
+    const account = me(ctx, req);
+    const load = getLoad(ctx, account.id, (req.params as { id: string }).id);
+    if (!canShip(ctx, account.id, load)) throw new HttpError(403, "FORBIDDEN", "Only the shipper or broker can cancel");
+    if (load.pickedUpAt) throw new HttpError(409, "LOAD_LOCKED", "Load is already picked up");
+    const next = saveLoad(ctx, transition(load, "CANCELLED", ctx.now().toISOString()));
+    const transmissions = next.carrierOrgId || next.externalCarrierKey ? await ctx.hub.tender(next, "CANCEL") : [];
+    return { load: next, transmissions };
+  });
+
+  /**
+   * Take the load back from its carrier before pickup (after a no-show, for
+   * example) so it can go to another carrier. The old carrier is told it is
+   * cancelled for them. Anything they missed stays on their record only.
+   */
+  app.post("/v1/loads/:id/release-carrier", auth, async (req) => {
+    const account = me(ctx, req);
+    const load = getLoad(ctx, account.id, (req.params as { id: string }).id);
+    if (!canShip(ctx, account.id, load)) throw new HttpError(403, "FORBIDDEN", "Only the shipper or broker can release the carrier");
+    if (!load.carrierOrgId && !load.externalCarrierKey) throw new HttpError(409, "NO_CARRIER", "This load has no carrier");
+    if (load.pickedUpAt || !["TENDERED", "BOOKED", "DISPATCHED", "AT_PICKUP"].includes(load.status)) throw new HttpError(409, "LOAD_LOCKED", "The carrier already has the freight");
+    const from = load.carrierOrgId ? (ctx.store.orgs.get(load.carrierOrgId)?.name ?? "the carrier") : load.externalCarrierKey!;
+    postMessage(ctx, load, { senderAccountId: account.id, kind: "SYSTEM", body: `Load released from ${from}. It will go to another carrier.` });
+    const transmissions = await ctx.hub.tender(load, "CANCEL");
+    const next = saveLoad(ctx, { ...load, status: "DRAFT", carrierOrgId: undefined, externalCarrierKey: undefined, legs: [], version: load.version + 1, updatedAt: ctx.now().toISOString() });
+    return { load: next, transmissions };
+  });
+
+  // ---------------------------------------------------------------- load board & bids
+
+  app.post("/v1/loads/:id/post", auth, async (req) => {
+    const account = me(ctx, req);
+    const load = getLoad(ctx, account.id, (req.params as { id: string }).id);
+    if (!canShip(ctx, account.id, load)) throw new HttpError(403, "FORBIDDEN", "Only the shipper or broker can post this load");
+    const { closesAt } = parse(z.object({ closesAt: z.string().optional() }), req.body ?? {});
+    if (load.carrierOrgId || load.externalCarrierKey) throw new HttpError(409, "HAS_CARRIER", "Load already has a carrier");
+    const postedBy = load.brokerOrgId ?? load.shipperOrgId;
+    const next = { ...transition(load, "POSTED", ctx.now().toISOString()), board: { postedByOrgId: postedBy, postedAt: ctx.now().toISOString(), closesAt } };
+    return saveLoad(ctx, next);
+  });
+
+  app.get("/v1/board", auth, async (req) => {
+    const account = me(ctx, req);
+    if (!capsOf(ctx, account.id).all.has("BID")) throw new HttpError(403, "FORBIDDEN", "Register a carrier company to see the load board");
+    const q = req.query as { originState?: string; destinationState?: string; equipment?: string; team?: string };
+    const mine = new Set(ctx.store.membershipsOf(account.id).map((m) => m.orgId));
+    return ctx.store
+      .loadsIn("POSTED")
+      .filter((l) => !mine.has(l.board!.postedByOrgId))
+      .filter((l) => !q.originState || l.stops.find((s) => s.type === "PICKUP")?.address.state === q.originState)
+      .filter((l) => !q.destinationState || l.stops[l.stops.length - 1]!.address.state === q.destinationState)
+      .filter((l) => !q.equipment || l.equipment.type === q.equipment)
+      .filter((l) => q.team === undefined || (q.team === "true") === (l.service === "TEAM_EXPEDITED" || l.teamRequired));
+  });
+
+  /**
+   * Board loads a driver can legally take from where they are, on the hours
+   * they have left: reach the pickup in its window and deliver in the
+   * delivery window. Best paying per mile, empty miles included, first.
+   */
+  app.get("/v1/board/suggestions", auth, async (req) => {
+    const account = me(ctx, req);
+    const caps = capsOf(ctx, account.id);
+    if (!caps.all.has("BID")) throw new HttpError(403, "FORBIDDEN", "Register a carrier company to see the load board");
+    const q = req.query as { driverAccountId?: string; lat?: string; lng?: string; team?: string };
+    const driverId = q.driverAccountId ?? account.id;
+    if (driverId === account.id) {
+      if (!caps.all.has("DRIVE")) throw new HttpError(400, "INVALID_REQUEST", "Choose a driver");
+    } else {
+      const theirCarriers = ctx.store.memberships.filter((m) => m.accountId === driverId && m.roles.includes("DRIVER")).map((m) => m.orgId);
+      if (!theirCarriers.some((c) => hasOrgCap(ctx, account.id, c, "DISPATCH"))) throw new HttpError(403, "FORBIDDEN", "Not one of your drivers");
+    }
+    const driver = ctx.store.accounts.get(driverId);
+    if (!driver) throw new HttpError(404, "NOT_FOUND", "Driver not found");
+    const now = ctx.now();
+    const position = ctx.store.positions.get(driverId);
+    const from = q.lat && q.lng ? { geo: { lat: Number(q.lat), lng: Number(q.lng) }, at: now.toISOString(), source: "CHOSEN" as const } : position ? { geo: position.geo, at: position.at, source: "PHONE" as const } : undefined;
+    if (!from || Number.isNaN(from.geo.lat) || Number.isNaN(from.geo.lng)) throw new HttpError(409, "NO_LOCATION", "No location for this driver yet. Pick a starting point.");
+    const log = ctx.store.dutyLogs.get(driverId);
+    const hos = log?.length || ctx.store.eldDrivers.has(driverId) ? currentHosClock(ctx.store, driverId, now) : undefined;
+    const mine = new Set(ctx.store.membershipsOf(account.id).map((m) => m.orgId));
+    const board = ctx.store.loadsIn("POSTED").filter((l) => !mine.has(l.board!.postedByOrgId));
+    const matches = rankMatches(board.map((l) => matchLoad(l, { now: now.toISOString(), from: from.geo, hos, team: q.team === "true" })).filter((m): m is NonNullable<typeof m> => !!m));
+    return {
+      driver: { accountId: driver.id, name: driver.name },
+      from,
+      hours: hos ? { availableMin: hos.availableMin, limitedBy: hos.limitedBy, drivingLeftMin: hos.drivingLeftMin } : undefined,
+      suggestions: matches.slice(0, 30).map((m) => {
+        const l = ctx.store.loads.get(m.loadId)!;
+        const pu = l.stops.find((s) => s.type === "PICKUP")!.address;
+        const del = [...l.stops].sort((a, b) => a.sequence - b.sequence).at(-1)!.address;
+        return { ...m, loadNumber: l.loadNumber, origin: `${pu.city}, ${pu.state}`, destination: `${del.city}, ${del.state}`, rate: l.rate, equipment: l.equipment.type, team: l.teamRequired || l.service === "TEAM_EXPEDITED" };
+      }),
+    };
+  });
+
+  app.post("/v1/loads/:id/bids", auth, async (req, reply) => {
+    const account = me(ctx, req);
+    const load = getLoad(ctx, account.id, (req.params as { id: string }).id);
+    const body = parse(z.object({ carrierOrgId: z.string(), amount: Money, plan: z.enum(["SOLO", "TEAM", "RELAY", "CONSOLIDATED"]).default("SOLO"), transitHours: z.number().positive().optional(), notes: z.string().max(500).optional() }), req.body);
+    requireOrgCap(ctx, account.id, body.carrierOrgId, "BID");
+    const existing = ctx.store.bids.where("load", load.id).find((b) => b.carrierOrgId === body.carrierOrgId && b.status === "OPEN");
+    if (existing) ctx.store.bids.set(existing.id, { ...existing, status: "WITHDRAWN" });
+    const bid = placeBid(load, { ...body, bidderAccountId: account.id }, ctx.now().toISOString());
+    ctx.store.bids.set(bid.id, bid);
+    reply.code(201);
+    return bid;
+  });
+
+  app.get("/v1/loads/:id/bids", auth, async (req) => {
+    const account = me(ctx, req);
+    const load = getLoad(ctx, account.id, (req.params as { id: string }).id);
+    const all = ctx.store.bids.where("load", load.id);
+    if (canShip(ctx, account.id, load)) {
+      // Show each bidder's record overall and with this business specifically.
+      const business = load.brokerOrgId ?? load.shipperOrgId;
+      return Promise.all(
+        all
+          .sort((a, b) => a.amount.amount - b.amount.amount)
+          .map(async (b) => {
+            const p = carrierProfile(ctx.store, b.carrierOrgId, business);
+            const v = await vettingFor(ctx, b.carrierOrgId, business);
+            const approved = !!ctx.store.carrierApprovals.get(approvalKey(business, b.carrierOrgId));
+            return { ...b, carrierName: ctx.store.orgs.get(b.carrierOrgId)?.name, reliability: { overall: p.overall, withYou: p.forBusiness, truckers: p.truckers }, vetting: { verdict: v.verdict, approved } };
+          }),
+      );
+    }
+    const mine = new Set(ctx.store.membershipsOf(account.id).map((m) => m.orgId));
+    return all.filter((b) => mine.has(b.carrierOrgId));
+  });
+
+  app.post("/v1/loads/:id/bids/:bidId/award", auth, async (req) => {
+    const account = me(ctx, req);
+    const { id, bidId } = req.params as { id: string; bidId: string };
+    const load = getLoad(ctx, account.id, id);
+    if (!canShip(ctx, account.id, load)) throw new HttpError(403, "FORBIDDEN", "Only the poster can award bids");
+    const bid = ctx.store.bids.get(bidId);
+    if (bid?.loadId === load.id) await requireEligible(ctx, load.brokerOrgId ?? load.shipperOrgId, bid.carrierOrgId);
+    const awarded = awardBid(load, ctx.store.bids.where("load", load.id), bidId, ctx.now().toISOString());
+    awarded.bids.forEach((b) => ctx.store.bids.set(b.id, b));
+    const next = saveLoad(ctx, { ...awarded.load, tender: { byAccountId: account.id, at: ctx.now().toISOString() } }, account.id);
+    postMessage(ctx, next, { senderAccountId: account.id, kind: "SYSTEM", body: `Load awarded to ${ctx.store.orgs.get(next.carrierOrgId!)?.name ?? "carrier"} at $${next.rate?.amount}` });
+    return { load: next, transmissions: await ctx.hub.tender(next, "ORIGINAL") };
+  });
+
+  /** Tender directly to an on-platform carrier, or to an external carrier through a partner profile. */
+  app.post("/v1/loads/:id/tender", auth, async (req) => {
+    const account = me(ctx, req);
+    const load = getLoad(ctx, account.id, (req.params as { id: string }).id);
+    if (!canShip(ctx, account.id, load)) throw new HttpError(403, "FORBIDDEN", "Only the shipper or broker can tender");
+    const body = parse(z.object({ carrierOrgId: z.string().optional(), partnerKey: z.string().optional(), rate: Money.optional() }).refine((b) => !!b.carrierOrgId !== !!b.partnerKey, "Give exactly one of carrierOrgId or partnerKey"), req.body);
+    if (body.carrierOrgId && !ctx.store.orgs.get(body.carrierOrgId)?.kinds.includes("CARRIER")) throw new HttpError(404, "NOT_FOUND", "Carrier not found");
+    if (body.carrierOrgId) await requireEligible(ctx, load.brokerOrgId ?? load.shipperOrgId, body.carrierOrgId);
+    const next: Load = {
+      ...transition(load, "TENDERED", ctx.now().toISOString()),
+      carrierOrgId: body.carrierOrgId,
+      externalCarrierKey: body.partnerKey,
+      rate: body.rate ?? load.rate,
+      board: undefined,
+      tender: { byAccountId: account.id, at: ctx.now().toISOString() },
+    };
+    if (body.partnerKey && !ctx.store.profile(next.brokerOrgId ?? next.shipperOrgId, body.partnerKey)) {
+      throw new HttpError(409, "PARTNER_NOT_CONFIGURED", `Set up partner "${body.partnerKey}" under Integrations first`);
+    }
+    saveLoad(ctx, next);
+    return { load: next, transmissions: await ctx.hub.tender(next, "ORIGINAL") };
+  });
+
+  app.post("/v1/loads/:id/tender-response", auth, async (req) => {
+    const account = me(ctx, req);
+    const load = getLoad(ctx, account.id, (req.params as { id: string }).id);
+    requireOrgCap(ctx, account.id, load.carrierOrgId, "DISPATCH");
+    if (load.status !== "TENDERED") throw new HttpError(409, "NOT_TENDERED", "Load is not waiting on a tender response");
+    const body = parse(z.object({ decision: z.enum(["ACCEPT", "DECLINE"]), reason: z.string().max(30).optional(), pro: z.string().max(30).optional() }), req.body);
+    const now = ctx.now().toISOString();
+    const next: Load =
+      body.decision === "ACCEPT"
+        ? { ...transition(load, "BOOKED", now), references: { ...load.references, pro: body.pro ?? load.references.pro }, tender: { ...load.tender, at: load.tender?.at ?? now, acceptedByAccountId: account.id, acceptedAt: now, via: "APP" } }
+        : { ...transition(load, "DRAFT", now), carrierOrgId: undefined, tender: undefined };
+    saveLoad(ctx, next, account.id);
+    postMessage(ctx, body.decision === "ACCEPT" ? next : load, { senderAccountId: account.id, kind: "SYSTEM", body: body.decision === "ACCEPT" ? "Carrier accepted the tender" : `Carrier declined the tender${body.reason ? `: ${body.reason}` : ""}` });
+    return { load: next, transmissions: await ctx.hub.tenderResponse(body.decision === "ACCEPT" ? next : load, body.decision, body.reason) };
+  });
+}

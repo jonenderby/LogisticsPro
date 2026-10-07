@@ -1,0 +1,42 @@
+import { type NavigationProp, type RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+
+export type StackParams = {
+  Today: undefined;
+  Loads: { filter?: string } | undefined;
+  Navigate: { loadId?: string } | undefined;
+  Track: undefined;
+  Board: undefined;
+  Messages: undefined;
+  Money: undefined;
+  Business: undefined;
+  More: undefined;
+  LoadDetail: { id: string };
+  Thread: { loadId: string; title: string };
+  NewLoad: undefined;
+  Dispatch: { loadId: string };
+  SendInvoice: { loadId: string };
+  Integrations: undefined;
+  PartnerEdit: { orgId: string; key: string };
+  RegisterCompany: undefined;
+  Security: undefined;
+  JoinCarrier: undefined;
+  Reliability: undefined;
+  Alerts: undefined;
+  Hours: undefined;
+  FuelTax: undefined;
+  Notifications: undefined;
+  RateConfirmation: { loadId: string };
+  InvoiceDetail: { id: string };
+  CarrierCheck: { orgId: string; payerOrgId?: string };
+  Signature: { loadId: string };
+  Insights: undefined;
+  Setup: undefined;
+  History: undefined;
+  AchPayments: { orgId: string };
+  Settlements: { orgId: string };
+  SettlementDetail: { id: string };
+  MyPay: undefined;
+};
+
+export const useNav = () => useNavigation<NavigationProp<StackParams>>();
+export const useParams = <K extends keyof StackParams>() => useRoute<RouteProp<StackParams, K>>().params as StackParams[K];

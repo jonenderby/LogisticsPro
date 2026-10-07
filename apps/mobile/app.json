@@ -1,0 +1,65 @@
+{
+  "expo": {
+    "name": "Logistics Pro",
+    "slug": "logistics-pro",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.logisticspro.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.logisticspro.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "output": "single",
+      "name": "Logistics Pro",
+      "shortName": "Logistics Pro",
+      "themeColor": "#1D5FD1",
+      "backgroundColor": "#F8F9FF",
+      "lang": "en"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Logistics Pro uses your location for turn-by-turn and permitted-route navigation and to attach your position to status updates.",
+          "locationAlwaysAndWhenInUsePermission": "While you're on duty or on a load, Logistics Pro uses your location in the background to update your carrier and customer and to count your driving hours. It stops when you go off duty.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "locationAlwaysPermission": "While you're on duty or on a load, Logistics Pro uses your location in the background to update your carrier and customer and to count your driving hours. It stops when you go off duty.",
+          "motionUsagePermission": false
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "arrival",
+          "color": "#1D5FD1"
+        }
+      ],
+      "react-native-maps",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Logistics Pro uses the camera to scan bills of lading, delivery receipts and other load paperwork.",
+          "photosPermission": "Logistics Pro lets you attach photos of load paperwork you already took.",
+          "microphonePermission": false
+        }
+      ]
+    ],
+    "scheme": "logisticspro"
+  }
+}
