@@ -1274,4 +1274,12 @@ export const es: Dictionary = {
   "Issue an inbound token and share it with the partner": "Genera un token de entrada y compártelo con el socio",
   "EDI is in test mode (ISA15 T)": "El EDI está en modo de prueba (ISA15 T)",
   "Not marked live yet": "Aún no está en producción",
+  "Get the Logistics Pro app": "Descarga la app de Logistics Pro",
+  "Download for Android": "Descargar para Android",
+  "Version {version}, built {date}, {size}.": "Versión {version}, compilada el {date}, {size}.",
+  "Android asks to allow installs from your browser the first time.": "La primera vez, Android pide permitir instalaciones desde tu navegador.",
+  "Install on iPhone": "Instalar en iPhone",
+  "Only iPhones registered for this build can install it.": "Solo los iPhone registrados para esta compilación pueden instalarla.",
+  "No phone app has been built on this server yet.": "Todavía no se ha compilado la app para teléfonos en este servidor.",
+  "Or use Logistics Pro in your browser": "O usa Logistics Pro en tu navegador",
 };

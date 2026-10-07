@@ -13,3 +13,7 @@ android/
 var/
 playwright-report/
 test-results/
+deploy/android-keys/
+deploy/downloads/
+deploy/backups/
+!deploy/android/

@@ -51,6 +51,8 @@ export interface Config {
   fmcsaFixtures?: string;
   /** Directory for uploaded documents when there is no database. Without either, they are kept in memory. */
   filesDir?: string;
+  /** Phone app builds offered at /download (deploy/build-android.sh puts them there). */
+  downloadsDir?: string;
   /** Finished loads untouched this many days leave memory (they stay in Postgres and come back when opened). 0 keeps everything. */
   archiveAfterDays: number;
   /** Integration transmissions older than this many days leave memory. */
@@ -91,6 +93,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     fmcsaWebKey: env.LP_FMCSA_WEBKEY || undefined,
     fmcsaFixtures: env.LP_FMCSA_FIXTURES || undefined,
     filesDir: env.LP_FILES_DIR || undefined,
+    downloadsDir: env.LP_DOWNLOADS_DIR || undefined,
     archiveAfterDays: Number(env.LP_ARCHIVE_AFTER_DAYS ?? 120),
     archiveTransmissionsAfterDays: Number(env.LP_ARCHIVE_TRANSMISSIONS_AFTER_DAYS ?? 30),
     dataKey: env.LP_DATA_KEY ? new TextEncoder().encode(env.LP_DATA_KEY) : undefined,
