@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { View } from "react-native";
+import { Linking, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { api, errorMessage } from "../api/client";
+import { API_URL } from "../config";
 import { useAuth } from "../auth/AuthProvider";
 import { type StackParams, useNav } from "../navigation/types";
 import { notify } from "../ui/dialog";
@@ -115,6 +116,9 @@ export function SecurityScreen() {
             </>
           )}
         </Padded>
+      </Section>
+      <Section>
+        <Row title={t("Privacy policy")} subtitle={t("What the app collects and who sees it")} onPress={() => void Linking.openURL(`${API_URL}/privacy`)} />
       </Section>
       <Section>
         <Row title={t("Sign out")} destructive onPress={() => void signOut()} />

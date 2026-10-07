@@ -52,3 +52,21 @@ describe("phone app downloads", () => {
     expect((await h.app.inject({ method: "GET", url: "/download" })).statusCode).toBe(404);
   });
 });
+
+describe("privacy policy", () => {
+  it("names who runs the server and where to ask for data or deletion, in the reader's language", async () => {
+    const h = await harness({ config: { operatorName: "Acme Freight LLC", adminEmails: ["ops@acme.example"] } });
+    const en = await h.app.inject({ method: "GET", url: "/privacy" });
+    expect(en.statusCode).toBe(200);
+    expect(en.headers["content-type"]).toContain("text/html");
+    expect(en.body).toContain("Acme Freight LLC runs Logistics Pro on its own server.");
+    expect(en.body).toContain("including when it is in the background");
+    expect(en.body).toContain('<a href="mailto:ops@acme.example">ops@acme.example</a>');
+    const es = await h.app.inject({ method: "GET", url: "/privacy", headers: { "accept-language": "es-MX" } });
+    expect(es.body).toContain("Política de privacidad");
+    expect(es.body).toContain('lang="es"');
+
+    const own = await harness({ config: { privacyContact: "privacy@acme.example", adminEmails: ["ops@acme.example"] } });
+    expect((await own.app.inject({ method: "GET", url: "/privacy" })).body).toContain("mailto:privacy@acme.example");
+  });
+});

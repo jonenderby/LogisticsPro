@@ -28,7 +28,7 @@ jobs:
       - name: Make room for the Android tools
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL && df -h /
       - run: deploy/build-android.sh
-      - name: Check the signed APK and what the download page needs
+      - name: Check the signed APK, the Play bundle and what the download page needs
         run: |
           test -s deploy/downloads/logistics-pro.apk
           cat deploy/downloads/build.json
@@ -40,8 +40,15 @@ jobs:
           grep -q "package: name='com.logisticspro.app'" badging.txt
           # The build number from the script, so new builds install over old ones.
           grep -qE "versionCode='[0-9]{7,}'" badging.txt
+          # The Play bundle carries one signature, this server's upload key, not Gradle's debug key.
+          test -s deploy/play/logistics-pro.aab
+          test "$(unzip -l deploy/play/logistics-pro.aab | grep -cE 'META-INF/[^/]+\.(RSA|EC|DSA)$')" = 1
+          docker run --rm -v "$PWD/deploy/play:/p" logisticspro-android jarsigner -verify -certs -verbose /p/logistics-pro.aab | grep -q "CN=Logistics Pro"
+          grep -q "BEGIN CERTIFICATE" deploy/play/upload-certificate.pem
       - uses: actions/upload-artifact@v4
         with:
-          name: logistics-pro-apk
-          path: deploy/downloads/logistics-pro.apk
+          name: logistics-pro-android
+          path: |
+            deploy/downloads/logistics-pro.apk
+            deploy/play/logistics-pro.aab
           retention-days: 7

@@ -1,9 +1,10 @@
 # syntax=docker/dockerfile:1
 # Builds the Logistics Pro Android app on your own server, without Expo's
-# cloud. Run it through deploy/build-android.sh.
+# cloud: an APK for the download page and an app bundle for Google Play.
+# Run it through deploy/build-android.sh.
 
 FROM node:22-bookworm AS toolchain
-RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jdk-headless unzip && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jdk-headless unzip zip && rm -rf /var/lib/apt/lists/*
 ENV ANDROID_HOME=/opt/android-sdk
 ENV PATH=$PATH:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/build-tools/36.0.0
 # The SDK versions React Native 0.86 builds with.
@@ -24,8 +25,9 @@ RUN test -n "$EXPO_PUBLIC_API_URL" || (echo "EXPO_PUBLIC_API_URL is required" &&
 RUN --mount=type=cache,target=/root/.npm npm ci
 RUN cd apps/mobile && npx expo prebuild --platform android --no-install --clean
 RUN --mount=type=cache,target=/root/.gradle cd apps/mobile/android \
- && ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=${ABIS} \
+ && ./gradlew assembleRelease bundleRelease --no-daemon -PreactNativeArchitectures=${ABIS} \
  && mkdir -p /out && cp app/build/outputs/apk/release/app-release.apk /out/built.apk \
+ && cp app/build/outputs/bundle/release/app-release.aab /out/built.aab \
  && node -p "require('/src/apps/mobile/app.json').expo.version" > /out/version
 COPY deploy/android/sign.sh /usr/local/bin/sign-apk
 CMD ["sh", "/usr/local/bin/sign-apk"]

@@ -22,6 +22,8 @@ cat > .env <<ENV
 LP_DOMAIN=$DOMAIN
 LP_PUBLIC_URL=https://$DOMAIN
 LP_ADMIN_EMAILS=$EMAIL
+# Your company's legal name, shown on the privacy policy at /privacy.
+LP_OPERATOR_NAME="Logistics Pro"
 LP_JWT_SECRET=$(rand 32)
 LP_DATA_KEY=$(rand 32)
 DB_PASSWORD=$(rand 16)

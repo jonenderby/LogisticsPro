@@ -1,8 +1,9 @@
 import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
-import { type Lang, PICKABLE_LANGUAGES, translator } from "@logisticspro/workspace";
+import { translator } from "@logisticspro/workspace";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../http.js";
+import { esc, htmlPage, pageLanguage } from "./pages.js";
 
 /**
  * The phone app, downloaded from this server: an Android APK built by
@@ -19,18 +20,6 @@ interface BuildInfo {
   version?: string;
   builtAt?: string;
   bundleId?: string;
-}
-
-const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-
-/** The first language in Accept-Language that people can pick, else English. */
-function pageLanguage(header: string | undefined): Lang {
-  for (const part of (header ?? "").split(",")) {
-    const code = part.split(";")[0]!.trim().toLowerCase().split("-")[0];
-    const found = PICKABLE_LANGUAGES.find((l) => l.code === code);
-    if (found) return found.code as Lang;
-  }
-  return "en";
 }
 
 export function downloadRoutes(app: FastifyInstance, ctx: AppContext) {
@@ -66,24 +55,8 @@ export function downloadRoutes(app: FastifyInstance, ctx: AppContext) {
     ].filter(Boolean);
     const body = rows.length ? rows.join("\n") : `<p>${esc(t("No phone app has been built on this server yet."))}</p>`;
     reply.header("content-type", "text/html; charset=utf-8").header("cache-control", "no-cache");
-    return `<!doctype html>
-<html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(t("Get the Logistics Pro app"))}</title>
-<style>
-:root{--bg:#F8F9FF;--fg:#1A1C20;--muted:#5C6070;--accent:#1D5FD1;--on:#fff}
-@media (prefers-color-scheme:dark){:root{--bg:#111318;--fg:#E3E5EC;--muted:#A3A7B5;--accent:#AFC6FF;--on:#0B2A63}}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-main{max-width:28rem;margin:0 auto;padding:2.5rem 1rem}
-h1{font-size:1.5rem;margin:0 0 1.5rem}
-.btn{display:block;text-align:center;background:var(--accent);color:var(--on);text-decoration:none;font-weight:600;padding:.9rem 1rem;border-radius:999px;margin-top:1rem}
-.note{color:var(--muted);font-size:.875rem;margin:.5rem 0 0}
-a.web{color:var(--accent)}
-</style></head>
-<body><main>
-<h1>${esc(t("Get the Logistics Pro app"))}</h1>
-${body}
-<p class="note" style="margin-top:2rem"><a class="web" href="/">${esc(t("Or use Logistics Pro in your browser"))}</a></p>
-</main></body></html>`;
+    return htmlPage(lang, t("Get the Logistics Pro app"), `${body}
+<p class="note" style="margin-top:2rem"><a href="/">${esc(t("Or use Logistics Pro in your browser"))}</a></p>`);
   });
 
   const send = (name: string, type: string) => async (_req: unknown, reply: import("fastify").FastifyReply) => {

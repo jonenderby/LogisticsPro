@@ -38,12 +38,14 @@ Then:
 - The website is at `https://lp.example.com`. Caddy gets the HTTPS certificate on its own.
 - Phones install the app from `https://lp.example.com/download`.
 - The email you gave sees **More > Setup status**.
+- The privacy policy is at `https://lp.example.com/privacy`, in English or Spanish. The app links to it from More.
 
 | File | What it does |
 |---|---|
 | `deploy/setup.sh` | Writes `deploy/.env` once with the domain, your email and new secrets. It never overwrites an existing one. |
 | `deploy/docker-compose.yml` | Runs Caddy, the API, Postgres, Valhalla and Nominatim. Only Caddy is reachable from outside. All of them restart after a reboot. |
 | `deploy/build-android.sh` | Builds the Android app in Docker, signs it with this server's own key and puts it on the download page. Needs only Docker. |
+| `deploy/publish-play.sh` | Sends the latest build to Google Play testers. See below. |
 | `deploy/backup.sh` | Backs up the database, the AS2 certificate, the Android signing key and `deploy/.env` into `deploy/backups`. |
 
 **Keep these safe.** `deploy/.env` and `deploy/android-keys` hold the secrets. Without `.env` nobody can sign in and stored ELD keys can't be read. Without the signing key, phones must uninstall the app before they can install a newer build. `deploy/backup.sh` copies both; copy `deploy/backups` off the server too.
@@ -60,6 +62,42 @@ Then:
 | An ELD connection | Motive, Samsara or Geotab, when a carrier connects one. |
 
 **iPhones.** Apple only lets iPhone apps be built on a Mac with Xcode, and installs need an Apple Developer account. Build an ad hoc `.ipa` there for the iPhones you register, copy it to `deploy/downloads/logistics-pro.ipa`, and the download page offers it. Until then iPhone users can use the website.
+
+## Google Play private beta
+
+Google Play's **internal testing** track gives the app to up to 100 people you invite by email. It never appears in Play Store search, and new builds reach testers within minutes. `deploy/build-android.sh` already makes the file Play needs, `deploy/play/logistics-pro.aab`, signed with this server's key.
+
+**One time, in Play Console**
+
+1. Make a Google Play developer account at play.google.com/console. It costs $25 once. Use an organization account if you will later publish to everyone; personal accounts must first run a closed test with 12 testers for 14 days.
+2. **Create app**: name it Logistics Pro, choose App and Free.
+3. **Testing > Internal testing > Testers**: make an email list of your testers' Google accounts.
+4. **Create new release**. Let Google manage the app signing key, then upload `deploy/play/logistics-pro.aab` (copy it off the server with `scp`). This server's key becomes the *upload key*; Play may ask for `deploy/play/upload-certificate.pem`.
+5. **App content**: enter the privacy policy address, `https://<your domain>/privacy`. Set `LP_OPERATOR_NAME` in `deploy/.env` to your company's legal name first, and read the policy over. Fill in the other forms Play lists: ads (none), content rating, target audience (18 and over), and the declarations for location in the background and the location foreground service. Play shows which ones it needs before each kind of release.
+6. Copy the **opt-in link** from the Testers tab and send it to your testers. They open it on their phone, accept, and install Logistics Pro from the Play Store.
+
+The package name, `com.logisticspro.app`, is fixed by the first upload and can never change. If Play says it is taken, change `package` in `apps/mobile/app.json` before uploading.
+
+**Every build after that, from the server**
+
+1. In Google Cloud Console, make a project, turn on the **Google Play Android Developer API**, create a service account and download a JSON key for it.
+2. In Play Console > **Users and permissions**, invite the service account's email and give it **Release to testing tracks** for this app.
+3. Save the key on the server as `deploy/play-service-account.json` with `chmod 600`.
+
+Then each new build is:
+
+```bash
+deploy/build-android.sh
+deploy/publish-play.sh "What changed in this build"
+```
+
+`LP_PLAY_TRACK` in `deploy/.env` picks another track: `alpha` is closed testing, `beta` is open testing.
+
+**Good to know**
+
+- Builds installed from Play are signed by Google, and the APK on `/download` by this server, so a phone can't switch between the two without uninstalling first. Give each tester one or the other.
+- If the upload key in `deploy/android-keys` is lost, Play support can register a new one; the app itself keeps working. `deploy/backup.sh` copies it.
+- Before going beyond internal testing, Play also wants the Data safety form and a way to delete an account from inside the app. The privacy policy currently asks people to email for deletion.
 
 ## Docker
 

@@ -31,6 +31,9 @@ services:
       LP_DATA_KEY: ${LP_DATA_KEY:-}
       LP_PUBLIC_URL: ${LP_PUBLIC_URL:-https://localhost}
       LP_ADMIN_EMAILS: ${LP_ADMIN_EMAILS:-}
+      # Named on the privacy policy at /privacy.
+      LP_OPERATOR_NAME: ${LP_OPERATOR_NAME:-}
+      LP_PRIVACY_CONTACT: ${LP_PRIVACY_CONTACT:-}
       LP_VALHALLA_URL: http://valhalla:8002
       LP_GEOCODER: nominatim
       LP_GEOCODER_URL: http://nominatim:8080
