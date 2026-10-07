@@ -4,3 +4,12 @@ dist
 var
 .git
 .expo
+# Server-only files: secrets, signing keys, builds and backups never go into an image.
+deploy/.env
+deploy/android-keys
+deploy/downloads
+deploy/backups
+apps/mobile/android
+apps/mobile/ios
+deploy/play
+deploy/play-service-account.json

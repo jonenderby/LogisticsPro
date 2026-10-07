@@ -86,5 +86,7 @@ jobs:
             -d '{"email":"ci@example.com","password":"correct horse battery staple","name":"CI","profileType":"BUSINESS"}' | grep -q enrollToken
           docker exec db psql -U postgres -d logisticspro -tAc "select count(*) from lp_docs where collection = 'accounts' and doc->>'email' = 'ci@example.com'" | grep -qx 1
           curl -fsS -H "accept: text/html" http://localhost:8080/loads | grep -q '<div id="root">'
+      - name: Check the self-hosting compose file
+        run: cd deploy && LP_JWT_SECRET=ci docker compose config --quiet
       - if: failure()
         run: docker logs api

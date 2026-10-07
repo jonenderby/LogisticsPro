@@ -44,6 +44,8 @@ import { eldRoutes } from "./routes/eld.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { setupRoutes } from "./routes/setup.js";
 import { achRoutes } from "./routes/ach.js";
+import { downloadRoutes } from "./routes/downloads.js";
+import { privacyRoutes } from "./routes/privacy.js";
 import { settlementRoutes } from "./routes/settlements.js";
 import { archiveColdData, restoreInvoice, restoreLoad } from "./services/archive.js";
 import { lockRecord } from "./services/locks.js";
@@ -222,6 +224,8 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   setupRoutes(app, ctx);
   achRoutes(app, ctx);
   settlementRoutes(app, ctx);
+  downloadRoutes(app, ctx);
+  privacyRoutes(app, ctx);
 
   if (cfg.alertIntervalSeconds > 0) {
     const timer = setInterval(() => {

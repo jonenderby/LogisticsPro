@@ -29,7 +29,7 @@ One app and one integration hub for truckers, carriers, 3PLs and shippers.
 | `packages/workspace` | Builds one layout from everything a person can do, plus a single prioritized action feed across roles. |
 | `apps/api` | Fastify API server: auth with mandatory 2FA, companies, loads, board, dispatch, status, messaging, invoices, integrations, inbound API/EDI. |
 | `apps/mobile` | Expo (React Native) app: iOS, Android and the website from one codebase. |
-| `deploy/` | Docker Compose with the API, Valhalla (truck routing) and Nominatim (address search); a synthetic map for testing Valhalla. |
+| `deploy/` | Everything to run Logistics Pro on your own server: Docker Compose with the API, Postgres, Valhalla (truck routing), Nominatim (address search) and Caddy (HTTPS); setup, backup and Android build scripts; a synthetic map for testing Valhalla. |
 | `docs/` | [Architecture](docs/ARCHITECTURE.md), [integrations and carrier catalog](docs/INTEGRATIONS.md), [EDI and AS2](docs/EDI_AS2.md), [navigation and addresses](docs/NAVIGATION.md), [truckers, carriers and reliability](docs/NETWORK_AND_RELIABILITY.md), [live tracking, ETAs and notifications](docs/TRACKING.md), [hours of service](docs/HOURS_OF_SERVICE.md), [fuel tax](docs/FUEL_TAX.md), [rate confirmations and getting paid](docs/PAYMENTS.md), [carrier vetting](docs/VETTING.md), [documents and signatures](docs/DOCUMENTS.md), [ELD connections](docs/ELD.md), [insights](docs/INSIGHTS.md), [languages](docs/LANGUAGES.md), [deployment and setup status](docs/DEPLOYMENT.md), [roadmap](docs/ROADMAP.md). |
 
 ## Quick start
