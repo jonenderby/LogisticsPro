@@ -10,6 +10,8 @@ export interface MeResponse {
   ownerOperator: boolean;
   /** Runs this deployment (LP_ADMIN_EMAILS) and can see its setup status. */
   platformAdmin?: boolean;
+  /** A platform admin is using the app as this test account. */
+  actingAs?: { adminName: string };
   workspace: Workspace;
   feed: ActionItem[];
   /** Drivers only: hours of service right now. */

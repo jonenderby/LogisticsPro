@@ -31,6 +31,7 @@ export type StackParams = {
   Signature: { loadId: string };
   Insights: undefined;
   Setup: undefined;
+  Admin: undefined;
   History: undefined;
   AchPayments: { orgId: string };
   Settlements: { orgId: string };

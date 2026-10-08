@@ -33,6 +33,6 @@ export default defineConfig({
     url: `http://localhost:${PORT}/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
-    env: { PORT: String(PORT), LP_WEB_DIR: WEB_DIR, LP_PUBLIC_URL: `http://localhost:${PORT}${BASE_PATH}`, LP_PUSH: "off", LP_ALERT_INTERVAL_SECONDS: "5" },
+    env: { PORT: String(PORT), LP_WEB_DIR: WEB_DIR, LP_PUBLIC_URL: `http://localhost:${PORT}${BASE_PATH}`, LP_PUSH: "off", LP_ALERT_INTERVAL_SECONDS: "5", LP_ADMIN_EMAILS: "e2e-admin@example.com" },
   },
 });

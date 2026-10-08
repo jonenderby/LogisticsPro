@@ -30,6 +30,12 @@ export const Account = z.object({
   driver: DriverProfile.optional(),
   /** The language the app, the Today feed and push notifications use. Unset: the device's. */
   language: Language.optional(),
+  /**
+   * A test account a platform admin made to try the app as another kind of
+   * user: the admin's account id. Only these can be switched into, and nobody
+   * can sign in to them with a password.
+   */
+  testAccountOf: z.string().optional(),
   createdAt: z.string(),
 });
 export type Account = z.infer<typeof Account>;

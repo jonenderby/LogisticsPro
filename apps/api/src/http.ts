@@ -64,6 +64,8 @@ export interface AppContext {
 declare module "fastify" {
   interface FastifyRequest {
     accountId?: string;
+    /** The platform admin behind a session in a test account. */
+    actorId?: string;
   }
 }
 
@@ -81,7 +83,14 @@ export function authenticate(ctx: AppContext) {
     if (!header?.startsWith("Bearer ")) throw new HttpError(401, "UNAUTHENTICATED", "Sign in required");
     try {
       const claims = await ctx.tokens.verify(header.slice(7), "access");
-      if (!ctx.store.accounts.has(claims.sub)) throw new Error("no account");
+      const account = ctx.store.accounts.get(claims.sub);
+      if (!account) throw new Error("no account");
+      if (claims.actor) {
+        // Switched in by a platform admin: still an admin, and still a test account.
+        const actor = ctx.store.accounts.get(claims.actor);
+        if (!actor || !ctx.cfg.adminEmails.includes(actor.email.toLowerCase()) || !account.testAccountOf) throw new Error("no longer allowed");
+        req.actorId = actor.id;
+      }
       req.accountId = claims.sub;
     } catch {
       throw new HttpError(401, "UNAUTHENTICATED", "Session expired or invalid");

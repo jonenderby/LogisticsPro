@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { stopBackgroundTracking } from "../state/backgroundLocation";
 import { unregisterPush } from "../state/notifications";
 import { publicApi, session } from "../api/client";
+import { BASE_PATH, IS_WEB } from "../config";
 
 type Phase =
   | { name: "loading" }
@@ -27,6 +28,11 @@ export type ProfileType = "TRUCKER" | "CARRIER" | "BROKER_3PL" | "BUSINESS";
 
 interface AuthApi {
   phase: Phase;
+  /** Changes when a platform admin switches account, so the signed-in app starts over. */
+  epoch: number;
+  /** Platform admins: use the app as a test account, and come back. */
+  switchTo(accountId: string): Promise<void>;
+  switchBack(): Promise<void>;
   register(input: { email: string; password: string; name: string; phone?: string; profileType: ProfileType; language: Lang }): Promise<void>;
   signIn(email: string, password: string): Promise<void>;
   activate(code: string): Promise<void>;
@@ -44,6 +50,7 @@ const Ctx = createContext<AuthApi | undefined>(undefined);
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [phase, setPhase] = useState<Phase>({ name: "loading" });
+  const [epoch, setEpoch] = useState(0);
 
   useEffect(() => {
     session.onSignedOut(() => setPhase({ name: "signedOut" }));
@@ -81,9 +88,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [phase],
   );
 
+  const switched = useCallback(async (change: () => Promise<void>) => {
+    // Tracking and push belong to whoever was signed in before.
+    await stopBackgroundTracking();
+    await change();
+    if (IS_WEB && typeof window !== "undefined") window.history.replaceState(null, "", `${BASE_PATH}/`);
+    setEpoch((e) => e + 1);
+  }, []);
+
   const value = useMemo<AuthApi>(
     () => ({
       phase,
+      epoch,
+      switchTo: (accountId) => switched(() => session.switchTo(accountId)),
+      switchBack: () => switched(() => session.switchBack()),
       register,
       signIn,
       activate,
@@ -97,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       cancel: () => setPhase({ name: "signedOut" }),
     }),
-    [phase, register, signIn, activate, verify],
+    [phase, epoch, switched, register, signIn, activate, verify],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

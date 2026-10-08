@@ -14,9 +14,31 @@ export class ApiError extends Error {
 }
 
 const REFRESH_KEY = "lp.refreshToken";
+const SWITCHED_KEY = "lp.switchedTo";
 let accessToken: string | undefined;
 let refreshToken: string | undefined;
+/** A platform admin's test account in use; the refresh token stays the admin's own. */
+let switchedTo: string | undefined;
 let onSignedOut: (() => void) | undefined;
+
+/** Browsers keep only which test account is in use (never a token), so a reload stays in it. */
+const webStore = {
+  get: (k: string) => {
+    try {
+      return window.localStorage.getItem(k) ?? undefined;
+    } catch {
+      return undefined;
+    }
+  },
+  set: (k: string, v: string | undefined) => {
+    try {
+      if (v) window.localStorage.setItem(k, v);
+      else window.localStorage.removeItem(k);
+    } catch {
+      // storage blocked: the switch lasts until the page reloads
+    }
+  },
+};
 
 const secure = {
   async get(k: string) {
@@ -38,10 +60,22 @@ const secure = {
  */
 export const session = {
   async restore(): Promise<boolean> {
+    switchedTo = IS_WEB ? webStore.get(SWITCHED_KEY) : await secure.get(SWITCHED_KEY);
     if (IS_WEB) return refresh();
     refreshToken = await secure.get(REFRESH_KEY);
     if (!refreshToken) return false;
     return refresh();
+  },
+  /** Platform admins: use the app as one of their test accounts. */
+  async switchTo(accountId: string) {
+    const r = await request<{ accessToken: string }>("POST", "/v1/admin/switch", { accountId });
+    accessToken = r.accessToken;
+    await rememberSwitch(accountId);
+  },
+  /** Back to the admin's own account. */
+  async switchBack() {
+    await rememberSwitch(undefined);
+    await refresh();
   },
   async set(tokens: { accessToken: string; refreshToken?: string }) {
     accessToken = tokens.accessToken;
@@ -55,6 +89,7 @@ export const session = {
     accessToken = undefined;
     refreshToken = undefined;
     await secure.del(REFRESH_KEY);
+    await rememberSwitch(undefined);
     if (rt || IS_WEB) await raw("POST", "/v1/auth/logout", rt ? { refreshToken: rt } : {}).catch(() => undefined);
   },
   onSignedOut(cb: () => void) {
@@ -86,6 +121,13 @@ async function raw(method: string, path: string, body?: unknown, token?: string)
   return json;
 }
 
+async function rememberSwitch(accountId: string | undefined) {
+  switchedTo = accountId;
+  if (IS_WEB) webStore.set(SWITCHED_KEY, accountId);
+  else if (accountId) await secure.set(SWITCHED_KEY, accountId);
+  else await secure.del(SWITCHED_KEY);
+}
+
 let refreshing: Promise<boolean> | undefined;
 async function refresh(): Promise<boolean> {
   if (!refreshToken && !IS_WEB) return false;
@@ -93,11 +135,20 @@ async function refresh(): Promise<boolean> {
     try {
       const r = (await raw("POST", "/v1/auth/refresh", refreshToken ? { refreshToken } : {})) as { accessToken: string; refreshToken?: string };
       await session.set(r);
+      // Still in a test account: switch in again with the admin's fresh session.
+      if (switchedTo) {
+        try {
+          accessToken = ((await raw("POST", "/v1/admin/switch", { accountId: switchedTo }, accessToken)) as { accessToken: string }).accessToken;
+        } catch {
+          await rememberSwitch(undefined);
+        }
+      }
       return true;
     } catch {
       accessToken = undefined;
       refreshToken = undefined;
       await secure.del(REFRESH_KEY);
+      await rememberSwitch(undefined);
       return false;
     } finally {
       refreshing = undefined;

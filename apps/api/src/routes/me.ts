@@ -59,6 +59,8 @@ export function meRoutes(app: FastifyInstance, ctx: AppContext) {
       capabilities: [...caps.all].sort(),
       ownerOperator: caps.ownerOperator,
       platformAdmin: isPlatformAdmin(ctx, account.email),
+      // A platform admin looking at the app as one of their test accounts.
+      actingAs: req.actorId ? { adminName: ctx.store.accounts.get(req.actorId)?.name ?? "Admin" } : undefined,
       workspace: buildWorkspace(caps),
       feed: buildFeed(caps, { accountId: account.id, loads, boardLoads, bids, invoices, unreadByLoad, joinRequests, arrivalAlerts, rateConsToSign, now: ctx.now().toISOString(), lang: account.language }),
       hos: caps.all.has("DRIVE") ? { ...hosFor(ctx.store, account.id, ctx.now()), teamTruck: onTeamTruck(ctx.store, account.id) } : undefined,
