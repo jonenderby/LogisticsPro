@@ -62,7 +62,7 @@ Then:
 
 **Keep these safe.** `deploy/.env` and `deploy/android-keys` hold the secrets. Without `.env` nobody can sign in and stored ELD keys can't be read. Without the signing key, phones must uninstall the app before they can install a newer build. `deploy/backup.sh` copies both; copy `deploy/backups` off the server too.
 
-**Updating.** `git pull`, then `cd deploy && docker compose up -d --build` for the server and `deploy/build-android.sh` for the phone app. Phones install the new build over the old one from the download page.
+**Updating.** `deploy/update.sh` pulls the latest code for the copy's branch, backs up the database, rebuilds, restarts and waits until the app answers. Add `--android` to rebuild the phone app too; phones install the new build over the old one from the download page.
 
 **What still leaves the server.** Map data is downloaded from Geofabrik on first start, and Caddy asks Let's Encrypt for the certificate. Nothing else goes out unless you turn it on:
 
@@ -106,9 +106,26 @@ cd deploy && docker compose up -d --build
 Then paste the lines from this clone's `deploy/nginx-logistics.conf` into the same nginx `server` block as production's, next to the `/logistics/` block, and reload nginx.
 
 - Setup gives each copy its own `COMPOSE_PROJECT_NAME`, which Docker uses to keep containers and data apart. Don't change it once a copy is running: a new name starts with an empty database. A copy set up before this setting existed is named after its folder (`deploy`); leave it that way.
-- To try a change: push it to `test`, then in the test clone `git pull && cd deploy && docker compose up -d --build`. When it is right, merge `test` into `main` and do the same in the production clone.
+- To try a change: merge it into `test`, then `~/LogisticsPro-test/deploy/update.sh`. When it is right, release it with `~/LogisticsPro/deploy/promote.sh` (below).
 - Each copy runs its own map servers. That is fine with a state extract; with the whole country, give the test copy a small extract (`MAP_PBF_URL`) so the two don't need twice the memory.
 - A phone holds one Logistics Pro app at a time. Build the test copy's app (`deploy/build-android.sh` in the test clone) for test phones only.
+
+### Updating and releasing
+
+| Script | Run it in | What it does |
+|---|---|---|
+| `deploy/update.sh` | either copy | Pulls that copy's branch, backs up its database, rebuilds, restarts and waits until it answers. `--android` also rebuilds its phone app. |
+| `deploy/update-all.sh` | either copy | Runs `update.sh` in every copy next to it, the test copy first. |
+| `deploy/promote.sh` | the production copy | Shows what `test` has that `main` doesn't, asks, opens a pull request from `test` to `main`, waits for CI, merges it and runs `update.sh` for production. If CI fails, nothing is merged. `--yes` skips the question. |
+
+`promote.sh` merges on GitHub, so it needs the GitHub CLI signed in to an account that can merge into `main`. Once per server:
+
+```bash
+sudo apt install gh      # or see https://cli.github.com for other systems
+sudo gh auth login       # choose GitHub.com, HTTPS, and sign in with a browser code
+```
+
+Run the scripts the same way you signed in: with `sudo` for both, or neither.
 
 ### Changing the address later
 
