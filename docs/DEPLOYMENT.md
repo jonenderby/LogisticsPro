@@ -42,8 +42,8 @@ Then:
 
 | File | What it does |
 |---|---|
-| `deploy/setup.sh` | Writes `deploy/.env` once with the domain, your email and new secrets. It never overwrites an existing one. |
-| `deploy/docker-compose.yml` | Runs Caddy, the API, Postgres, Valhalla and Nominatim. Only Caddy is reachable from outside. All of them restart after a reboot. |
+| `deploy/setup.sh` | Writes `deploy/.env` once with the address, your email and new secrets. It never overwrites an existing one. |
+| `deploy/docker-compose.yml` | Runs Caddy, the API, Postgres, Valhalla and Nominatim. Only Caddy, or your own web server, is reachable from outside. All of them restart after a reboot. |
 | `deploy/build-android.sh` | Builds the Android app in Docker, signs it with this server's own key and puts it on the download page. Needs only Docker. |
 | `deploy/publish-play.sh` | Sends the latest build to Google Play testers. See below. |
 | `deploy/backup.sh` | Backs up the database, the AS2 certificate, the Android signing key and `deploy/.env` into `deploy/backups`. |
@@ -62,6 +62,34 @@ Then:
 | An ELD connection | Motive, Samsara or Geotab, when a carrier connects one. |
 
 **iPhones.** Apple only lets iPhone apps be built on a Mac with Xcode, and installs need an Apple Developer account. Build an ad hoc `.ipa` there for the iPhones you register, copy it to `deploy/downloads/logistics-pro.ipa`, and the download page offers it. Until then iPhone users can use the website.
+
+### Sharing a domain with another site (nginx, Pterodactyl)
+
+When another web server already has ports 80 and 443, Logistics Pro can live under a path on that domain, such as `https://jonnysserver.com/logistics`. Caddy stays off and your web server passes the path on to the app:
+
+```bash
+deploy/setup.sh jonnysserver.com/logistics you@example.com --nginx
+cd deploy && docker compose up -d --build
+```
+
+`--nginx` leaves Caddy out, has the app listen on `127.0.0.1:8090` (Pterodactyl's Wings usually has 8080), and writes `deploy/nginx-logistics.conf`. Paste its lines into the `server` block for your domain that listens on 443. For Pterodactyl that is `/etc/nginx/sites-available/pterodactyl.conf`. Then:
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+The block starts with `location ^~ /logistics/`. The `^~` matters: without it the panel's PHP rule can catch some addresses. The app takes care of the path itself: the website's files, links, sign-in cookies, the download page and the addresses given to partners all include it.
+
+### Changing the address later
+
+`LP_PUBLIC_URL` in `deploy/.env` is the one address everything follows, with or without a path. To move to a new address, such as `https://app.yourcompany.com`:
+
+1. Point the new domain at the server and give it HTTPS: a new nginx `server` block with a `location /` like the one in `deploy/nginx-logistics.conf`, or Caddy with `LP_DOMAIN` and `COMPOSE_PROFILES=caddy`.
+2. Set `LP_PUBLIC_URL` (and `LP_DOMAIN`) to the new address.
+3. `cd deploy && docker compose up -d --build`, so the website is rebuilt for it.
+4. `deploy/build-android.sh` (and `deploy/publish-play.sh`), since the phone app has the address built in.
+
+Keep the old address passing requests to the app until everyone has the new phone app; the server answers on both. Tell EDI and AS2 partners the new address, since they send to it.
 
 ## Google Play private beta
 

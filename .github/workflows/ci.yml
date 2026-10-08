@@ -45,6 +45,16 @@ jobs:
       - run: npm run test:e2e
         env:
           CI: "true"
+      # The same site built for a path on a shared domain (https://example.com/logistics).
+      - name: Browser test under a path
+        run: |
+          (cd apps/mobile && EXPO_PUBLIC_BASE_PATH=/logistics npx expo export --platform web --output-dir ../../dist/web-base)
+          npx playwright test e2e/basepath.spec.ts
+        env:
+          CI: "true"
+          E2E_BASE_PATH: /logistics
+          E2E_WEB_DIR: ${{ github.workspace }}/dist/web-base
+          E2E_PORT: "8097"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

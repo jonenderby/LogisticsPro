@@ -19,3 +19,4 @@ deploy/backups/
 !deploy/android/
 deploy/play/
 deploy/play-service-account.json
+deploy/nginx-logistics.conf

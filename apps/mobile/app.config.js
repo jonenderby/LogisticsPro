@@ -7,11 +7,13 @@
  *   GOOGLE_MAPS_ANDROID_API_KEY  Google Maps for the Android maps
  *   EXPO_PUBLIC_API_URL          where the phone apps reach the API
  *   ANDROID_VERSION_CODE         build number for Android, higher on each build (deploy/build-android.sh sets it)
+ *   EXPO_PUBLIC_BASE_PATH        website only: the path it is served under on a shared domain, e.g. /logistics
  */
 module.exports = ({ config }) => {
   const projectId = process.env.EAS_PROJECT_ID;
   const mapsKey = process.env.GOOGLE_MAPS_ANDROID_API_KEY;
   const versionCode = Number(process.env.ANDROID_VERSION_CODE) || undefined;
+  const basePath = (process.env.EXPO_PUBLIC_BASE_PATH || "").replace(/\/+$/, "");
   const plugins = (config.plugins ?? []).map((p) => {
     const name = Array.isArray(p) ? p[0] : p;
     return name === "react-native-maps" && mapsKey ? [name, { ...(Array.isArray(p) ? p[1] : {}), androidGoogleMapsApiKey: mapsKey }] : p;
@@ -22,5 +24,6 @@ module.exports = ({ config }) => {
     plugins,
     ...(versionCode ? { android: { ...config.android, versionCode } } : {}),
     extra: { ...config.extra, ...(projectId ? { eas: { projectId } } : {}) },
+    ...(basePath ? { experiments: { ...config.experiments, baseUrl: basePath.startsWith("/") ? basePath : `/${basePath}` } } : {}),
   };
 };

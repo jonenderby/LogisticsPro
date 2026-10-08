@@ -49,14 +49,14 @@ export function downloadRoutes(app: FastifyInstance, ctx: AppContext) {
     const manifest = `${ctx.cfg.publicUrl}/download/manifest.plist`;
     const rows = [
       apk &&
-        `<a class="btn" href="/download/${APK}">${esc(t("Download for Android"))}</a><p class="note">${esc(t("Version {version}, built {date}, {size}.", { version: build.version ?? "1.0.0", date: when(apk.at), size: mb(apk.size) }))} ${esc(t("Android asks to allow installs from your browser the first time."))}</p>`,
+        `<a class="btn" href="${ctx.cfg.basePath}/download/${APK}">${esc(t("Download for Android"))}</a><p class="note">${esc(t("Version {version}, built {date}, {size}.", { version: build.version ?? "1.0.0", date: when(apk.at), size: mb(apk.size) }))} ${esc(t("Android asks to allow installs from your browser the first time."))}</p>`,
       ipa &&
         `<a class="btn" href="itms-services://?action=download-manifest&amp;url=${encodeURIComponent(manifest)}">${esc(t("Install on iPhone"))}</a><p class="note">${esc(t("Only iPhones registered for this build can install it."))}</p>`,
     ].filter(Boolean);
     const body = rows.length ? rows.join("\n") : `<p>${esc(t("No phone app has been built on this server yet."))}</p>`;
     reply.header("content-type", "text/html; charset=utf-8").header("cache-control", "no-cache");
     return htmlPage(lang, t("Get the Logistics Pro app"), `${body}
-<p class="note" style="margin-top:2rem"><a href="/">${esc(t("Or use Logistics Pro in your browser"))}</a></p>`);
+<p class="note" style="margin-top:2rem"><a href="${ctx.cfg.basePath}/">${esc(t("Or use Logistics Pro in your browser"))}</a></p>`);
   });
 
   const send = (name: string, type: string) => async (_req: unknown, reply: import("fastify").FastifyReply) => {

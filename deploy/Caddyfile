@@ -1,6 +1,7 @@
 # HTTPS in front of Logistics Pro. With a domain name pointed at this server,
 # Caddy gets and renews a certificate on its own. With "localhost" it uses a
-# certificate only this machine trusts.
+# certificate only this machine trusts. If LP_PUBLIC_URL has a path, the app
+# handles it, so everything on the domain is passed through as it is.
 {$LP_DOMAIN} {
 	encode gzip
 	reverse_proxy api:8080
