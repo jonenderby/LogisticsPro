@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { errorMessage } from "../../api/client";
 import { type ProfileType, useAuth } from "../../auth/AuthProvider";
 import { Banner, Button, Chip, Field, Segmented } from "../../ui/components";
+import { QrCode } from "../../ui/QrCode";
 import { useTheme } from "../../ui/theme";
 import { DEFAULT_LANG, type Lang, PICKABLE_LANGUAGES, translator } from "@logisticspro/workspace";
 
@@ -62,6 +63,10 @@ export function AuthFlow() {
   if (phase.name === "enroll") {
     return (
       <Shell title={t("Protect your account")} subtitle={t("Two-factor authentication is required. Add Logistics Pro to an authenticator app, then enter the 6-digit code it shows.")}>
+        <View style={{ marginVertical: 12, gap: 8 }}>
+          <QrCode value={phase.otpauthUrl} label={t("QR code for your authenticator app")} />
+          <Text style={{ color: colors.textSecondary, textAlign: "center" }}>{t("Scan this with your authenticator app.")}</Text>
+        </View>
         <Button title={t("Open authenticator app")} variant="tonal" onPress={() => Linking.openURL(phase.otpauthUrl)} accessibilityHint={t("Adds this account to an installed authenticator app")} />
         <View style={{ marginVertical: 12 }}>
           <Text style={{ color: colors.textSecondary }}>{t("Or enter this setup key manually:")}</Text>

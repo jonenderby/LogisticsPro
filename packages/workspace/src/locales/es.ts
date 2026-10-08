@@ -1331,4 +1331,6 @@ export const es: Dictionary = {
   "Viewing as {who}": "Viendo como {who}",
   "Couldn't switch back": "No se pudo regresar",
   "Back to my account": "Volver a mi cuenta",
+  "QR code for your authenticator app": "Código QR para tu app de autenticación",
+  "Scan this with your authenticator app.": "Escanéalo con tu app de autenticación.",
 };

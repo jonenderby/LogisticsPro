@@ -39,6 +39,8 @@ test("a new account is in English unless Spanish is picked during setup", async 
   await page.getByRole("button", { name: "Crear cuenta" }).filter({ visible: true }).click();
 
   await expect(visible(page, "Protege tu cuenta", true)).toBeVisible();
+  // A QR code to scan, so nobody has to type the key.
+  await expect(page.getByRole("img", { name: "Código QR para tu app de autenticación" }).filter({ visible: true })).toBeVisible();
   const key = (await page.getByText(/^[A-Z2-7]{4}( [A-Z2-7]{1,4})+$/).filter({ visible: true }).innerText()).replace(/\s/g, "");
   await page.getByLabel("Código de 6 dígitos").fill(await freshCode(key));
   await page.getByRole("button", { name: "Activar verificación en dos pasos" }).filter({ visible: true }).click();
