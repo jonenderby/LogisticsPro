@@ -6,7 +6,15 @@ import { Platform } from "react-native";
  * own origin.
  */
 const fromEnv = process.env.EXPO_PUBLIC_API_URL;
-const webOrigin = Platform.OS === "web" && typeof window !== "undefined" ? window.location.origin : undefined;
+
+/**
+ * The path the website is served under when it shares a domain, e.g.
+ * "/logistics" for https://example.com/logistics. Set EXPO_PUBLIC_BASE_PATH
+ * when building the website; "" at the root.
+ */
+export const BASE_PATH = (process.env.EXPO_PUBLIC_BASE_PATH ?? "").replace(/\/+$/, "").replace(/^(?=[^/])/, "/");
+
+const webOrigin = Platform.OS === "web" && typeof window !== "undefined" ? `${window.location.origin}${BASE_PATH}` : undefined;
 
 export const API_URL = (fromEnv ?? webOrigin ?? "http://localhost:8080").replace(/\/$/, "");
 export const IS_WEB = Platform.OS === "web";

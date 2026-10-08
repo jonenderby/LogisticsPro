@@ -5,7 +5,7 @@ import fastifyStatic from "@fastify/static";
 import { As2Transport, type As2Identity, IntegrationEngine, HttpTransport, OutboxTransport, envSecrets, type SecretResolver, type Transport } from "@logisticspro/integration";
 import { type Geocoder, HereTrafficProvider, NominatimGeocoder, PeliasGeocoder, type RoutingProvider, StaticProvider, TomTomTrafficProvider, type TrafficProvider, ValhallaProvider } from "@logisticspro/navigation";
 import Fastify, { type FastifyInstance } from "fastify";
-import { type Config, loadConfig } from "./config.js";
+import { type Config, basePathOf, loadConfig } from "./config.js";
 import { type AppContext, toHttpError } from "./http.js";
 import { as2Routes } from "./routes/as2.js";
 import { authRoutes } from "./routes/auth.js";
@@ -73,7 +73,9 @@ export interface AppOptions {
 }
 
 export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyInstance; ctx: AppContext }> {
-  const cfg = { ...loadConfig(), ...opts.config };
+  const merged = { ...loadConfig(), ...opts.config };
+  // The base path follows the public address unless it was set on its own.
+  const cfg: Config = { ...merged, basePath: opts.config?.basePath ?? basePathOf(merged.publicUrl) };
   const now = opts.now ?? (() => new Date());
   const store = opts.store ?? new MemoryStore();
   // With a database, load everything and keep it written through before serving.
@@ -126,7 +128,19 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
     rateConOnSave(ctx, prior, next);
   };
 
-  const app = Fastify({ logger: opts.logger ?? false, bodyLimit: 5 * 1024 * 1024 });
+  const app = Fastify({
+    logger: opts.logger ?? false,
+    bodyLimit: 5 * 1024 * 1024,
+    // Under a shared domain (https://example.com/logistics) the proxy may pass
+    // the path on as it is or strip it; either way routes see /v1/..., /as2, etc.
+    rewriteUrl: (req) => {
+      const url = req.url ?? "/";
+      const base = cfg.basePath;
+      if (!base || (url !== base && !url.startsWith(`${base}/`) && !url.startsWith(`${base}?`))) return url;
+      const rest = url.slice(base.length);
+      return rest.startsWith("/") ? rest : `/${rest}`;
+    },
+  });
   // Credentialed CORS (the web session cookie) only for configured origins.
   await app.register(cors, cfg.webOrigins.length ? { origin: cfg.webOrigins, credentials: true } : { origin: true });
   for (const type of ["application/edi-x12", "application/edifact", "text/plain", "application/xml", "text/xml"]) {

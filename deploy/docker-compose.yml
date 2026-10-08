@@ -4,15 +4,24 @@
 #   deploy/setup.sh lp.example.com you@example.com   # once: writes deploy/.env
 #   cd deploy && docker compose up -d --build
 #
+# LP_PUBLIC_URL in deploy/.env is the one address everything follows. It can
+# include a path (https://example.com/logistics) when the domain is shared.
+# Change it and run `docker compose up -d --build` to move the site.
+#
+# Caddy runs when deploy/.env has COMPOSE_PROFILES=caddy. Leave it out when
+# another web server (nginx, Pterodactyl's panel) already has ports 80 and 443
+# and passes requests to LP_HOST_PORT instead; see docs/DEPLOYMENT.md.
+#
 # First start downloads map data and builds indexes. With the Delaware extract
 # below that takes minutes; for the whole United States see docs/NAVIGATION.md
 # (hours, and a machine with 32-64 GB RAM and several hundred GB of disk).
 #
-# Only Caddy is reachable from outside, on ports 80 and 443. The API and the
-# routing server listen on this machine only.
+# Only Caddy (or your own web server) is reachable from outside. The API and
+# the routing server listen on this machine only.
 services:
   caddy:
     image: caddy:2
+    profiles: ["caddy"]
     restart: unless-stopped
     ports: ["80:80", "443:443", "443:443/udp"]
     environment:
@@ -23,9 +32,13 @@ services:
     depends_on: [api]
 
   api:
-    build: ..
+    build:
+      context: ..
+      args:
+        LP_PUBLIC_URL: ${LP_PUBLIC_URL:-}
     restart: unless-stopped
-    ports: ["127.0.0.1:8080:8080"]
+    # Only this machine can reach it; Caddy or your own web server passes requests on.
+    ports: ["127.0.0.1:${LP_HOST_PORT:-8080}:8080"]
     environment:
       LP_JWT_SECRET: ${LP_JWT_SECRET:?set LP_JWT_SECRET (run deploy/setup.sh)}
       LP_DATA_KEY: ${LP_DATA_KEY:-}

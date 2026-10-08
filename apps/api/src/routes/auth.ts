@@ -49,7 +49,7 @@ export function authRoutes(app: FastifyInstance, ctx: AppContext) {
   const acceptCode = (accountId: string, secret: string, code: string): boolean => acceptTotpCode(ctx, accountId, secret, code);
 
   const setCookie = (reply: FastifyReply, value: string, maxAge: number) =>
-    reply.header("set-cookie", `${COOKIE}=${encodeURIComponent(value)}; HttpOnly; SameSite=Strict; Path=/v1/auth; Max-Age=${maxAge}${ctx.cfg.cookieSecure ? "; Secure" : ""}`);
+    reply.header("set-cookie", `${COOKIE}=${encodeURIComponent(value)}; HttpOnly; SameSite=Strict; Path=${ctx.cfg.basePath}/v1/auth; Max-Age=${maxAge}${ctx.cfg.cookieSecure ? "; Secure" : ""}`);
 
   const issueSession = async (account: Account, req: FastifyRequest, reply: FastifyReply) => {
     const refresh = newOpaqueToken();

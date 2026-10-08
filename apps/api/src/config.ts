@@ -25,6 +25,11 @@ export interface Config {
   cookieSecure: boolean;
   /** Public base URL of this server, used to tell partners where to send AS2 (e.g. https://api.example.com). */
   publicUrl: string;
+  /**
+   * The path the server sits under when it shares a domain, from LP_PUBLIC_URL
+   * (https://example.com/logistics gives "/logistics"); "" at the root.
+   */
+  basePath: string;
   /** The platform's single AS2 station identity. */
   as2Id: string;
   /** PEM key/certificate for the AS2 station. Without them a certificate is generated and saved in as2Dir. */
@@ -65,8 +70,18 @@ export interface Config {
   dataKey?: Uint8Array;
 }
 
+/** "/logistics" from "https://example.com/logistics/", "" for a URL at the root. */
+export const basePathOf = (url: string) => {
+  try {
+    return new URL(url).pathname.replace(/\/+$/, "");
+  } catch {
+    return "";
+  }
+};
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const secret = env.LP_JWT_SECRET;
+  const publicUrl = (env.LP_PUBLIC_URL ?? `http://localhost:${env.PORT ?? 8080}`).replace(/\/+$/, "");
   if (!secret && env.NODE_ENV === "production") throw new Error("LP_JWT_SECRET is required in production");
   return {
     port: Number(env.PORT ?? 8080),
@@ -83,7 +98,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     webDir: env.LP_WEB_DIR,
     webOrigins: (env.LP_WEB_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean),
     cookieSecure: env.LP_COOKIE_SECURE ? env.LP_COOKIE_SECURE === "true" : env.NODE_ENV === "production",
-    publicUrl: (env.LP_PUBLIC_URL ?? `http://localhost:${env.PORT ?? 8080}`).replace(/\/$/, ""),
+    publicUrl,
+    basePath: basePathOf(publicUrl),
     as2Id: env.LP_AS2_ID ?? "LOGISTICSPRO",
     as2KeyPem: env.LP_AS2_KEY_PEM,
     as2CertPem: env.LP_AS2_CERT_PEM,

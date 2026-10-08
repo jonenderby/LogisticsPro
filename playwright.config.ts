@@ -1,6 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = Number(process.env.E2E_PORT ?? 8099);
+/** For e2e/basepath.spec.ts: the path the site was built for, and that build's folder. */
+const BASE_PATH = process.env.E2E_BASE_PATH ?? "";
+const WEB_DIR = process.env.E2E_WEB_DIR ?? `${process.cwd()}/dist/web`;
 
 /**
  * Browser tests against the real API serving the website build. Build the
@@ -30,6 +33,6 @@ export default defineConfig({
     url: `http://localhost:${PORT}/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
-    env: { PORT: String(PORT), LP_WEB_DIR: `${process.cwd()}/dist/web`, LP_PUSH: "off", LP_ALERT_INTERVAL_SECONDS: "5" },
+    env: { PORT: String(PORT), LP_WEB_DIR: WEB_DIR, LP_PUBLIC_URL: `http://localhost:${PORT}${BASE_PATH}`, LP_PUSH: "off", LP_ALERT_INTERVAL_SECONDS: "5" },
   },
 });
