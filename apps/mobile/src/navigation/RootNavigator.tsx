@@ -25,6 +25,7 @@ import { useLocationSharing } from "../state/useLocationSharing";
 import { type OpenTarget, useBrowserAlerts, usePushNotifications, useReportTimeZone } from "../state/notifications";
 import { AlertsScreen } from "../screens/AlertsScreen";
 import { DrivingLock } from "../ui/DrivingLock";
+import { SwitchedFrame } from "../ui/SwitchedBanner";
 import { HoursScreen } from "../screens/HoursScreen";
 import { FuelTaxScreen } from "../screens/FuelTaxScreen";
 import { RateConfirmationScreen } from "../screens/RateConfirmationScreen";
@@ -32,6 +33,7 @@ import { CarrierCheckScreen } from "../screens/CarrierCheckScreen";
 import { SignatureScreen } from "../screens/SignatureScreen";
 import { InsightsScreen } from "../screens/InsightsScreen";
 import { SetupScreen } from "../screens/SetupScreen";
+import { AdminScreen } from "../screens/AdminScreen";
 import { HistoryScreen } from "../screens/HistoryScreen";
 import { AchPaymentsScreen } from "../screens/AchPaymentsScreen";
 import { MyPayScreen, SettlementDetailScreen, SettlementsScreen } from "../screens/SettlementScreens";
@@ -83,6 +85,7 @@ const SHARED: Array<{ name: keyof StackParams; component: ComponentType; title: 
   { name: "Signature", component: SignatureScreen, title: tx("Delivery signature") },
   { name: "Insights", component: InsightsScreen, title: tx("Insights") },
   { name: "Setup", component: SetupScreen, title: tx("Setup status") },
+  { name: "Admin", component: AdminScreen, title: tx("Admin") },
   { name: "History", component: HistoryScreen, title: tx("Older loads") },
   { name: "AchPayments", component: AchPaymentsScreen, title: tx("Pay by ACH") },
   { name: "Settlements", component: SettlementsScreen, title: tx("Driver pay") },
@@ -212,13 +215,16 @@ function AppNavigation() {
 }
 
 export function RootNavigator() {
-  const { phase } = useAuth();
+  const { phase, epoch } = useAuth();
   const { colors } = useTheme();
   if (phase.name === "loading") return <View style={{ flex: 1, backgroundColor: colors.background }} />;
   if (phase.name !== "signedIn") return <AuthFlow />;
   return (
-    <MeProvider>
-      <AppNavigation />
+    // A new epoch (an admin switched account) starts the signed-in app over as that account.
+    <MeProvider key={epoch}>
+      <SwitchedFrame>
+        <AppNavigation />
+      </SwitchedFrame>
     </MeProvider>
   );
 }

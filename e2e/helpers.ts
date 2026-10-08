@@ -34,8 +34,11 @@ export async function call<T = any>(method: string, path: string, body?: unknown
   return json as T;
 }
 
-export async function user(name: string, profileType: "TRUCKER" | "CARRIER" | "BROKER_3PL" | "BUSINESS"): Promise<User> {
-  const email = `${name.toLowerCase().replace(/\W+/g, ".")}.${run}.${++n}@example.com`;
+/** The platform admin's email (LP_ADMIN_EMAILS in playwright.config.ts). */
+export const ADMIN_EMAIL = "e2e-admin@example.com";
+
+export async function user(name: string, profileType: "TRUCKER" | "CARRIER" | "BROKER_3PL" | "BUSINESS", fixedEmail?: string): Promise<User> {
+  const email = fixedEmail ?? `${name.toLowerCase().replace(/\W+/g, ".")}.${run}.${++n}@example.com`;
   const r = await call("POST", "/v1/auth/register", { email, password: PASSWORD, name, profileType });
   const a = await call("POST", "/v1/auth/mfa/activate", { token: r.enrollToken, code: await freshCode(r.totpSecret) });
   return { email, secret: r.totpSecret, token: a.accessToken, id: a.account.id, name };

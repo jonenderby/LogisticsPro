@@ -3,6 +3,7 @@
 #
 #   deploy/setup.sh lp.example.com you@example.com
 #   deploy/setup.sh jonnysserver.com/logistics you@example.com --nginx
+#   deploy/setup.sh jonnysserver.com/logistics-test you@example.com --nginx --port 8091
 #
 # The address is where people will open Logistics Pro. It can have a path
 # when the domain is shared with another site. Its domain must point at this
@@ -11,16 +12,27 @@
 # --nginx   another web server (nginx, Pterodactyl's panel) already has ports
 #           80 and 443. Caddy stays off, the app listens on 127.0.0.1:8090,
 #           and this writes deploy/nginx-logistics.conf to add to that server.
+# --port N  listen on 127.0.0.1:N instead, e.g. for a test copy next to
+#           production (each copy is its own clone, with its own database).
 #
 # To change the address later, edit LP_PUBLIC_URL in deploy/.env, then run
 # `docker compose up -d --build` and deploy/build-android.sh.
 set -euo pipefail
 cd "$(dirname "$0")"
-usage="usage: deploy/setup.sh <address> <your email> [--nginx]"
+usage="usage: deploy/setup.sh <address> <your email> [--nginx] [--port N]"
 ADDRESS=${1:?$usage}
 EMAIL=${2:?$usage}
+shift 2
 NGINX=false
-[ "${3:-}" = "--nginx" ] && NGINX=true
+PORT=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --nginx) NGINX=true ;;
+    --port) PORT=${2:?$usage}; shift ;;
+    *) echo "$usage" >&2; exit 2 ;;
+  esac
+  shift
+done
 
 # "jonnysserver.com/logistics/" -> https://jonnysserver.com/logistics
 ADDRESS=${ADDRESS#http://}
@@ -29,7 +41,11 @@ ADDRESS=${ADDRESS%/}
 DOMAIN=${ADDRESS%%/*}
 BASE_PATH=${ADDRESS#"$DOMAIN"}
 PUBLIC_URL="https://$ADDRESS"
-if $NGINX; then PORT=8090; PROFILES=""; else PORT=8080; PROFILES=caddy; fi
+if $NGINX; then PROFILES=""; else PROFILES=caddy; fi
+PORT=${PORT:-$($NGINX && echo 8090 || echo 8080)}
+# Docker names this copy's containers and data after it, so copies never mix.
+SLUG=$(printf '%s' "${BASE_PATH:-$DOMAIN}" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9' '-' | sed 's/^-*//; s/-*$//')
+PROJECT="lp-${SLUG:-site}"
 
 if [ -f .env ]; then
   echo "deploy/.env already exists, so nothing was changed. Its secrets keep everyone signed in and unlock the database."
@@ -49,6 +65,9 @@ LP_DOMAIN=$DOMAIN
 COMPOSE_PROFILES=$PROFILES
 # The port the app listens on, on this machine only.
 LP_HOST_PORT=$PORT
+# Docker's name for this copy's containers and data. Never change it once
+# running: a new name starts with an empty database.
+COMPOSE_PROJECT_NAME=$PROJECT
 
 LP_ADMIN_EMAILS=$EMAIL
 # Your company's legal name, shown on the privacy policy at /privacy.
@@ -68,9 +87,9 @@ if $NGINX; then
   if [ -n "$BASE_PATH" ]; then
     cat > nginx-logistics.conf <<CONF
 # Logistics Pro at $PUBLIC_URL
-# Paste these lines inside the existing "server { ... }" block for $DOMAIN
-# that listens on 443 (for Pterodactyl: /etc/nginx/sites-available/pterodactyl.conf),
-# then run: sudo nginx -t && sudo systemctl reload nginx
+# Paste these lines inside the "server { ... }" block for $DOMAIN, for example
+# /etc/nginx/sites-available/logistics.conf (see docs/DEPLOYMENT.md if $DOMAIN
+# has no server block yet), then run: sudo nginx -t && sudo systemctl reload nginx
 location = $BASE_PATH { return 301 $BASE_PATH/; }
 # ^~ keeps the panel's own rules (such as its PHP handler) away from these addresses.
 location ^~ $BASE_PATH/ {

@@ -22,6 +22,18 @@ Routing and address search are checked live each time the page opens. The page n
 
 `.env.example` describes every setting.
 
+## Admin and test accounts
+
+The people in `LP_ADMIN_EMAILS` (in `deploy/.env`, comma-separated) see **More > Admin**. Nobody else sees it, and the server refuses its requests from anyone else.
+
+- **Test accounts.** Make a trucker, carrier, 3PL or business, with its company, and a trucker who drives for one of your test carriers. Tap one to use the app as that account. A bar across the top says whose app you are looking at and takes you back to your own. Nobody can sign in to a test account with a password; they exist only to be switched into.
+- **Real people.** Add someone with their email. You get a one-time password to give them; on first sign-in they set up two-factor themselves.
+- **Everyone and every company** on the server, with their companies and roles.
+
+Switching works only for test accounts, never for a real person's account, and only while you are still in `LP_ADMIN_EMAILS`. The server logs each switch.
+
+After changing `LP_ADMIN_EMAILS`, restart the app with `cd deploy && docker compose up -d`, then sign out and back in.
+
 ## Your own server
 
 Everything runs on one server you control: the API and website, the database, documents, truck routing, address search, HTTPS and the phone app download. You need Docker, a domain name pointed at the server, and ports 80 and 443 open.
@@ -79,6 +91,24 @@ sudo nginx -t && sudo systemctl reload nginx
 ```
 
 The block starts with `location ^~ /logistics/`. The `^~` matters: without it the panel's PHP rule can catch some addresses. The app takes care of the path itself: the website's files, links, sign-in cookies, the download page and the addresses given to partners all include it.
+
+### Production and test on one server
+
+A test site can run next to production, for example `https://jonnysserver.com/logistics` from the `main` branch and `https://jonnysserver.com/logistics-test` from a `test` branch. Each is its own clone with its own `deploy/.env`, port and database, so test data never mixes with real data.
+
+```bash
+git clone https://github.com/jonenderby/LogisticsPro LogisticsPro-test && cd LogisticsPro-test
+git checkout test
+deploy/setup.sh jonnysserver.com/logistics-test you@example.com --nginx --port 8091
+cd deploy && docker compose up -d --build
+```
+
+Then paste the lines from this clone's `deploy/nginx-logistics.conf` into the same nginx `server` block as production's, next to the `/logistics/` block, and reload nginx.
+
+- Setup gives each copy its own `COMPOSE_PROJECT_NAME`, which Docker uses to keep containers and data apart. Don't change it once a copy is running: a new name starts with an empty database. A copy set up before this setting existed is named after its folder (`deploy`); leave it that way.
+- To try a change: push it to `test`, then in the test clone `git pull && cd deploy && docker compose up -d --build`. When it is right, merge `test` into `main` and do the same in the production clone.
+- Each copy runs its own map servers. That is fine with a state extract; with the whole country, give the test copy a small extract (`MAP_PBF_URL`) so the two don't need twice the memory.
+- A phone holds one Logistics Pro app at a time. Build the test copy's app (`deploy/build-android.sh` in the test clone) for test phones only.
 
 ### Changing the address later
 

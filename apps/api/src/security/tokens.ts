@@ -7,6 +7,8 @@ export type TokenPurpose = "access" | "mfa" | "enroll";
 export interface TokenClaims {
   sub: string;
   purpose: TokenPurpose;
+  /** A platform admin using this (test) account: the admin's account id. */
+  actor?: string;
 }
 
 const TTL: Record<Exclude<TokenPurpose, "access">, string> = { mfa: "5m", enroll: "30m" };
@@ -14,8 +16,8 @@ const TTL: Record<Exclude<TokenPurpose, "access">, string> = { mfa: "5m", enroll
 export class Tokens {
   constructor(private readonly cfg: Config) {}
 
-  sign(accountId: string, purpose: TokenPurpose): Promise<string> {
-    return new SignJWT({ purpose })
+  sign(accountId: string, purpose: TokenPurpose, opts: { actor?: string } = {}): Promise<string> {
+    return new SignJWT({ purpose, ...(opts.actor ? { act: { sub: opts.actor } } : {}) })
       .setProtectedHeader({ alg: "HS256" })
       .setSubject(accountId)
       .setIssuer(this.cfg.issuer)
@@ -28,7 +30,8 @@ export class Tokens {
   async verify(token: string, purpose: TokenPurpose): Promise<TokenClaims> {
     const { payload } = await jwtVerify(token, this.cfg.jwtSecret, { issuer: this.cfg.issuer, audience: `lp:${purpose}`, algorithms: ["HS256"] });
     if (payload.purpose !== purpose || typeof payload.sub !== "string") throw new Error("wrong token purpose");
-    return { sub: payload.sub, purpose };
+    const act = (payload.act as { sub?: unknown } | undefined)?.sub;
+    return { sub: payload.sub, purpose, ...(typeof act === "string" ? { actor: act } : {}) };
   }
 }
 

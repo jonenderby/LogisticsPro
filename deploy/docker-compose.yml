@@ -16,8 +16,11 @@
 # below that takes minutes; for the whole United States see docs/NAVIGATION.md
 # (hours, and a machine with 32-64 GB RAM and several hundred GB of disk).
 #
-# Only Caddy (or your own web server) is reachable from outside. The API and
-# the routing server listen on this machine only.
+# Only Caddy (or your own web server) is reachable from outside. The API
+# listens on this machine only, and the map servers only inside Docker.
+#
+# A second copy (a test site next to production) is a second clone with its
+# own deploy/.env: a different address, LP_HOST_PORT and COMPOSE_PROJECT_NAME.
 services:
   caddy:
     image: caddy:2
@@ -85,7 +88,8 @@ services:
   valhalla:
     image: ghcr.io/valhalla/valhalla-scripted:latest
     restart: unless-stopped
-    ports: ["127.0.0.1:8002:8002"]
+    # No port on the machine: the app reaches it inside Docker, so several
+    # copies of Logistics Pro (production and test) can run side by side.
     environment:
       # One or more space-separated PBF extracts. For the US use
       # https://download.geofabrik.de/north-america/us-latest.osm.pbf

@@ -57,6 +57,7 @@ export function MoreScreen() {
       ) : null}
       {me.platformAdmin ? (
         <Section>
+          <Row title={t("Admin")} subtitle={t("Accounts, companies and test accounts")} onPress={() => nav.navigate("Admin")} />
           <Row title={t("Setup status")} subtitle={t("What this deployment is connected to")} onPress={() => nav.navigate("Setup")} />
         </Section>
       ) : null}

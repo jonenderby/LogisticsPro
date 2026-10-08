@@ -25,6 +25,7 @@ const SHARED_PATHS: Record<string, string> = {
   Signature: "load/:loadId/sign",
   Insights: "insights",
   Setup: "setup",
+  Admin: "admin",
   History: "older-loads",
   AchPayments: "pay-by-ach/:orgId",
   Settlements: "driver-pay/:orgId",
